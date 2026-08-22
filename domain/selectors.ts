@@ -50,6 +50,13 @@ export function selectPFT(events: ClinicalEvent[]): PulmonaryFunctionEvent[] {
   return sortByDate(events.filter(isPulmonaryFunction));
 }
 
+/** Igual que selectPFT, pero acotado a pruebas con FEV1Percent presente (helper de tipado reutilizado por Sentinel y Turning Points). */
+export function selectPFTWithFEV1(events: ClinicalEvent[]): (PulmonaryFunctionEvent & { FEV1Percent: number })[] {
+  return selectPFT(events).filter(
+    (p): p is PulmonaryFunctionEvent & { FEV1Percent: number } => p.FEV1Percent != null,
+  );
+}
+
 export function selectMicrobiology(events: ClinicalEvent[]): MicrobiologyEvent[] {
   return sortByDate(events.filter(isMicrobiology));
 }
