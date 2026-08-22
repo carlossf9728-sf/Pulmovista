@@ -1,0 +1,79 @@
+import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Card, ConfidencePill, DataConfidenceBadge, KindTag, StatusPill, Val, WhyButton, WhyModal } from "@/components/ui";
+import type { ClinicalExplanation } from "@/types/evidence";
+
+describe("Val", () => {
+  it("muestra 'No disponible' en cursiva para valores ausentes", () => {
+    render(<Val value={null} />);
+    expect(screen.getByText("No disponible")).toBeInTheDocument();
+  });
+  it("muestra el valor con sufijo cuando está presente", () => {
+    render(<Val value={78} suffix="%" />);
+    expect(screen.getByText("78%")).toBeInTheDocument();
+  });
+});
+
+describe("StatusPill", () => {
+  it("muestra la etiqueta correspondiente a cada estado", () => {
+    render(<StatusPill status="deterioro" />);
+    expect(screen.getByText("Deterioro reciente")).toBeInTheDocument();
+  });
+});
+
+describe("ConfidencePill / KindTag / DataConfidenceBadge", () => {
+  it("ConfidencePill muestra el nivel de confianza", () => {
+    render(<ConfidencePill level="Alta" />);
+    expect(screen.getByText("Confianza Alta")).toBeInTheDocument();
+  });
+  it("KindTag muestra la etiqueta de tipo", () => {
+    render(<KindTag kind="heurística experimental" />);
+    expect(screen.getByText("heurística experimental")).toBeInTheDocument();
+  });
+  it("DataConfidenceBadge usa el nivel de confianza del dato como title", () => {
+    render(<DataConfidenceBadge level="posible" reason="motivo de ejemplo" />);
+    expect(screen.getByTitle("motivo de ejemplo")).toBeInTheDocument();
+  });
+});
+
+describe("Card", () => {
+  it("renderiza sus children", () => {
+    render(<Card>contenido</Card>);
+    expect(screen.getByText("contenido")).toBeInTheDocument();
+  });
+});
+
+describe("WhyButton", () => {
+  it("invoca onClick al pulsarse", async () => {
+    const onClick = vi.fn();
+    render(<WhyButton onClick={onClick} />);
+    await userEvent.click(screen.getByRole("button", { name: /por qué/i }));
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+});
+
+describe("WhyModal", () => {
+  it("no renderiza nada si data es null", () => {
+    const { container } = render(<WhyModal data={null} onClose={() => {}} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renderiza secciones y evidencias estructuradas de un ClinicalExplanation", () => {
+    const explanation: ClinicalExplanation = {
+      kindLabel: "heurística experimental",
+      source: { kind: "legacy_heuristic", ruleId: "test-rule", label: "Regla de prueba" },
+      sections: [
+        { label: "Dato", text: "FEV1 80% -> 70%", emphasis: true },
+        { label: "Interpretación", text: "Tendencia descendente." },
+      ],
+      evidence: [{ label: "01/01/2024 — FEV1 80%" }, { label: "01/06/2024 — FEV1 70%" }],
+    };
+    render(<WhyModal data={explanation} onClose={() => {}} />);
+    expect(screen.getByText("¿Por qué?")).toBeInTheDocument();
+    expect(screen.getByText("heurística experimental")).toBeInTheDocument();
+    expect(screen.getByText("FEV1 80% -> 70%")).toBeInTheDocument();
+    expect(screen.getByText("Tendencia descendente.")).toBeInTheDocument();
+    expect(screen.getByText("01/01/2024 — FEV1 80%")).toBeInTheDocument();
+  });
+});
