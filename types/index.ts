@@ -7,3 +7,4 @@ export * from "./turningPoints";
 export * from "./missingInfo";
 export * from "./privacy";
 export * from "./guideline";
+export * from "./timeline";
