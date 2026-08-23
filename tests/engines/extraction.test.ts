@@ -45,15 +45,16 @@ describe("runExtractionEngine", () => {
     }
   });
 
-  it("BUG heredado del prototipo (no corregido): trunca dosis de 2+ dígitos a su último dígito", () => {
-    // El regex de dosis `${drug}[^.]{0,6}(\d+\s?mg)` hace backtracking voraz
-    // y se come todos los dígitos de la dosis salvo el último antes de que
-    // el grupo capturador entre en juego. Este test fija el comportamiento
-    // ACTUAL (incorrecto) como regresión intencionada — ver comentario en
-    // engines/extraction/index.ts. No se corrige en esta fase.
+  it("extrae correctamente dosis de 2+ dígitos (bug técnico corregido, no clínico)", () => {
+    // Antes: el regex de dosis `${drug}[^.]{0,6}(\d+\s?mg)` hacía backtracking
+    // voraz y se comía todos los dígitos de la dosis salvo el último antes de
+    // que el grupo capturador entrara en juego, produciendo dose="0 mg" en vez
+    // de "250 mg". Se corrigió con un cuantificador perezoso (`[^.]{0,6}?`) —
+    // ver comentario en engines/extraction/index.ts. Este test fija el
+    // comportamiento correcto como regresión.
     const events = runExtractionEngine("Se inicia azitromicina 250 mg lunes, miércoles y viernes.", "2024-01-01");
     const treatment = events.find((e) => e.type === "treatment_started");
-    expect(treatment).toMatchObject({ drug: "azitromicina", dose: "0 mg" });
+    expect(treatment).toMatchObject({ drug: "azitromicina", dose: "250 mg" });
   });
 
   it("clasifica oxígeno/VMNI como soporte respiratorio, no tratamiento farmacológico", () => {

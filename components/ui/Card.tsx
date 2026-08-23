@@ -8,15 +8,17 @@ export function Card({
   style,
   accent,
   hover = true,
+  className,
 }: {
   children: ReactNode;
   style?: CSSProperties;
   accent?: string;
   hover?: boolean;
+  className?: string;
 }) {
   return (
     <div
-      className={hover ? "pv-card-hover" : ""}
+      className={[hover ? "pv-card-hover" : "", className].filter(Boolean).join(" ")}
       style={{
         background: COLORS.white,
         border: `1px solid ${COLORS.line}`,

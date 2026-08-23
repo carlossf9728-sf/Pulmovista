@@ -11,16 +11,16 @@
  * consulta; no se interpretan fechas relativas ("en febrero", "en enero
  * de 2025") mencionadas dentro del propio texto.
  *
- * Bug detectado durante la migración (heredado del prototipo original,
- * NO corregido aquí — ver instrucción de no inventar correcciones
- * clínicas por cuenta propia): el regex de dosis
- * `${drug}[^.]{0,6}(\d+\s?mg)` trunca dosis de dos o más dígitos a su
- * último dígito. El backtracking voraz de `[^.]{0,6}` consume todos los
- * dígitos de la dosis salvo el último antes de que el grupo `(\d+...)`
- * intente capturar, así que "azitromicina 250 mg" produce dose="0 mg" en
- * vez de "250 mg" (con dosis de 1 dígito, p. ej. "5 mg", sí funciona).
- * Ver tests/engines/extraction.test.ts, que fija este comportamiento
- * actual como regresión. Pendiente de revisión en la fase de guías.
+ * Bug técnico corregido tras la migración (no clínico — ver
+ * tests/engines/extraction.test.ts): el regex de dosis
+ * `${drug}[^.]{0,6}(\d+\s?mg)` truncaba dosis de dos o más dígitos a su
+ * último dígito ("azitromicina 250 mg" → dose="0 mg"). El backtracking
+ * voraz de `[^.]{0,6}` consumía todos los dígitos de la dosis salvo el
+ * último antes de que el grupo `(\d+...)` intentara capturar. Se
+ * corrige haciendo perezoso el cuantificador (`[^.]{0,6}?`): así el
+ * motor prueba primero el consumo mínimo de comodín, y `\d+` queda
+ * alineado con el inicio real de la cifra. No cambia ninguna regla de
+ * interpretación clínica, solo la extracción sintáctica del texto.
  */
 import { mkEvent, CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import { ORGANISM_PATTERNS, RESPIRATORY_SUPPORT_KEYWORDS, TREATMENT_KEYWORDS } from "./keywords";
@@ -124,7 +124,7 @@ export function runExtractionEngine(text: string, date: string): ClinicalEvent[]
     if (new RegExp(t, "i").test(text)) {
       const started = new RegExp(`(inicia|se inicia|añade|comienza)[^.]{0,30}${t}`, "i").test(text);
       const stopped = new RegExp(`(retira|suspende|finaliza)[^.]{0,30}${t}`, "i").test(text);
-      const doseMatch = text.match(new RegExp(`${t}[^.]{0,6}(\\d+\\s?mg)`, "i"));
+      const doseMatch = text.match(new RegExp(`${t}[^.]{0,6}?(\\d+\\s?mg)`, "i"));
       const scheduleMatch = text.match(
         new RegExp(`${t}[^.]{0,40}(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)[^.]{0,30}`, "i"),
       );

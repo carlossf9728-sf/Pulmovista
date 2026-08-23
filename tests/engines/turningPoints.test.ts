@@ -3,7 +3,7 @@ import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { detectObjectiveTurningPoints } from "@/engines/turningPoints/objectiveDetectors";
 import { interpretTurningPointLegacy } from "@/engines/turningPoints/legacyInterpretations";
-import type { ExacerbationEvent, MicrobiologyEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
+import type { ExacerbationEvent, MicrobiologyEvent, PulmonaryFunctionEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 function basePatient(events: Patient["events"]): Patient {
@@ -51,6 +51,24 @@ describe("detectObjectiveTurningPoints — first-persistent-organism", () => {
     const points = detectObjectiveTurningPoints(patient);
     const point = points.find((p) => p.criterion === "first-persistent-organism");
     expect(point?.subject).toBe("Pseudomonas aeruginosa");
+  });
+});
+
+describe("detectObjectiveTurningPoints — restrictive-decline (bug técnico corregido, no clínico)", () => {
+  it("detecta la caída de FVC aunque las pruebas no tengan FEV1Percent registrado", () => {
+    // Antes de la corrección, este detector reutilizaba por error la lista de
+    // PFT filtrada por FEV1Percent presente, así que una prueba con FVC
+    // documentado pero sin FEV1 quedaba excluida y el turning point no se
+    // detectaba. Ahora usa selectPFTWithFVC, propio de este detector.
+    const patient = basePatient([
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2023-01-01", { FVCPercent: 70 }),
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2023-10-01", { FVCPercent: 60 }),
+    ]);
+    const points = detectObjectiveTurningPoints(patient);
+    const point = points.find((p) => p.criterion === "restrictive-decline");
+    expect(point).toBeDefined();
+    expect(point?.before.FVC).toBe("70%");
+    expect(point?.after.FVC).toBe("60%");
   });
 });
 

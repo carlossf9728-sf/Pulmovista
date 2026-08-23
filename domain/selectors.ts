@@ -57,6 +57,13 @@ export function selectPFTWithFEV1(events: ClinicalEvent[]): (PulmonaryFunctionEv
   );
 }
 
+/** Igual que selectPFT, pero acotado a pruebas con FVCPercent presente (usado por el detector de descenso restrictivo de Turning Points). */
+export function selectPFTWithFVC(events: ClinicalEvent[]): (PulmonaryFunctionEvent & { FVCPercent: number })[] {
+  return selectPFT(events).filter(
+    (p): p is PulmonaryFunctionEvent & { FVCPercent: number } => p.FVCPercent != null,
+  );
+}
+
 export function selectMicrobiology(events: ClinicalEvent[]): MicrobiologyEvent[] {
   return sortByDate(events.filter(isMicrobiology));
 }

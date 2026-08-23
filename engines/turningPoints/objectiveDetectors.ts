@@ -6,21 +6,21 @@
  * clínicamente el cambio — eso es responsabilidad de la capa de
  * interpretación (ver legacyInterpretations.ts).
  *
- * Nota de incoherencia detectada durante la migración (documentada, NO
- * corregida): el detector de "descenso funcional restrictivo" (FVC) usa
- * la misma lista de PFT pre-filtrada por FEV1Percent presente
- * (`selectPFTWithFEV1`) que el detector de exacerbaciones, en vez de una
- * lista filtrada por FVCPercent. En el prototipo original ambos
- * detectores compartían la misma variable `pftSorted` por el mismo
- * motivo. No se ejerce con los datos demo (siempre coexisten FEV1Percent
- * y FVCPercent en el mismo evento), pero podría ocultar una prueba con
- * FVC documentado y FEV1 no documentado. Pendiente de revisión clínica.
+ * Bug técnico corregido tras la migración (no clínico): el detector de
+ * "descenso funcional restrictivo" (FVC) reutilizaba la lista de PFT
+ * pre-filtrada por FEV1Percent presente (`selectPFTWithFEV1`) del
+ * detector de exacerbaciones, en vez de filtrar por FVCPercent. En el
+ * prototipo original ambos detectores compartían la misma variable
+ * `pftSorted` por el mismo motivo, lo que podía ocultar una prueba con
+ * FVC documentado pero FEV1 no documentado. Se corrige usando
+ * `selectPFTWithFVC` solo en este detector; el umbral clínico (caída
+ * relativa de FVC ≥10% en ≤14 meses) y la interpretación no cambian.
  */
 import { uid } from "@/utils/id";
 import { formatDate, sortByDate, yearOf } from "@/utils/date";
 import { cap } from "@/utils/text";
 import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
-import { exacerbationsByYear, selectExacerbations, selectMicrobiology, selectPFTWithFEV1 } from "@/domain/selectors";
+import { exacerbationsByYear, selectExacerbations, selectMicrobiology, selectPFTWithFEV1, selectPFTWithFVC } from "@/domain/selectors";
 import type { Patient } from "@/types/patient";
 import type { EvidenceItem } from "@/types/evidence";
 import type { ObjectiveTurningPoint } from "@/types/turningPoints";
@@ -75,9 +75,10 @@ export function detectObjectiveTurningPoints(patient: Patient): ObjectiveTurning
   }
 
   // 2) descenso funcional restrictivo (FVC) rápido
-  for (let i = 1; i < pftSorted.length; i++) {
-    const a = pftSorted[i - 1];
-    const b = pftSorted[i];
+  const fvcSorted = selectPFTWithFVC(patient.events);
+  for (let i = 1; i < fvcSorted.length; i++) {
+    const a = fvcSorted[i - 1];
+    const b = fvcSorted[i];
     if (monthsBetween(a.date, b.date) <= 14 && a.FVCPercent && b.FVCPercent) {
       const relDrop = (a.FVCPercent - b.FVCPercent) / a.FVCPercent;
       if (relDrop >= 0.1) {

@@ -42,6 +42,23 @@ describe("Card", () => {
     render(<Card>contenido</Card>);
     expect(screen.getByText("contenido")).toBeInTheDocument();
   });
+
+  it("reenvía className junto con pv-card-hover (bug técnico corregido, no clínico)", () => {
+    render(<Card className="pv-fade-in">contenido</Card>);
+    const el = screen.getByText("contenido");
+    expect(el.className).toContain("pv-fade-in");
+    expect(el.className).toContain("pv-card-hover");
+  });
+
+  it("no añade pv-card-hover cuando hover=false, pero conserva className", () => {
+    render(
+      <Card hover={false} className="pv-fade-in">
+        contenido
+      </Card>,
+    );
+    const el = screen.getByText("contenido");
+    expect(el.className).toBe("pv-fade-in");
+  });
 });
 
 describe("WhyButton", () => {

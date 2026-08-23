@@ -13,15 +13,13 @@ export function MicrobiologyTab({ patient }: { patient: Patient }) {
   if (!rows.length) {
     return <div style={{ color: COLORS.slateLight, fontSize: 13.5 }}>No disponible: sin muestras microbiológicas registradas.</div>;
   }
-  // Nota: el prototipo original pasaba className="pv-fade-in" a <Card>, pero
-  // Card nunca reenviaba esa prop al DOM (no la declaraba ni la usaba), así
-  // que la animación de entrada nunca se aplicaba aquí en la práctica —
-  // inconsistencia visual menor detectada durante la migración, TypeScript
-  // la marca en tiempo de compilación en vez de descartarla en silencio
-  // como hacía JS. Se preserva el comportamiento real (sin fade-in en esta
-  // pestaña), no se añade la animación.
+  // Bug técnico corregido tras la migración (no clínico): el prototipo
+  // original pasaba className="pv-fade-in" a <Card>, pero Card no la
+  // declaraba ni la reenviaba al DOM, así que la animación de entrada nunca
+  // se aplicaba aquí en la práctica. Se corrigió Card para que reenvíe
+  // className (ver components/ui/Card.tsx) y se restaura la prop.
   return (
-    <Card style={{ padding: 0, overflow: "hidden" }}>
+    <Card style={{ padding: 0, overflow: "hidden" }} className="pv-fade-in">
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
           <tr style={{ background: COLORS.paper, textAlign: "left" }}>
