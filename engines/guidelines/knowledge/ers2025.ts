@@ -1,0 +1,727 @@
+/**
+ * Base de conocimiento — ERS 2025.
+ * ----------------------------------------------------------------------
+ * Fuente: Chalmers JD, Haworth CS, Flume P, et al. European Respiratory
+ * Society clinical practice guideline for the management of adult
+ * bronchiectasis. Eur Respir J 2025; 66: 2501126.
+ * https://doi.org/10.1183/13993003.01126-2025 (34 páginas, PDF fuente
+ * "Eur_Respir_J2025Chalmers25011262.pdf", leído completo página a página).
+ *
+ * NO conectado todavía a Sentinel, Turning Points, Missing Information,
+ * Review Opportunities ni a ningún componente de UI. Solo base de
+ * conocimiento estructurada y trazable, pendiente de revisión.
+ *
+ * Fidelidad: todo `sourceText` es una cita textual (o casi textual) del
+ * PDF, en inglés (idioma original). Ningún `page`/`section`/`strength`/
+ * `evidenceQuality` se ha inferido: si el documento no lo declara con
+ * claridad, se deja `null`. No se ha reproducido la puntuación de
+ * FACED/E-FACED (el documento no la incluye) ni ninguna definición
+ * cuantitativa de "infección crónica" (tampoco consta).
+ *
+ * Estructura de "Narrative Question 2" (agudizaciones) y "Narrative
+ * Question 3" (paciente que se deteriora): la guía las presenta como un
+ * bloque con una única fuerza/certeza de evidencia global ("Conditional
+ * recommendation... very low certainty... based on narrative review of
+ * evidence"), pero enumera explícitamente varias actuaciones distintas
+ * bajo ese bloque (Table 1 dice literalmente "a summary of nine
+ * recommendations" para la Q2 y "a summary of 11 recommendations" para
+ * la Q3). Aquí cada bloque se representa como una recomendación padre
+ * (con la fuerza/evidencia global) y cada actuación como una
+ * recomendación hija con `parentRecommendationId` y
+ * `strength`/`evidenceQuality` en `null` — la guía no gradúa cada
+ * actuación individualmente y no se le atribuye una graduación que no
+ * dio. Dos de las nueve actuaciones de la Q2 coinciden textualmente con
+ * las definiciones de "exacerbación" y "exacerbación grave" (la propia
+ * guía las lista dentro de "recommendations... endorsed by the panel"),
+ * así que aparecen tanto en ERS_2025_DEFINITIONS como como hijas de
+ * Narrative Question 2; es intencionado, no una duplicación accidental.
+ */
+import type { GuidelineCriterion, GuidelineDefinition, GuidelineDocument, GuidelineRecommendation } from "@/types/guideline";
+
+export const ERS_2025_GUIDELINE_ID = "ers-bronchiectasis-2025";
+
+export const ERS_2025_DOCUMENT: GuidelineDocument = {
+  guidelineId: ERS_2025_GUIDELINE_ID,
+  source: {
+    sourceId: "ers-2025",
+    society: "European Respiratory Society (ERS)",
+    title: "European Respiratory Society clinical practice guideline for the management of adult bronchiectasis",
+    year: 2025,
+    url: "https://doi.org/10.1183/13993003.01126-2025",
+  },
+  disease: "Bronquiectasias",
+  section: "Guía completa (GRADE, 8 preguntas PICO + 3 preguntas narrativas)",
+  keywords: ["bronquiectasias", "ERS", "GRADE", "2025"],
+};
+
+/* ============================================================================
+   Definiciones clínicas
+   ========================================================================== */
+export const ERS_2025_DEFINITIONS: GuidelineDefinition[] = [
+  {
+    definitionId: "ers-def-bsi",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Table 2: The Bronchiectasis Severity Index",
+    page: 10,
+    term: "Bronchiectasis Severity Index (BSI)",
+    sourceText:
+      "TABLE 2 The Bronchiectasis Severity Index. Severity marker — Score: Age, years: <50=0, 50–69=2, 70–79=4, ⩾80=6. BMI, kg·m−2: <18.5=2, 18.5–25=0, 26–29=0, ⩾30=0. FEV1 % pred: >80=0, 50–80=1, 30–49=2, <30=3. Previous hospital admission: No=0, Yes=5. Number of exacerbations in previous year: 0=0, 1–2=0, ⩾3=2. MRC breathlessness score: 1–3=0, 4=2, 5=3. Pseudomonas colonisation: No=0, Yes=3. Colonisation with other organisms: No=0, Yes=1. Radiological severity: ⩾3 lobes involved or cystic bronchiectasis: Yes=1, No=0. Patients receive a score out of a maximum of 24 points. 0–4 points is considered mild or low risk of mortality and hospitalisation, 5–8 points is considered moderate or intermediate risk of mortality and hospitalisation, and ⩾9 points is considered severe or high risk of mortality and hospitalisation.",
+    description:
+      "Escala de gravedad de 0 a 24 puntos calculada a partir de: edad, IMC, FEV1 % predicho, ingreso hospitalario previo, número de exacerbaciones en el año previo, disnea MRC, colonización por Pseudomonas, colonización por otros organismos y gravedad radiológica (≥3 lóbulos afectados o bronquiectasias quísticas). 0–4 = leve/riesgo bajo, 5–8 = moderado/riesgo intermedio, ≥9 = grave/riesgo alto de mortalidad y hospitalización.",
+    topic: "gravedad",
+    keywords: ["BSI", "gravedad", "mortalidad", "hospitalización", "FEV1"],
+  },
+  {
+    definitionId: "ers-def-exacerbation",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Narrative Question 2 — diagnostic tests",
+    page: 23,
+    term: "Exacerbation",
+    sourceText:
+      "An exacerbation is defined as a worsening of symptoms that exceeds day-to-day variability and requires a change in management. Core symptoms of exacerbation include a change in cough, sputum volume and/or consistency, sputum purulence, dyspnoea and/or exercise intolerance, fatigue or malaise, and haemoptysis. Additional clinical features include fever, wheezing, general discomfort, anorexia, weight loss, pleuritic chest pain and changes on chest examination.",
+    description:
+      "Empeoramiento de síntomas que excede la variabilidad día a día y requiere un cambio de manejo. Síntomas nucleares: cambio en tos, volumen y/o consistencia del esputo, purulencia del esputo, disnea y/o intolerancia al ejercicio, fatiga o malestar, y hemoptisis. Características clínicas adicionales: fiebre, sibilancias, malestar general, anorexia, pérdida de peso, dolor torácico pleurítico y cambios en la exploración.",
+    topic: "exacerbaciones",
+    keywords: ["exacerbación", "definición", "síntomas"],
+  },
+  {
+    definitionId: "ers-def-severe-exacerbation",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Narrative Question 2 — diagnostic tests",
+    page: 23,
+    term: "Severe exacerbation",
+    sourceText:
+      "Features of a severe exacerbation (defined as requiring hospitalisation or intravenous antibiotic treatment) may include tachypnoea, acute or acute-on-chronic respiratory failure, a significant decline in oxygen saturation or respiratory function, hypercapnia, haemodynamic instability and/or impaired cognitive function.",
+    description:
+      "Exacerbación grave = requiere hospitalización o antibiótico intravenoso. Puede incluir taquipnea, insuficiencia respiratoria aguda o agudizada sobre crónica, caída significativa de la saturación de oxígeno o de la función respiratoria, hipercapnia, inestabilidad hemodinámica y/o deterioro cognitivo.",
+    topic: "exacerbaciones",
+    keywords: ["exacerbación grave", "hospitalización", "antibiótico intravenoso"],
+  },
+  {
+    definitionId: "ers-def-deteriorating-patient",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Figure 4 (RAPID) — footnote",
+    page: 26,
+    term: "The deteriorating patient",
+    sourceText:
+      "#: persistent symptom worsening, increased frequency and/or severity of exacerbations/hospitalisations, progressive lung function decline, worsening radiological findings, and a substantial impairment in quality of life.",
+    description:
+      "Un paciente se considera «que se deteriora» cuando presenta empeoramiento persistente de síntomas, aumento de la frecuencia y/o gravedad de las exacerbaciones/hospitalizaciones, declive progresivo de la función pulmonar, empeoramiento radiológico y/o deterioro sustancial de la calidad de vida.",
+    topic: "paciente que se deteriora",
+    keywords: ["deterioro", "RAPID", "declive funcional"],
+  },
+  {
+    definitionId: "ers-def-rapid-algorithm",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Figure 4",
+    page: 26,
+    term: "RAPID algorithm",
+    sourceText:
+      "FIGURE 4 RAPID: the rapidly deteriorating patient treatment algorithm. R: Recognise and refer. A: Assess. P: Perform. I: Initiate. D: Deal with complications.",
+    description:
+      "Mnemotecnia para el manejo del paciente que se deteriora rápidamente: R (Reconocer y derivar), A (Evaluar historia/adherencia/comorbilidad), P (Realizar pruebas: fisioterapia, TCAR, cultivo, broncoscopia si procede, reevaluación etiológica, función pulmonar completa), I (Iniciar tratamiento: antiinfeccioso, erradicación, terapia específica, actualización de aclaramiento de vía aérea, nuevos tratamientos de mantenimiento), D (Abordar complicaciones: desnutrición, hemoptisis, infecciones refractarias, insuficiencia respiratoria).",
+    topic: "paciente que se deteriora",
+    keywords: ["RAPID", "deterioro", "algoritmo"],
+  },
+];
+
+/* ============================================================================
+   Criterios verificables
+   ========================================================================== */
+export const ERS_2025_CRITERIA: GuidelineCriterion[] = [
+  {
+    criterionId: "ers-crit-high-risk-exacerbation",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 3: Inhaled antibiotics — Remarks",
+    page: 14,
+    sourceText:
+      "Patients at high risk of exacerbations include patients with a history of ⩾2 exacerbations in the prior year OR ⩾1 severe exacerbation OR 1 exacerbation plus severe daily symptoms.",
+    description: "Alto riesgo de exacerbación futura: ≥2 exacerbaciones en el año previo, O ≥1 exacerbación grave, O 1 exacerbación más síntomas diarios graves.",
+    topic: "exacerbaciones",
+    keywords: ["alto riesgo", "exacerbaciones", "síntomas graves"],
+  },
+  {
+    criterionId: "ers-crit-chronic-pseudomonas",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 3: Inhaled antibiotics — Recommendation",
+    page: 14,
+    sourceText: "chronic infection with P. aeruginosa despite standard care",
+    description: "Infección crónica por Pseudomonas aeruginosa pese al tratamiento estándar (el documento no da un criterio numérico de \"crónica\" — no se infiere).",
+    topic: "pseudomonas aeruginosa",
+    keywords: ["Pseudomonas aeruginosa", "infección crónica"],
+  },
+  {
+    criterionId: "ers-crit-new-pseudomonas-isolation",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 6: Eradication — Remarks",
+    page: 19,
+    sourceText:
+      "A new isolation of P. aeruginosa may refer to the first time a patient has P. aeruginosa isolated or a further isolation following a prolonged period during which P. aeruginosa was not detected.",
+    description: "Nuevo aislamiento de P. aeruginosa: primera vez que se aísla, o un nuevo aislamiento tras un periodo prolongado sin detectarse (la guía no cuantifica \"prolongado\").",
+    topic: "pseudomonas aeruginosa",
+    keywords: ["Pseudomonas aeruginosa", "nuevo aislamiento", "erradicación"],
+  },
+  {
+    criterionId: "ers-crit-ntm-excluded-before-macrolide",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 4: Macrolides — Remarks",
+    page: 16,
+    sourceText:
+      "Macrolides should not be prescribed as monotherapy to patients with NTM infection. NTM infection should be excluded before initiating macrolide therapy.",
+    description: "Excluir infección por micobacterias no tuberculosas (NTM) antes de iniciar macrólidos; no usar macrólidos en monoterapia si hay infección por NTM.",
+    topic: "micobacterias",
+    keywords: ["NTM", "micobacterias", "macrólidos", "exclusión"],
+  },
+  {
+    criterionId: "ers-crit-airway-clearance-failed",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 2: Mucoactive drugs — Recommendations",
+    page: 13,
+    sourceText: "patients with bronchiectasis where airway clearance has failed to control symptoms",
+    description: "El aclaramiento de la vía aérea ha fracasado en el control de los síntomas.",
+    topic: "aclaramiento mucociliar",
+    keywords: ["aclaramiento mucociliar", "fracaso terapéutico"],
+  },
+  {
+    criterionId: "ers-crit-no-asthma-copd",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 7: Inhaled corticosteroids — Recommendation",
+    page: 20,
+    sourceText: "patients with bronchiectasis who do not have coexisting COPD or asthma",
+    description: "Ausencia de EPOC o asma coexistentes.",
+    topic: "tratamiento antiinflamatorio",
+    keywords: ["asma", "EPOC", "corticoides inhalados"],
+  },
+  {
+    criterionId: "ers-crit-breathlessness-impaired-exercise",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 8: Pulmonary rehabilitation — Recommendation",
+    page: 22,
+    sourceText: "patients with breathlessness and/or impaired exercise capacity",
+    description: "Presencia de disnea y/o capacidad de ejercicio reducida.",
+    topic: "rehabilitación pulmonar",
+    keywords: ["disnea", "capacidad de ejercicio", "rehabilitación"],
+  },
+  {
+    criterionId: "ers-crit-narrativeq1-high-risk-groups",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Narrative Question 1 — Investigation and management considerations",
+    page: 5,
+    sourceText:
+      "Patients at higher risk of future complications should be identified. Such patients should be considered for more frequent follow-up and a lower threshold for treatment. High-risk groups include: - Patients with COPD, PCD or rheumatoid arthritis (RA)-associated bronchiectasis. - Patients with Pseudomonas aeruginosa or other enteric Gram-negative infections. - Patients with ⩾2 exacerbations per year or ⩾1 severe exacerbation (defined as requiring hospitalisation or intravenous antibiotics) in the previous year. - Patients with severe symptoms including high volumes of daily sputum production and sputum purulence. - Patients with NTM infection. - Patients with ABPA.",
+    description:
+      "Grupos de mayor riesgo de complicaciones futuras (seguimiento más frecuente, menor umbral de tratamiento): EPOC/PCD/artritis reumatoide asociada; Pseudomonas aeruginosa u otros Gram-negativos entéricos; ≥2 exacerbaciones/año o ≥1 exacerbación grave en el año previo; síntomas graves con alto volumen de esputo y purulencia; infección por NTM; ABPA.",
+    topic: "gravedad",
+    keywords: ["alto riesgo", "seguimiento", "comorbilidades"],
+  },
+];
+
+/* ============================================================================
+   Recomendaciones
+   ========================================================================== */
+export const ERS_2025_RECOMMENDATIONS: GuidelineRecommendation[] = [
+  {
+    recommendationId: "ers-rec-narrativeq1",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Narrative Question 1: How can underlying causes of bronchiectasis be identified, and how can the severity, comorbidities and other treatable traits be evaluated?",
+    page: 5,
+    sourceText:
+      "Management of patients with bronchiectasis should include standardised testing to identify the underlying cause of bronchiectasis, to evaluate disease severity and activity as well as risk of poor outcome, and to identify comorbidities and associated treatable traits. (Strong recommendation for the intervention, moderate certainty of evidence stemming from narrative review of the evidence.)",
+    topic: "evaluación inicial",
+    recommendationText:
+      "Management of patients with bronchiectasis should include standardised testing to identify the underlying cause of bronchiectasis, to evaluate disease severity and activity as well as risk of poor outcome, and to identify comorbidities and associated treatable traits.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["evaluación inicial", "etiología", "comorbilidades", "treatable traits"],
+  },
+  {
+    recommendationId: "ers-rec-pico1",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 1: Airway clearance",
+    page: 11,
+    sourceText: "We recommend that patients with bronchiectasis should be taught airway clearance techniques. (Strong recommendation for the intervention, very low certainty of evidence.)",
+    topic: "aclaramiento mucociliar",
+    recommendationText: "We recommend that patients with bronchiectasis should be taught airway clearance techniques.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "very low",
+    keywords: ["aclaramiento de vía aérea", "fisioterapia"],
+  },
+  {
+    recommendationId: "ers-rec-pico2-mucoactive",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 2: Mucoactive drugs",
+    page: 13,
+    sourceText: "We suggest to offer mucoactive treatments to patients with bronchiectasis where airway clearance has failed to control symptoms. (Conditional recommendation for the intervention, very low certainty of evidence.)",
+    topic: "aclaramiento mucociliar",
+    recommendationText: "We suggest to offer mucoactive treatments to patients with bronchiectasis where airway clearance has failed to control symptoms.",
+    criteria: ["ers-crit-airway-clearance-failed"],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "very low",
+    keywords: ["mucoactivos", "manitol", "hipertónico"],
+  },
+  {
+    recommendationId: "ers-rec-pico2-dnase-against",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 2: Mucoactive drugs",
+    page: 13,
+    sourceText: "We suggest not to offer recombinant DNase to patients with bronchiectasis. (Conditional recommendation against the intervention, very low certainty of evidence.)",
+    topic: "aclaramiento mucociliar",
+    recommendationText: "We suggest not to offer recombinant DNase to patients with bronchiectasis.",
+    criteria: [],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "very low",
+    keywords: ["DNasa", "rhDNase", "en contra"],
+  },
+  {
+    recommendationId: "ers-rec-pico3-with-pa",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 3: Inhaled antibiotics",
+    page: 14,
+    sourceText: "We recommend to offer long-term inhaled antibiotics to patients at high risk of exacerbations and chronic infection with P. aeruginosa despite standard care. (Strong recommendation for the intervention, moderate certainty of evidence.)",
+    topic: "antibióticos inhalados",
+    recommendationText: "We recommend to offer long-term inhaled antibiotics to patients at high risk of exacerbations and chronic infection with P. aeruginosa despite standard care.",
+    criteria: ["ers-crit-high-risk-exacerbation", "ers-crit-chronic-pseudomonas"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["antibióticos inhalados", "Pseudomonas aeruginosa"],
+  },
+  {
+    recommendationId: "ers-rec-pico3-without-pa",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 3: Inhaled antibiotics",
+    page: 14,
+    sourceText: "We suggest to offer long-term inhaled antibiotics to patients at high risk of exacerbations and chronic infection with pathogens other than P. aeruginosa despite standard care. (Conditional recommendation for the intervention, moderate certainty of evidence.)",
+    topic: "antibióticos inhalados",
+    recommendationText: "We suggest to offer long-term inhaled antibiotics to patients at high risk of exacerbations and chronic infection with pathogens other than P. aeruginosa despite standard care.",
+    criteria: ["ers-crit-high-risk-exacerbation"],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "moderate",
+    keywords: ["antibióticos inhalados", "otros patógenos"],
+  },
+  {
+    recommendationId: "ers-rec-pico4",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 4: Macrolides",
+    page: 16,
+    sourceText: "We recommend to offer long-term macrolides to patients at high risk of exacerbations despite standard care. (Strong recommendation for the intervention, moderate certainty of evidence.)",
+    topic: "macrólidos",
+    recommendationText: "We recommend to offer long-term macrolides to patients at high risk of exacerbations despite standard care.",
+    criteria: ["ers-crit-high-risk-exacerbation"],
+    exclusions: ["ers-crit-ntm-excluded-before-macrolide"],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["macrólidos", "azitromicina"],
+  },
+  {
+    recommendationId: "ers-rec-pico5",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 5: Oral antibiotics",
+    page: 18,
+    sourceText: "The panel suggests NOT to offer long-term non-macrolide oral antibiotics as a first-line treatment to adult patients with bronchiectasis and a high risk of exacerbations. (Conditional recommendation against the intervention, very low certainty of evidence.)",
+    topic: "tratamiento antibiótico",
+    recommendationText: "The panel suggests NOT to offer long-term non-macrolide oral antibiotics as a first-line treatment to adult patients with bronchiectasis and a high risk of exacerbations.",
+    criteria: ["ers-crit-high-risk-exacerbation"],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "very low",
+    keywords: ["antibióticos orales", "no-macrólido", "en contra"],
+  },
+  {
+    recommendationId: "ers-rec-pico6",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 6: Eradication",
+    page: 19,
+    sourceText: "We suggest to offer eradication treatment to patients with a new isolation of P. aeruginosa. (Conditional recommendation for the intervention, very low certainty of evidence.)",
+    topic: "erradicación",
+    recommendationText: "We suggest to offer eradication treatment to patients with a new isolation of P. aeruginosa.",
+    criteria: ["ers-crit-new-pseudomonas-isolation"],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "very low",
+    keywords: ["erradicación", "Pseudomonas aeruginosa"],
+  },
+  {
+    recommendationId: "ers-rec-pico7",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 7: Inhaled corticosteroids",
+    page: 20,
+    sourceText: "We suggest not to offer long-term inhaled corticosteroids to patients with bronchiectasis who do not have coexisting COPD or asthma. (Conditional recommendation against the intervention, low certainty of evidence.)",
+    topic: "tratamiento antiinflamatorio",
+    recommendationText: "We suggest not to offer long-term inhaled corticosteroids to patients with bronchiectasis who do not have coexisting COPD or asthma.",
+    criteria: ["ers-crit-no-asthma-copd"],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "low",
+    keywords: ["corticoides inhalados", "en contra"],
+  },
+  {
+    recommendationId: "ers-rec-pico8",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "PICO Question 8: Pulmonary rehabilitation",
+    page: 22,
+    sourceText: "We recommend that patients with breathlessness and/or impaired exercise capacity should be offered pulmonary rehabilitation. (Strong recommendation for the intervention, very low certainty of evidence.)",
+    topic: "rehabilitación pulmonar",
+    recommendationText: "We recommend that patients with breathlessness and/or impaired exercise capacity should be offered pulmonary rehabilitation.",
+    criteria: ["ers-crit-breathlessness-impaired-exercise"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "very low",
+    keywords: ["rehabilitación pulmonar", "disnea"],
+  },
+
+  // --- Narrative Question 2: agudizaciones — bloque padre + 9 hijos ---
+  {
+    recommendationId: "ers-rec-narrativeq2",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Narrative Question 2: What diagnostic tests and interventions are currently recommended/used for managing exacerbations?",
+    page: 23,
+    sourceText:
+      "We suggest the following diagnostic tests be performed during exacerbations. (Conditional recommendation for the intervention, very low certainty of evidence based on a narrative review of evidence.) [...] We suggest the following interventions to be performed during exacerbations. (Conditional recommendation for the intervention, very low certainty of evidence based on a narrative review of evidence.)",
+    topic: "exacerbaciones",
+    recommendationText:
+      "Diagnostic tests and interventions during exacerbations, per recommendations in current guidelines endorsed by the panel (see child recommendations).",
+    criteria: [],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "very low",
+    keywords: ["exacerbaciones", "narrative question 2"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-1",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — diagnostic tests",
+    page: 23,
+    sourceText:
+      "An exacerbation is defined as a worsening of symptoms that exceeds day-to-day variability and requires a change in management. Core symptoms of exacerbation include a change in cough, sputum volume and/or consistency, sputum purulence, dyspnoea and/or exercise intolerance, fatigue or malaise, and haemoptysis.",
+    topic: "exacerbaciones",
+    recommendationText: "Reconocer una exacerbación por el empeoramiento de síntomas que excede la variabilidad día a día y requiere cambio de manejo (ver también ers-def-exacerbation).",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["exacerbación", "diagnóstico"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-2",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — diagnostic tests",
+    page: 23,
+    sourceText:
+      "Features of a severe exacerbation (defined as requiring hospitalisation or intravenous antibiotic treatment) may include tachypnoea, acute or acute-on-chronic respiratory failure, a significant decline in oxygen saturation or respiratory function, hypercapnia, haemodynamic instability and/or impaired cognitive function.",
+    topic: "exacerbaciones",
+    recommendationText: "Reconocer las características de una exacerbación grave (ver también ers-def-severe-exacerbation).",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["exacerbación grave", "diagnóstico"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-3",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — diagnostic tests",
+    page: 23,
+    sourceText: "At the onset of an exacerbation, a sputum sample for microbiology should ideally be obtained before initiating antibiotic treatment.",
+    topic: "microbiología",
+    recommendationText: "At the onset of an exacerbation, a sputum sample for microbiology should ideally be obtained before initiating antibiotic treatment.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["esputo", "microbiología", "exacerbación"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-4",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — diagnostic tests",
+    page: 23,
+    sourceText: "Sputum culture should be repeated, where possible, if there is no response to the initial antibiotic treatment.",
+    topic: "microbiología",
+    recommendationText: "Sputum culture should be repeated, where possible, if there is no response to the initial antibiotic treatment.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["cultivo de esputo", "repetición"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-5",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — interventions",
+    page: 23,
+    sourceText: "Antibiotics should be prescribed for an exacerbation, guided by previous microbiology results, local susceptibility patterns and clinical severity.",
+    topic: "exacerbaciones",
+    recommendationText: "Antibiotics should be prescribed for an exacerbation, guided by previous microbiology results, local susceptibility patterns and clinical severity.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["antibióticos", "exacerbación"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-6",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — interventions",
+    page: 23,
+    sourceText:
+      "An adult bronchiectasis self-management plan should include guidance on recognising exacerbations. Providing selected patients the ability to self-administer antibiotics at home with appropriate instruction and education may allow more prompt treatment.",
+    topic: "educación del paciente",
+    recommendationText:
+      "An adult bronchiectasis self-management plan should include guidance on recognising exacerbations. Providing selected patients the ability to self-administer antibiotics at home with appropriate instruction and education may allow more prompt treatment.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["autocuidado", "automanejo", "educación"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-7",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — interventions",
+    page: 23,
+    sourceText:
+      "Patients not responding promptly to oral antibiotics or showing signs of a severe exacerbation should be reviewed to determine if there is a need for a change in treatment, intravenous antibiotic treatment and/or hospitalisation.",
+    topic: "exacerbaciones",
+    recommendationText:
+      "Patients not responding promptly to oral antibiotics or showing signs of a severe exacerbation should be reviewed to determine if there is a need for a change in treatment, intravenous antibiotic treatment and/or hospitalisation.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["falta de respuesta", "hospitalización", "antibiótico IV"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-8",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — interventions",
+    page: 24,
+    sourceText: "Airway clearance regimens may need to be adapted in frequency, intensity and technique during an exacerbation.",
+    topic: "aclaramiento mucociliar",
+    recommendationText: "Airway clearance regimens may need to be adapted in frequency, intensity and technique during an exacerbation.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["aclaramiento de vía aérea", "exacerbación"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq2-9",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq2",
+    section: "Narrative Question 2 — interventions",
+    page: 24,
+    sourceText:
+      "In general, a 14-day antibiotic course is considered standard, especially in severe exacerbations or in patients with P. aeruginosa infection. Shorter courses may be appropriate in patients with mild bronchiectasis, those with infection due to pathogens more sensitive to antibiotics (e.g. Streptococcus pneumoniae) or patients with a rapid return to baseline symptoms during treatment.",
+    topic: "tratamiento antibiótico",
+    recommendationText:
+      "In general, a 14-day antibiotic course is considered standard, especially in severe exacerbations or in patients with P. aeruginosa infection. Shorter courses may be appropriate in patients with mild bronchiectasis, those with infection due to pathogens more sensitive to antibiotics (e.g. Streptococcus pneumoniae) or patients with a rapid return to baseline symptoms during treatment.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["duración del tratamiento", "14 días", "curso corto"],
+  },
+
+  // --- Narrative Question 3: paciente que se deteriora — bloque padre + 11 hijos ---
+  {
+    recommendationId: "ers-rec-narrativeq3",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    section: "Narrative Question 3: What investigations and treatments are currently recommended in a patient with bronchiectasis who is rapidly deteriorating in terms of symptoms or exacerbations?",
+    page: 24,
+    sourceText: "We suggest the following investigations and management in a deteriorating patient. (Conditional recommendation for the intervention, very low certainty of evidence based on a narrative review of evidence.)",
+    topic: "paciente que se deteriora",
+    recommendationText: "Investigations and management in a deteriorating patient, per recommendations in guideline literature endorsed by the panel (see child recommendations and the RAPID algorithm).",
+    criteria: [],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "very low",
+    keywords: ["paciente que se deteriora", "narrative question 3", "RAPID"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-1",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — investigations",
+    page: 24,
+    sourceText: "Clinical deterioration, including increasing exacerbation frequency and/or severity, worsening of symptoms and/or rapid decline in lung function should result in a comprehensive re-evaluation of the patients and their treatment.",
+    topic: "paciente que se deteriora",
+    recommendationText: "Clinical deterioration, including increasing exacerbation frequency and/or severity, worsening of symptoms and/or rapid decline in lung function should result in a comprehensive re-evaluation of the patients and their treatment.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["reevaluación", "deterioro clínico"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-2",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — investigations",
+    page: 24,
+    sourceText: "Adherence to both ACTs and/or pharmacological treatment should be evaluated.",
+    topic: "paciente que se deteriora",
+    recommendationText: "Adherence to both ACTs and/or pharmacological treatment should be evaluated.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["adherencia", "tratamiento"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-3",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — investigations",
+    page: 24,
+    sourceText: "Underlying diseases other than bronchiectasis should be reviewed to ensure they are being adequately treated.",
+    topic: "comorbilidades",
+    recommendationText: "Underlying diseases other than bronchiectasis should be reviewed to ensure they are being adequately treated.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["comorbilidades", "enfermedades subyacentes"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-4",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — investigations",
+    page: 24,
+    sourceText: "Investigation for specific conditions known to be associated with deterioration (e.g. ABPA, NTM infection or infection with a new pathogen) should be considered.",
+    topic: "paciente que se deteriora",
+    recommendationText: "Investigation for specific conditions known to be associated with deterioration (e.g. ABPA, NTM infection or infection with a new pathogen) should be considered.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["ABPA", "NTM", "nuevo patógeno"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-5",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — investigations",
+    page: 24,
+    sourceText:
+      "Early diagnosis of bronchiectasis, accurate identification and treatment of its underlying cause, adequate management of chronic airway infection, and interventions to prevent exacerbations may delay disease progression.",
+    topic: "paciente que se deteriora",
+    recommendationText:
+      "Early diagnosis of bronchiectasis, accurate identification and treatment of its underlying cause, adequate management of chronic airway infection, and interventions to prevent exacerbations may delay disease progression.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["diagnóstico precoz", "progresión de la enfermedad"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-6",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — investigations",
+    page: 24,
+    sourceText: "Repeat chest computed tomography imaging can help to identify several potential causes of deterioration.",
+    topic: "paciente que se deteriora",
+    recommendationText: "Repeat chest computed tomography imaging can help to identify several potential causes of deterioration.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["TC tórax", "imagen"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-7",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — investigations",
+    page: 24,
+    sourceText: "Repeat testing for NTM should be performed when there are suggestive clinical or radiological features of NTM infection, particularly in those who deteriorate despite appropriate antibiotics.",
+    topic: "micobacterias",
+    recommendationText: "Repeat testing for NTM should be performed when there are suggestive clinical or radiological features of NTM infection, particularly in those who deteriorate despite appropriate antibiotics.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["NTM", "micobacterias", "repetir prueba"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-8",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — treatments",
+    page: 25,
+    sourceText: "Deteriorating patients who are not already under the care of a bronchiectasis specialist should be referred to a respiratory clinic with expertise in bronchiectasis.",
+    topic: "paciente que se deteriora",
+    recommendationText: "Deteriorating patients who are not already under the care of a bronchiectasis specialist should be referred to a respiratory clinic with expertise in bronchiectasis.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["derivación", "especialista"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-9",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — treatments",
+    page: 25,
+    sourceText:
+      "Current treatment should be reviewed and optimised using a \"treatable traits\" approach. This includes, but is not limited to, treatment directed at the underlying aetiology of the patient's bronchiectasis, airway clearance and mucoactive treatments, vaccination status, long-term (inhaled or oral) antibiotic treatment, P. aeruginosa eradication treatment, long-term inhaled bronchodilator and corticosteroid treatment, pulmonary rehabilitation, oxygen therapy and non-invasive ventilator support where appropriate.",
+    topic: "paciente que se deteriora",
+    recommendationText:
+      "Current treatment should be reviewed and optimised using a \"treatable traits\" approach. This includes, but is not limited to, treatment directed at the underlying aetiology of the patient's bronchiectasis, airway clearance and mucoactive treatments, vaccination status, long-term (inhaled or oral) antibiotic treatment, P. aeruginosa eradication treatment, long-term inhaled bronchodilator and corticosteroid treatment, pulmonary rehabilitation, oxygen therapy and non-invasive ventilator support where appropriate.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["treatable traits", "optimización del tratamiento"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-10",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — treatments",
+    page: 25,
+    sourceText: "Lung resection may be considered in highly selected patients with localised disease whose symptoms are not controlled by medical treatment optimised by a bronchiectasis specialist.",
+    topic: "cirugía",
+    recommendationText: "Lung resection may be considered in highly selected patients with localised disease whose symptoms are not controlled by medical treatment optimised by a bronchiectasis specialist.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["cirugía", "resección pulmonar", "enfermedad localizada"],
+  },
+  {
+    recommendationId: "ers-rec-narrativeq3-11",
+    guidelineId: ERS_2025_GUIDELINE_ID,
+    parentRecommendationId: "ers-rec-narrativeq3",
+    section: "Narrative Question 3 — treatments",
+    page: 25,
+    sourceText:
+      "Early referral for lung transplantation is essential in patients with progressive disease despite optimal medical management. This may include rapidly declining FEV1 or FEV1 <30% predicted and/or arterial carbon dioxide tension (PaCO2) >50 mmHg.",
+    topic: "trasplante",
+    recommendationText:
+      "Early referral for lung transplantation is essential in patients with progressive disease despite optimal medical management. This may include rapidly declining FEV1 or FEV1 <30% predicted and/or arterial carbon dioxide tension (PaCO2) >50 mmHg.",
+    criteria: [],
+    exclusions: [],
+    strength: null,
+    evidenceQuality: null,
+    keywords: ["trasplante pulmonar", "FEV1", "PaCO2"],
+  },
+];

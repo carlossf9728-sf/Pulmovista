@@ -1,0 +1,516 @@
+/**
+ * Base de conocimiento — SEPAR 2018.
+ * ----------------------------------------------------------------------
+ * Fuente: Martínez-García MA, Máiz L, Olveira C, Girón RM, de la Rosa D,
+ * Blanco M, Cantón R, Vendrell M, Polverino E, de Gracia J, Prados C.
+ * Normativa sobre el tratamiento de las bronquiectasias en el adulto.
+ * Arch Bronconeumol. 2018;54(2):88–98. https://doi.org/10.1016/j.arbres.2017.07.016
+ * (11 páginas, PDF fuente "BRONQUIECTASIAS.pdf", leído completo).
+ *
+ * NO conectado todavía a Sentinel, Turning Points, Missing Information,
+ * Review Opportunities ni a ningún componente de UI.
+ *
+ * `page` cita el número de página IMPRESO del artículo (88–98, el que
+ * aparece en la cabecera de cada página), no el índice del PDF. Cuando
+ * una recomendación cruza el salto de página impresa, se cita la página
+ * donde termina la frase con la etiqueta "(Recomendación…)".
+ *
+ * Fidelidad: `strength`/`evidenceQuality` traducen literalmente la
+ * etiqueta GRADE que el propio documento declara ("fuerte"→strong,
+ * "débil"→conditional; "alta/elevada"→high, "moderada"→moderate,
+ * "baja"→low) — SEPAR declara explícitamente que usa la propuesta GRADE
+ * (ver Introducción), así que esto es traducir la metodología que el
+ * documento ya nombra, no reinterpretarla. El texto original en español
+ * se conserva íntegro en `sourceText`. No se ha reproducido la
+ * puntuación de FACED/E-FACED (el documento solo cita el umbral de
+ * derivación, no la tabla de puntos) ni una definición cuantitativa de
+ * "infección bronquial crónica" (el documento no la da).
+ */
+import type { GuidelineCriterion, GuidelineDefinition, GuidelineDocument, GuidelineRecommendation } from "@/types/guideline";
+
+export const SEPAR_2018_GUIDELINE_ID = "separ-bronchiectasis-2018";
+
+export const SEPAR_2018_DOCUMENT: GuidelineDocument = {
+  guidelineId: SEPAR_2018_GUIDELINE_ID,
+  source: {
+    sourceId: "separ-2018",
+    society: "Sociedad Española de Neumología y Cirugía Torácica (SEPAR)",
+    title: "Normativa sobre el tratamiento de las bronquiectasias en el adulto",
+    year: 2018,
+    url: "https://doi.org/10.1016/j.arbres.2017.07.016",
+  },
+  disease: "Bronquiectasias",
+  section: "Normativa completa (SEPAR habla, PICO + GRADE)",
+  keywords: ["bronquiectasias", "SEPAR", "GRADE", "2018"],
+};
+
+/* ============================================================================
+   Definiciones clínicas
+   ========================================================================== */
+export const SEPAR_2018_DEFINITIONS: GuidelineDefinition[] = [
+  {
+    definitionId: "separ-def-tabla1-causas",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tabla 1: Causas de bronquiectasias con tratamiento específico",
+    page: 89,
+    term: "Causas de bronquiectasias con tratamiento específico",
+    sourceText:
+      "Tabla 1. Causas de bronquiectasias con tratamiento específico. Etiología — Tratamiento específico: Déficit de producción de anticuerpos — Inmunoglobulinas iv o sc. ABPA — Corticoides orales. Antifúngicos. Déficit de AAT — Evitar exposición al tabaco u otro contaminante; AAT iv en: Fenotipos PiZZ, variantes deficitarias raras y SZ+AAT sérica <57 mg/dl+enfisema y FEV1<80% en no fumadores o exfumadores. Reflujo gastroesofágico — Inhibidores de la secreción ácido gástrica. Infección por MNT — Valorar cirugía según guías clínicas y tipo de micobacteria. Enfermedades asociadas (EPOC, asma, enfermedades sistémicas, enfermedad inflamatoria intestinal, etc.) — Tratamiento de la enfermedad de base. Obstrucción bronquial — Valorar cirugía o dilatación bronquial. Panbronquiolitis difusa — Macrólidos. Discinesia ciliar primaria — Técnicas de aclaramiento mucociliar. Fibrosis quística — Moduladores del CFTR. DNasa.",
+    description:
+      "Tabla de causas de bronquiectasias que tienen un tratamiento específico dirigido a la etiología, con el tratamiento correspondiente para cada una (déficit de anticuerpos, ABPA, déficit de alfa-1 antitripsina, reflujo gastroesofágico, infección por micobacterias no tuberculosas, enfermedades asociadas, obstrucción bronquial, panbronquiolitis difusa, discinesia ciliar primaria, fibrosis quística).",
+    topic: "etiología",
+    keywords: ["etiología", "causas", "tratamiento específico"],
+  },
+  {
+    definitionId: "separ-def-agudizacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Agudizaciones — Definición",
+    page: 96,
+    term: "Agudización",
+    sourceText:
+      "Se define agudización como un deterioro clínico agudo y mantenido caracterizado por aumento de la tos habitual y de cambios en las características del esputo consistentes en aumento de la purulencia o incremento del volumen o viscosidad, que puede acompañarse de aumento de la disnea, fiebre, astenia, mal estado general, anorexia, dolor torácico pleurítico, hemoptisis, cambios en la exploración respiratoria, cambios en el tratamiento habitual del paciente o cambios significativos de la función pulmonar.",
+    description:
+      "Deterioro clínico agudo y mantenido: aumento de la tos habitual y cambios en el esputo (más purulencia, volumen o viscosidad), que puede acompañarse de más disnea, fiebre, astenia, mal estado general, anorexia, dolor torácico pleurítico, hemoptisis, cambios en la exploración, cambios en el tratamiento habitual o cambios significativos de la función pulmonar.",
+    topic: "exacerbaciones",
+    keywords: ["agudización", "definición"],
+  },
+  {
+    definitionId: "separ-def-tabla6-trasplante",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tabla 6: Indicaciones de trasplante pulmonar",
+    page: 94,
+    term: "Indicaciones de trasplante pulmonar",
+    sourceText:
+      "Tabla 6. Indicaciones de trasplante pulmonar. FEV1 inferior al 30% o una pérdida rápida de la función pulmonar en pacientes con afectación grave. Insuficiencia respiratoria crónica o hipercapnia. Hipertensión pulmonar (presión sistólica de la arteria pulmonar > 35 mm Hg). Agudizaciones o complicaciones graves frecuentes como neumotórax o hemoptisis recidivantes.",
+    description:
+      "FEV1 <30% o pérdida rápida de función pulmonar en enfermedad grave; insuficiencia respiratoria crónica o hipercapnia; hipertensión pulmonar (PSAP >35 mmHg); agudizaciones o complicaciones graves frecuentes (p. ej. neumotórax o hemoptisis recidivantes).",
+    topic: "trasplante",
+    keywords: ["trasplante pulmonar", "indicaciones", "FEV1"],
+  },
+  {
+    definitionId: "separ-def-tabla8-agudizacion-leve",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tabla 8: Tratamiento antibiótico en las agudizaciones — agudización leve",
+    page: 95,
+    term: "Tratamiento antibiótico empírico en agudización leve",
+    sourceText:
+      "Tabla 8 (agudización leve, tratamiento de elección/alternativo por microorganismo). H. influenzae: amoxicilina-clavulánico 875 mg/8 h vo (elección); amoxicilina 1-2 g/8 h vo, ciprofloxacino 750 mg/12 h vo, azitromicina 500 mg/24 h vo o cefditoren 200-400 mg/12 h vo (alternativo). S. aureus: cloxacilina 500-1.000 mg/6 h vo (elección); amoxicilina-clavulánico 875 mg/8 h vo o cotrimoxazol 160/800 mg/12 h vo (alternativo). SARM: linezolid 600 mg/12 h vo (elección); cotrimoxazol 160/800 mg/12 h vo, clindamicina 300-450 mg/6-8 h vo o tedizolid 200 mg/24 h vo (alternativo). P. aeruginosa: ciprofloxacino 750 mg/12 h vo (elección); levofloxacino 750 mg/24 h vo o 500 mg/24 h vo (alternativo). Duración: 10-21 días, salvo azitromicina (3-5 días) y P. aeruginosa (14-21 días).",
+    description: "Tratamiento antibiótico empírico/dirigido de la agudización leve, por microorganismo, con opción de elección y alternativa y duración recomendada (10-21 días según el patógeno).",
+    topic: "tratamiento antibiótico",
+    keywords: ["agudización leve", "antibiótico", "tabla 8"],
+  },
+  {
+    definitionId: "separ-def-tabla8-agudizacion-grave",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tabla 8: Tratamiento antibiótico en las agudizaciones — agudización grave sin respuesta",
+    page: 95,
+    term: "Tratamiento antibiótico empírico en agudización grave sin respuesta a vo o por microorganismos resistentes",
+    sourceText:
+      "Tabla 8 (agudización grave, sin respuesta a vo o por microorganismos resistentes; duración 14-21 días). H. influenzae: amoxicilina-clavulánico 1-2 g/4-6 h iv (elección); ceftriaxona 2 g/24 h iv o amoxicilina-clavulánico 1-2 g/8 h iv (alternativo). S. aureus: cloxacilina 1-2 g/4-6 h iv (elección); vancomicina 15-20 mg/kg/8-12 h iv (alternativo). SARM: linezolid 600 mg/12 h iv (elección); vancomicina 15-20 mg/kg/8-12 h iv o ceftarolina 600 mg/12 h iv (alternativo). P. aeruginosa: ceftazidima 2 g/8 h iv + tobramicina 5-10 mg/kg/24 h iv (elección); imipenem 1 g/8 h iv, piperacilina/tazobactam 4 g/8 h iv, aztreonam 2 g/8 h iv, cefepime 2 g/8 h iv, meropenem 2 g/8 h iv, ciprofloxacino 400 mg/12 h iv + amikacina 15-20 mg/kg/24 h iv o gentamicina 5-7 mg/kg/24 h iv, o ceftolozano/tazobactam 1-2 g/8 h iv (alternativo).",
+    description: "Tratamiento antibiótico intravenoso de la agudización grave sin respuesta a vía oral o por microorganismos resistentes, por patógeno, con opción de elección y alternativas; duración 14-21 días.",
+    topic: "tratamiento antibiótico",
+    keywords: ["agudización grave", "antibiótico intravenoso", "tabla 8"],
+  },
+];
+
+/* ============================================================================
+   Criterios verificables
+   ========================================================================== */
+export const SEPAR_2018_CRITERIA: GuidelineCriterion[] = [
+  {
+    criterionId: "separ-crit-primoinfeccion-pa",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento de la infección bronquial inicial",
+    page: 89,
+    sourceText: "Primer cultivo positivo por P. aeruginosa (primoinfección)",
+    description: "Primer cultivo positivo por Pseudomonas aeruginosa (primoinfección).",
+    topic: "pseudomonas aeruginosa",
+    keywords: ["primoinfección", "Pseudomonas aeruginosa"],
+  },
+  {
+    criterionId: "separ-crit-infeccion-cronica-pa",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento de la infección bronquial crónica",
+    page: 89,
+    sourceText: "En todos los pacientes que presenten una infección bronquial crónica por P. aeruginosa",
+    description: "Infección bronquial crónica por Pseudomonas aeruginosa (el documento no define un criterio cuantitativo de \"crónica\" — no se infiere).",
+    topic: "pseudomonas aeruginosa",
+    keywords: ["infección crónica", "Pseudomonas aeruginosa"],
+  },
+  {
+    criterionId: "separ-crit-infeccion-cronica-otros-mpp",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento de la infección bronquial crónica",
+    page: 89,
+    sourceText:
+      "En aquellos con una infección bronquial crónica por otros MPP que además presenten al menos 2 agudizaciones o una hospitalización por agudización durante el año previo, un deterioro marcado de la función pulmonar o un deterioro de la calidad de vida evidenciado por un incremento del volumen o la purulencia del esputo, la disnea o la tos",
+    description:
+      "Infección bronquial crónica por microorganismos potencialmente patógenos (MPP) distintos de P. aeruginosa, junto con ≥2 agudizaciones o 1 hospitalización por agudización en el año previo, o deterioro marcado de función pulmonar, o deterioro de calidad de vida (más volumen/purulencia de esputo, disnea o tos).",
+    topic: "microbiología",
+    keywords: ["infección crónica", "MPP", "agudizaciones"],
+  },
+  {
+    criterionId: "separ-crit-macrolidos-poblacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "De la inflamación bronquial — Macrólidos",
+    page: 91,
+    sourceText: "en pacientes con BQ en fase de estabilidad clínica pero con, al menos, 2 agudizaciones anuales a pesar del tratamiento de base correcto",
+    description: "Pacientes en fase de estabilidad clínica con ≥2 agudizaciones anuales pese a tratamiento de base correcto.",
+    topic: "macrólidos",
+    keywords: ["macrólidos", "agudizaciones", "estabilidad clínica"],
+  },
+  {
+    criterionId: "separ-crit-corticoides-poblacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "De la inflamación bronquial — Corticosteroides inhalados",
+    page: 92,
+    sourceText: "tan solo en los pacientes con HRB, asma o broncorrea importante no controlable con otros tratamientos",
+    description: "Hiperreactividad bronquial (HRB), asma, o broncorrea importante no controlable con otros tratamientos.",
+    topic: "tratamiento antiinflamatorio",
+    keywords: ["corticoides inhalados", "HRB", "asma", "broncorrea"],
+  },
+  {
+    criterionId: "separ-crit-laba-poblacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "De la obstrucción al flujo aéreo",
+    page: 92,
+    sourceText: "en aquellos pacientes que cursen con obstrucción al flujo aéreo sintomática, siempre y cuando las ventajas superen los efectos adversos, así como para permitir una reducción en la dosis de esteroides inhalados",
+    description: "Obstrucción al flujo aéreo sintomática, cuando el beneficio supera el riesgo, o para permitir reducir la dosis de corticoides inhalados.",
+    topic: "broncodilatadores",
+    keywords: ["broncodilatadores", "LABA", "obstrucción al flujo aéreo"],
+  },
+  {
+    criterionId: "separ-crit-hipertonicas-poblacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Mucolíticos — Sustancias hipertónicas",
+    page: 93,
+    sourceText: "pacientes con BQ con expectoración superior a 10 ml al día o con ≥ 2 agudizaciones al año a pesar de un tratamiento de base correcto",
+    description: "Expectoración >10 ml/día, o ≥2 agudizaciones/año pese a tratamiento de base correcto.",
+    topic: "aclaramiento mucociliar",
+    keywords: ["suero hipertónico", "expectoración", "agudizaciones"],
+  },
+  {
+    criterionId: "separ-crit-entrenamiento-poblacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Entrenamiento muscular. Programa de ejercicios",
+    page: 93,
+    sourceText: "pacientes estables con disnea mayor de uno según la escala mMRC",
+    description: "Pacientes estables con disnea mMRC >1.",
+    topic: "rehabilitación pulmonar",
+    keywords: ["entrenamiento muscular", "disnea", "mMRC"],
+  },
+  {
+    criterionId: "separ-crit-transplante-supervivencia",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Trasplante pulmonar",
+    page: 94,
+    sourceText:
+      "enfermedad pulmonar crónica en estado avanzado o con evidencia de progresión de la enfermedad en la que se estime una supervivencia inferior a 2 años una vez empleados todos los recursos terapéuticos disponibles si no existe ninguna contraindicación absoluta",
+    description: "Enfermedad pulmonar crónica avanzada o progresiva con supervivencia estimada <2 años tras agotar recursos terapéuticos disponibles, sin contraindicación absoluta.",
+    topic: "trasplante",
+    keywords: ["trasplante pulmonar", "supervivencia"],
+  },
+  {
+    criterionId: "separ-crit-derivacion-especializada",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Escalones asistenciales — Consultas monográficas/Unidades especializadas",
+    page: 97,
+    sourceText:
+      "aquellos pacientes que precisen un diagnóstico o tratamiento especializado (infección bronquial crónica [en especial por P. aeruginosa]), así como aquellos que presenten múltiples agudizaciones, un valor de E-FACED = 6-9 puntos o de BSI >9 puntos, algunas etiologías como inmunodeficiencias primarias o discinesias ciliares así como aquellos con mal control o progresión de la enfermedad",
+    description:
+      "Derivar a consultas monográficas/unidades especializadas: necesidad de diagnóstico o tratamiento especializado (infección bronquial crónica, en especial por P. aeruginosa), múltiples agudizaciones, E-FACED 6-9 puntos, BSI >9 puntos, etiologías como inmunodeficiencias primarias o discinesia ciliar, o mal control/progresión de la enfermedad. (El documento no reproduce la tabla de puntuación de E-FACED, solo este umbral.)",
+    topic: "seguimiento",
+    keywords: ["derivación", "unidad especializada", "E-FACED", "BSI"],
+  },
+  {
+    criterionId: "separ-crit-agudizacion-grave-ingreso",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Agudizaciones — Criterios de gravedad e ingreso",
+    page: 96,
+    sourceText:
+      "Se clasifican como agudizaciones leves o moderadas aquellas que pueden controlarse con un tratamiento antibiótico por vía oral, mientras que se consideran como graves aquellas que precisan de tratamiento antibiótico intravenoso u hospitalización. Además también se consideran como graves aquellas que cursan con, al menos, una de las siguientes circunstancias: insuficiencia respiratoria aguda o crónica agudizada, deterioro significativo de la saturación de oxígeno, fiebre elevada u otros criterios de sepsis, hemoptisis franca o deterioro significativo de la función pulmonar. Aquellas agudizaciones que cursan con inestabilidad hemodinámica, alteración del nivel de consciencia o necesidad de ingreso en una unidad de cuidados intensivos o intermedios se consideran como muy graves.",
+    description:
+      "Leve/moderada = controlable con antibiótico oral. Grave = precisa antibiótico IV u hospitalización, o presenta ≥1 de: insuficiencia respiratoria aguda/crónica agudizada, deterioro significativo de SatO2, fiebre elevada u otros criterios de sepsis, hemoptisis franca, deterioro significativo de función pulmonar. Muy grave = además inestabilidad hemodinámica, alteración de consciencia o necesidad de UCI/UCI intermedios.",
+    topic: "gravedad",
+    keywords: ["gravedad", "agudización", "ingreso", "criterios"],
+  },
+];
+
+/* ============================================================================
+   Recomendaciones
+   ========================================================================== */
+export const SEPAR_2018_RECOMMENDATIONS: GuidelineRecommendation[] = [
+  {
+    recommendationId: "separ-rec-erradicacion-primoinfeccion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento antibiótico en la infección bronquial inicial",
+    page: 89,
+    sourceText: "Basándose fundamentalmente en el beneficio de la erradicación de P. aeruginosa en FQ, se recomienda asimismo intentar su erradicación en pacientes con BQ (Recomendación fuerte. Calidad de la evidencia baja).",
+    topic: "erradicación",
+    recommendationText: "Se recomienda intentar la erradicación de P. aeruginosa en pacientes con BQ.",
+    criteria: ["separ-crit-primoinfeccion-pa"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "low",
+    keywords: ["erradicación", "Pseudomonas aeruginosa", "primoinfección"],
+  },
+  {
+    recommendationId: "separ-rec-antibiotico-prolongado-pa",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento de la infección bronquial crónica",
+    page: 89,
+    sourceText: "Se recomienda el tratamiento antibiótico prolongado en las siguientes situaciones: a) En todos los pacientes que presenten una infección bronquial crónica por P. aeruginosa (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "tratamiento antibiótico",
+    recommendationText: "Se recomienda el tratamiento antibiótico prolongado en todos los pacientes que presenten una infección bronquial crónica por P. aeruginosa.",
+    criteria: ["separ-crit-infeccion-cronica-pa"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["antibiótico prolongado", "Pseudomonas aeruginosa"],
+  },
+  {
+    recommendationId: "separ-rec-antibiotico-prolongado-otros-mpp",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento de la infección bronquial crónica",
+    page: 89,
+    sourceText:
+      "b) En aquellos con una infección bronquial crónica por otros MPP que además presenten al menos 2 agudizaciones o una hospitalización por agudización durante el año previo, un deterioro marcado de la función pulmonar o un deterioro de la calidad de vida evidenciado por un incremento del volumen o la purulencia del esputo, la disnea o la tos (Recomendación fuerte. Calidad de la evidencia baja).",
+    topic: "tratamiento antibiótico",
+    recommendationText: "Se recomienda el tratamiento antibiótico prolongado en pacientes con infección bronquial crónica por otros MPP que además presenten ≥2 agudizaciones o 1 hospitalización en el año previo, deterioro marcado de función pulmonar, o deterioro de calidad de vida.",
+    criteria: ["separ-crit-infeccion-cronica-otros-mpp"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "low",
+    keywords: ["antibiótico prolongado", "MPP"],
+  },
+  {
+    recommendationId: "separ-rec-inhalados-vs-sistemicos",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento de la infección bronquial crónica",
+    page: 91,
+    sourceText: "se recomienda la utilización de antibióticos inhalados frente a las administraciones sistémicas (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "antibióticos inhalados",
+    recommendationText: "Se recomienda la utilización de antibióticos inhalados frente a las administraciones sistémicas, por la elevada efectividad y seguridad (altas concentraciones del antibiótico en el lugar de la infección con mínimos efectos secundarios sistémicos y menor tasa de resistencias).",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["antibióticos inhalados", "vía sistémica"],
+  },
+  {
+    recommendationId: "separ-rec-macrolidos",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "De la inflamación bronquial — Macrólidos",
+    page: 91,
+    sourceText: "Se recomienda en los pacientes con BQ en fase de estabilidad clínica pero con, al menos, 2 agudizaciones anuales a pesar del tratamiento de base correcto (Recomendación fuerte. Calidad de la evidencia elevada).",
+    topic: "macrólidos",
+    recommendationText: "Se recomiendan los macrólidos en pacientes con BQ en fase de estabilidad clínica pero con al menos 2 agudizaciones anuales a pesar del tratamiento de base correcto.",
+    criteria: ["separ-crit-macrolidos-poblacion"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "high",
+    keywords: ["macrólidos", "azitromicina"],
+  },
+  {
+    recommendationId: "separ-rec-corticoides-no-rutina",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "De la inflamación bronquial — Corticosteroides inhalados",
+    page: 92,
+    sourceText: "No se recomienda su uso de rutina, tan solo en los pacientes con HRB, asma o broncorrea importante no controlable con otros tratamientos (Recomendación fuerte. Calidad de la evidencia baja).",
+    topic: "tratamiento antiinflamatorio",
+    recommendationText: "No se recomienda el uso rutinario de corticosteroides inhalados; solo en pacientes con HRB, asma o broncorrea importante no controlable con otros tratamientos.",
+    criteria: ["separ-crit-corticoides-poblacion"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "low",
+    keywords: ["corticoides inhalados", "en contra", "HRB"],
+  },
+  {
+    recommendationId: "separ-rec-otros-antiinflamatorios-no-rutina",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "De la inflamación bronquial — Otros tratamientos antiinflamatorios",
+    page: 92,
+    sourceText:
+      "Por la ausencia de datos sobre su eficacia clínica, no se recomienda el uso rutinario de otros tratamientos antiinflamatorios como el inhibidor de la elastasa neutrofílica, los antileucotrienos, los inhibidores de la fosfodiesterasa 4 o las estatinas salvo por la coexistencia de EPOC, asma u otras comorbilidades, si estuvieran indicados (Recomendación débil. Calidad de la evidencia baja).",
+    topic: "tratamiento antiinflamatorio",
+    recommendationText: "No se recomienda el uso rutinario de otros tratamientos antiinflamatorios (inhibidor de la elastasa neutrofílica, antileucotrienos, inhibidores de la fosfodiesterasa 4, estatinas), salvo por comorbilidades (EPOC, asma u otras) que los indiquen.",
+    criteria: [],
+    exclusions: [],
+    strength: "conditional",
+    evidenceQuality: "low",
+    keywords: ["antiinflamatorios", "en contra", "estatinas", "antileucotrienos"],
+  },
+  {
+    recommendationId: "separ-rec-saba-antes-fisioterapia",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "De la obstrucción al flujo aéreo",
+    page: 92,
+    sourceText: "Se recomienda el empleo de betaadrenérgicos de acción corta (salbutamol o terbutalina) antes de la fisioterapia respiratoria para facilitar el drenaje de secreciones (DS) y el empleo de antibióticos inhalados solución salina hipertónica (SSH) (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "broncodilatadores",
+    recommendationText: "Se recomienda el empleo de betaadrenérgicos de acción corta (salbutamol o terbutalina) antes de la fisioterapia respiratoria, para facilitar el drenaje de secreciones y el empleo de antibióticos inhalados o solución salina hipertónica.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["broncodilatadores de acción corta", "fisioterapia"],
+  },
+  {
+    recommendationId: "separ-rec-laba-obstruccion-sintomatica",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "De la obstrucción al flujo aéreo",
+    page: 92,
+    sourceText: "El uso de betaadrenérgicos de acción prolongada se recomienda en aquellos pacientes que cursen con obstrucción al flujo aéreo sintomática, siempre y cuando las ventajas superen los efectos adversos, así como para permitir una reducción en la dosis de esteroides inhalados (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "broncodilatadores",
+    recommendationText: "Se recomienda el uso de betaadrenérgicos de acción prolongada en pacientes con obstrucción al flujo aéreo sintomática, cuando las ventajas superen los efectos adversos, y para permitir reducir la dosis de esteroides inhalados.",
+    criteria: ["separ-crit-laba-poblacion"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["LABA", "obstrucción al flujo aéreo"],
+  },
+  {
+    recommendationId: "separ-rec-composicion-corporal",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Aspectos nutricionales",
+    page: 92,
+    sourceText: "Sería aconsejable, además, medir la composición corporal (Recomendación fuerte, calidad de la evidencia moderada).",
+    topic: "nutrición",
+    recommendationText: "Se recomienda medir la composición corporal como parte de la valoración nutricional integral de los pacientes con BQ.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["nutrición", "composición corporal", "IMC"],
+  },
+  {
+    recommendationId: "separ-rec-drenaje-secreciones",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Drenaje de secreciones (DS)",
+    page: 93,
+    sourceText:
+      "Las técnicas de DS son seguras y recomendables en pacientes adultos con BQ clínicamente estables con tos productiva porque mejoran, de forma significativa, la calidad de vida y en especial en aquellos pacientes hipersecretores o con agudizaciones frecuentes (Recomendación fuerte. Calidad de la evidencia baja).",
+    topic: "aclaramiento mucociliar",
+    recommendationText: "Se recomiendan las técnicas de drenaje de secreciones en pacientes adultos con BQ clínicamente estables con tos productiva, especialmente hipersecretores o con agudizaciones frecuentes.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "low",
+    keywords: ["drenaje de secreciones", "fisioterapia respiratoria"],
+  },
+  {
+    recommendationId: "separ-rec-entrenamiento-muscular",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Entrenamiento muscular. Programa de ejercicios",
+    page: 93,
+    sourceText: "El entrenamiento físico, dentro de programas de rehabilitación respiratoria, se recomienda en pacientes estables con disnea mayor de uno según la escala mMRC (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "rehabilitación pulmonar",
+    recommendationText: "Se recomienda el entrenamiento físico, dentro de programas de rehabilitación respiratoria, en pacientes estables con disnea mMRC >1.",
+    criteria: ["separ-crit-entrenamiento-poblacion"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["rehabilitación respiratoria", "entrenamiento muscular", "disnea"],
+  },
+  {
+    recommendationId: "separ-rec-mucoliticos-no-rutina",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Mucolíticos",
+    page: 93,
+    sourceText: "La evidencia existente es insuficiente para recomendar el uso rutinario de mucolíticos en BQ (Recomendación fuerte. Calidad de la evidencia baja).",
+    topic: "aclaramiento mucociliar",
+    recommendationText: "No se recomienda el uso rutinario de mucolíticos en BQ por evidencia insuficiente.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "low",
+    keywords: ["mucolíticos", "en contra"],
+  },
+  {
+    recommendationId: "separ-rec-sustancias-hipertonicas",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Mucolíticos — Sustancias hipertónicas",
+    page: 93,
+    sourceText: "Las sustancias hipertónicas se recomiendan en pacientes con BQ con expectoración superior a 10 ml al día o con ≥ 2 agudizaciones al año a pesar de un tratamiento de base correcto (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "aclaramiento mucociliar",
+    recommendationText: "Se recomiendan las sustancias hipertónicas en pacientes con BQ con expectoración >10 ml/día o con ≥2 agudizaciones/año a pesar de un tratamiento de base correcto.",
+    criteria: ["separ-crit-hipertonicas-poblacion"],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["suero salino hipertónico", "manitol"],
+  },
+  {
+    recommendationId: "separ-rec-vmni",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento de la insuficiencia respiratoria",
+    page: 94,
+    sourceText: "La modalidad de ventilación mecánica no invasiva más adecuada es la ventilación con presión binivel (Recomendación fuerte. Calidad de la evidencia baja).",
+    topic: "soporte respiratorio",
+    recommendationText: "En fase de estabilidad clínica, la ventilación mecánica no invasiva está indicada en la insuficiencia respiratoria crónica como terapia coadyuvante a otras técnicas de rehabilitación y fisioterapia respiratoria y como puente al trasplante pulmonar; la modalidad más adecuada es la ventilación con presión binivel.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "low",
+    keywords: ["ventilación mecánica no invasiva", "insuficiencia respiratoria crónica"],
+  },
+  {
+    recommendationId: "separ-rec-cirugia",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Cirugía",
+    page: 95,
+    sourceText:
+      "Factores como la existencia de BQ residuales, la infección por P. aeruginosa o micobacterias no tuberculosas y el estado de inmunosupresión pueden influir en una peor respuesta clínica tras la cirugía (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "cirugía",
+    recommendationText: "La cirugía (lobectomías o segmentectomías) es el único tratamiento curativo en caso de BQ localizadas que causen problemas de manejo clínico, siempre que se descarten las enfermedades subyacentes que favorecen su aparición; también está indicada con intención paliativa en hemoptisis grave con embolización infectiva, o de zonas absceso-formadas no curables con tratamiento antibiótico.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["cirugía", "lobectomía", "bronquiectasias localizadas"],
+  },
+  {
+    recommendationId: "separ-rec-vacunacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Profilaxis de la infección",
+    page: 95,
+    sourceText:
+      "Como en el resto de las enfermedades crónicas de la vía aérea, se recomienda la vacuna antigripal anual y la vacuna antineumocócica conjugada 13-valente. Si el paciente ha sido vacunado previamente con la vacuna antineumocócica polisacárida 23-valente se aconseja que transcurra un año hasta la administración de la vacuna antineumocócica conjugada 13-valente (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "vacunación",
+    recommendationText: "Se recomienda la vacuna antigripal anual y la vacuna antineumocócica conjugada 13-valente; si el paciente ya recibió la polisacárida 23-valente, esperar un año antes de administrar la conjugada 13-valente.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["vacunación", "antigripal", "antineumocócica"],
+  },
+  {
+    recommendationId: "separ-rec-educacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Aspectos educacionales",
+    page: 95,
+    sourceText:
+      "Son importantes la educación y supervisión en el conocimiento de la enfermedad, el reconocimiento de la agudización y su automanejo inicial, la administración de antibióticos inhalados e intravenosos en el domicilio, el mantenimiento y la limpieza de los equipos, la administración de otros tratamientos (oxígeno, ventilación mecánica, etc.), y el cumplimiento del tratamiento (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "educación del paciente",
+    recommendationText: "Son importantes la educación y supervisión del paciente en el conocimiento de la enfermedad, el reconocimiento de la agudización y su automanejo inicial, la administración domiciliaria de antibióticos inhalados e intravenosos, el mantenimiento y limpieza de equipos, la administración de otros tratamientos, y el cumplimiento del tratamiento.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["educación del paciente", "automanejo", "adherencia"],
+  },
+  {
+    recommendationId: "separ-rec-antibiotico-iv-domiciliario",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tratamiento antibiótico intravenoso domiciliario",
+    page: 96,
+    sourceText:
+      "La literatura apoya la eficacia del tratamiento antibiótico intravenoso domiciliario para una amplia variedad de infecciones, siempre que los pacientes sean cuidadosamente seleccionados y adiestrados. [...] Es un tratamiento seguro y coste-efectivo (Recomendación fuerte. Calidad de la evidencia moderada).",
+    topic: "atención domiciliaria",
+    recommendationText: "El tratamiento antibiótico intravenoso domiciliario es eficaz, seguro y coste-efectivo en pacientes cuidadosamente seleccionados y adiestrados, siguiendo las recomendaciones de las guías publicadas para tratamiento antibiótico intravenoso domiciliario.",
+    criteria: [],
+    exclusions: [],
+    strength: "strong",
+    evidenceQuality: "moderate",
+    keywords: ["antibiótico intravenoso domiciliario", "hospitalización a domicilio"],
+  },
+];
