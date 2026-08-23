@@ -21,10 +21,11 @@ import { TreatmentsTab } from "./TreatmentsTab";
 import { ImagingTab } from "./ImagingTab";
 import { ConsultsTab } from "./ConsultsTab";
 import { AlertsTab } from "./AlertsTab";
+import { GuidelinesReviewTab } from "./GuidelinesReviewTab";
 import type { Patient } from "@/types/patient";
 import type { ClinicalExplanation } from "@/types/evidence";
 
-type TabKey = "resumen" | "timeline" | "funcion" | "micro" | "tratamientos" | "radiologia" | "consultas" | "alertas";
+type TabKey = "resumen" | "timeline" | "funcion" | "micro" | "tratamientos" | "radiologia" | "consultas" | "alertas" | "guias";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "resumen", label: "Resumen" },
@@ -35,6 +36,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "radiologia", label: "Radiología" },
   { key: "consultas", label: "Consultas" },
   { key: "alertas", label: "Alertas" },
+  { key: "guias", label: "Revisión según guías" },
 ];
 
 function isTabKey(v: string | null): v is TabKey {
@@ -109,6 +111,7 @@ export function PatientDetailView({ patient }: { patient: Patient }) {
       {tab === "radiologia" && <ImagingTab patient={patient} />}
       {tab === "consultas" && <ConsultsTab patient={patient} onAddConsultation={() => setShowAddConsult(true)} />}
       {tab === "alertas" && <AlertsTab patient={patient} onWhy={setWhy} />}
+      {tab === "guias" && <GuidelinesReviewTab patient={patient} onWhy={setWhy} />}
       <WhyModal data={why} onClose={() => setWhy(null)} />
       {showAddConsult && (
         <AddConsultationModal
