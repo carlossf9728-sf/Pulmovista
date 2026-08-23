@@ -1,7 +1,6 @@
 export * from "./Eyebrow";
 export * from "./Val";
 export * from "./StatusPill";
-export * from "./ConfidencePill";
 export * from "./DataConfidenceBadge";
 export * from "./KindTag";
 export * from "./Card";

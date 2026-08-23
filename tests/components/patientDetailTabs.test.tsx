@@ -71,16 +71,36 @@ describe("ConsultsTab", () => {
 });
 
 describe("AlertsTab", () => {
-  it("muestra los hallazgos de Sentinel con su fuente legacy y permite abrir '¿Por qué?'", async () => {
+  it("Sentinel muestra hallazgos objetivos con interpretación respaldada por guía (ya no heurística legacy) y permite abrir '¿Por qué?'", async () => {
     const onWhy = vi.fn();
     render(<AlertsTab patient={p1} onWhy={onWhy} />);
     expect(screen.getByText("Aislamiento microbiológico persistente")).toBeInTheDocument();
-    expect(screen.getAllByText("heurística experimental").length).toBeGreaterThan(0);
+    // El dato objetivo de FEV1 se muestra sin interpretación respaldada (sin soporte de guía para ese cambio).
+    expect(screen.getByText("No se ha encontrado soporte suficiente en las guías cargadas para interpretar clínicamente este hallazgo.")).toBeInTheDocument();
+    // Traducción a lenguaje clínico — nunca el término técnico "GuidelineMatch".
+    expect(screen.getByText("Cumple")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("GuidelineMatch");
+
     const [firstWhyButton] = screen.getAllByRole("button", { name: /por qué/i });
     await userEvent.click(firstWhyButton);
     expect(onWhy).toHaveBeenCalledOnce();
     const explanation = onWhy.mock.calls[0][0];
-    expect(explanation.source.kind).toBe("legacy_heuristic");
+    expect(explanation.source.kind).toBe("guideline");
+    expect(explanation.sections.map((s: { label: string }) => s.label)).toEqual([
+      "Dato del paciente",
+      "Criterio de la guía",
+      "Evaluación",
+      "Recomendación",
+      "Guía",
+      "Sección",
+      "Página",
+      "Fragmento fuente",
+    ]);
+  });
+
+  it("Turning Points sigue mostrando su fuente legacy (no migrado en esta fase)", () => {
+    render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
+    expect(screen.getAllByText("heurística experimental").length).toBeGreaterThan(0);
   });
 });
 

@@ -2,14 +2,30 @@
 
 import { CircleAlert, GitCommit, TrendingDown } from "lucide-react";
 import { COLORS } from "@/utils/theme";
+import { EVIDENCE_QUALITY_LABEL, guidelineShortLabel, STRENGTH_LABEL } from "@/utils/guidelineLabels";
 import { computeSentinelFindings } from "@/engines/sentinel";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { computeMissingInfo, computeReviewOpportunities } from "@/engines/missingInfo";
 import { detectContradictions } from "@/engines/longitudinal";
 import { findGuidelinesForDiagnosis } from "@/engines/guidelines";
-import { Card, ConfidencePill, Eyebrow, KindTag, Val, WhyButton } from "@/components/ui";
+import { Card, Eyebrow, KindTag, Val, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 import type { ClinicalExplanation } from "@/types/evidence";
+import type { SentinelFinding, SentinelStatusLabel } from "@/types/sentinel";
+
+/** Color por SentinelStatusLabel — misma paleta que los 4 estados de la pestaña "Revisión según guías" (green/orange/slate/slateLight). */
+const STATUS_LABEL_TONE: Record<SentinelStatusLabel, { color: string; tint: string }> = {
+  Cumple: { color: COLORS.green, tint: COLORS.greenTint },
+  "Posiblemente cumple": { color: COLORS.orange, tint: COLORS.orangeTint },
+  "Información insuficiente": { color: COLORS.slate, tint: COLORS.paper },
+  "No cumple": { color: COLORS.slateLight, tint: COLORS.paper },
+};
+
+function sentinelCardAccent(f: SentinelFinding): string {
+  if (f.guidelineInterpretations.some((gi) => gi.statusLabel === "Cumple")) return COLORS.red;
+  if (f.guidelineInterpretations.length) return COLORS.orange;
+  return COLORS.slateLight;
+}
 
 export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explanation: ClinicalExplanation) => void }) {
   const findings = computeSentinelFindings(patient);
@@ -28,33 +44,54 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
         {!findings.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>No se ha detectado un patrón de deterioro con los datos actuales.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
           {findings.map((f) => (
-            <Card key={f.ruleId} accent={f.confidence === "Alta" ? COLORS.red : COLORS.orange}>
+            <Card key={f.signalId + (f.subject ?? "")} accent={sentinelCardAccent(f)}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ fontWeight: 700, fontSize: 14.5, display: "flex", alignItems: "center", gap: 7 }}>
                   <TrendingDown size={16} color={COLORS.red} /> {f.label}
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <KindTag kind={f.explanation.kindLabel} />
-                  <ConfidencePill level={f.confidence} />
-                </div>
-              </div>
-              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                <div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase" }}>Dato </span>
-                  <span style={{ fontSize: 13 }}>{f.datum}</span>
-                </div>
-                <div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase" }}>Interpretación </span>
-                  <span style={{ fontSize: 13, fontStyle: "italic" }}>{f.interpretation}</span>
-                </div>
-                <div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase" }}>Recomendación </span>
-                  <span style={{ fontSize: 13 }}>{f.recommendation}</span>
-                </div>
               </div>
               <div style={{ marginTop: 12 }}>
-                <WhyButton onClick={() => onWhy(f.explanation)} />
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase" }}>Dato objetivo </span>
+                <span style={{ fontSize: 13 }}>{f.datum}</span>
               </div>
+
+              {!f.guidelineInterpretations.length && (
+                <div style={{ marginTop: 12, fontSize: 13, fontStyle: "italic", color: COLORS.slateLight, background: COLORS.paper, borderRadius: 8, padding: "9px 12px" }}>
+                  {f.noSupportMessage}
+                </div>
+              )}
+
+              {f.guidelineInterpretations.map((gi) => {
+                const tone = STATUS_LABEL_TONE[gi.statusLabel];
+                return (
+                  <div key={gi.recommendationId} style={{ marginTop: 12, borderTop: `1px dashed ${COLORS.line}`, paddingTop: 12 }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                      <KindTag kind="guideline" />
+                      <span
+                        className="pv-mono"
+                        style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.tealDeep, background: COLORS.tealTint, padding: "3px 9px", borderRadius: 20 }}
+                      >
+                        {guidelineShortLabel(gi.society, gi.year)}
+                      </span>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: tone.color, background: tone.tint, padding: "3px 9px", borderRadius: 20 }}>
+                        {gi.statusLabel}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, margin: "8px 0" }}>{gi.recommendationText}</div>
+                    <div style={{ display: "flex", gap: 16, fontSize: 12, color: COLORS.slate }}>
+                      <span>
+                        Fuerza: <Val value={gi.strength ? STRENGTH_LABEL[gi.strength] : null} />
+                      </span>
+                      <span>
+                        Calidad de evidencia: <Val value={gi.evidenceQuality ? EVIDENCE_QUALITY_LABEL[gi.evidenceQuality] : null} />
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 8 }}>
+                      <WhyButton onClick={() => onWhy(gi.explanation)} />
+                    </div>
+                  </div>
+                );
+              })}
             </Card>
           ))}
         </div>

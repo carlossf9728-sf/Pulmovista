@@ -1,72 +1,51 @@
 /**
- * SentinelEngine
+ * SentinelEngine — migrado de heurísticas legacy a GuidelineMatch.
  * ----------------------------------------------------------------------
- * `computeSentinelFindings()` ejecuta hoy únicamente las reglas legacy de
- * `legacyRules.ts` (ver aviso LEGACY/EXPERIMENTAL ahí). La forma de
- * salida (`SentinelFinding`) ya separa `source` del contenido, así que en
- * la fase de guías este módulo podrá sustituir el cuerpo de
- * `computeSentinelFindings()` por:
+ *   datos del paciente → objectiveDetectors.ts (cambio objetivo)
+ *     → guidelineInterpretation.ts (GuidelineMatch → interpretación,
+ *       cuando la base de conocimiento la respalda) → SentinelFinding[]
  *
- *   datos del paciente → GuidelineEngine.matchGuidelines() → GuidelineMatch[]
- *     → SentinelFinding[] (con source: { kind: "guideline", ... })
+ * Ninguna interpretación clínica ni recomendación mostrada por Sentinel
+ * procede ya de heurísticas legacy (`legacyRules.ts`, eliminado): cuando
+ * no hay una GuidelineRecommendation relacionada dentro del alcance
+ * actual de GuidelineMatch, el hallazgo se muestra solo con su dato
+ * objetivo y `noSupportMessage`, nunca con una interpretación inventada.
  *
- * sin cambiar la interfaz que consumen SentinelView/AlertsTab.
+ * Turning Points, Missing Information y Review Opportunities NO se han
+ * tocado en esta migración — siguen usando sus heurísticas legacy.
  */
-import { SENTINEL_LEGACY_RULES } from "./legacyRules";
+import { buildGuidelineInterpretations, NO_SUPPORT_MESSAGE } from "./guidelineInterpretation";
+import { detectObjectiveSentinelSignals } from "./objectiveDetectors";
 import type { Patient, PatientStatus } from "@/types/patient";
-import type { ClinicalExplanation, ClinicalSource, EvidenceItem } from "@/types/evidence";
 import type { SentinelFinding } from "@/types/sentinel";
 
-export { SENTINEL_LEGACY_RULES };
-
 export function computeSentinelFindings(patient: Patient): SentinelFinding[] {
-  const findings: SentinelFinding[] = [];
-  for (const rule of SENTINEL_LEGACY_RULES) {
-    const result = rule.evaluate(patient);
-    if (!result) continue;
-
-    const source: ClinicalSource = { kind: "legacy_heuristic", ruleId: rule.ruleId, label: rule.label };
-    const evidence: EvidenceItem[] = result.evidence.map((label) => ({ label }));
-    const explanation: ClinicalExplanation = {
-      kindLabel: "heurística experimental",
-      source,
-      sections: [
-        { label: "Dato", text: result.dato, emphasis: true },
-        { label: "Interpretación", text: result.interpretacion },
-        { label: "Recomendación", text: result.recomendacion },
-      ],
-      evidence,
+  return detectObjectiveSentinelSignals(patient).map((signal) => {
+    const guidelineInterpretations = buildGuidelineInterpretations(patient, signal);
+    return {
+      ...signal,
+      guidelineInterpretations,
+      noSupportMessage: guidelineInterpretations.length ? null : NO_SUPPORT_MESSAGE,
     };
-
-    findings.push({
-      ruleId: rule.ruleId,
-      label: rule.label,
-      source,
-      datum: result.dato,
-      interpretation: result.interpretacion,
-      recommendation: result.recomendacion,
-      evidence,
-      confidence: result.confidence,
-      explanation,
-    });
-  }
-  return findings;
+  });
 }
 
 /**
  * Estado agregado del paciente para la UI (pill de estado, orden del
- * listado). Depende únicamente de la confianza de los hallazgos Sentinel.
+ * listado). "deterioro" ahora requiere una interpretación respaldada por
+ * guía con estado "Cumple" (no un umbral heurístico arbitrario);
+ * "revisión" cubre cualquier otro hallazgo objetivo, con o sin soporte de
+ * guía; "estable" cuando no hay ningún hallazgo.
  *
  * LEGACY / incoherencia conocida (documentada, no corregida en esta
  * fase): el badge de "alertas" que se muestra en la UI (sidebar, pestaña
  * Alertas) suma Sentinel + Turning Points + contradicciones, mientras que
  * `patientStatus` solo mira Sentinel. Un paciente puede aparecer como
- * "Estable" y aun así tener un badge de alertas > 0. Revisar cuando se
- * sustituya Sentinel por GuidelineEngine.
+ * "Estable" y aun así tener un badge de alertas > 0.
  */
 export function patientStatus(patient: Patient): PatientStatus {
   const findings = computeSentinelFindings(patient);
-  if (!findings.length) return "estable";
-  if (findings.some((f) => f.confidence === "Alta")) return "deterioro";
-  return "revision";
+  if (findings.some((f) => f.guidelineInterpretations.some((gi) => gi.statusLabel === "Cumple"))) return "deterioro";
+  if (findings.length) return "revision";
+  return "estable";
 }

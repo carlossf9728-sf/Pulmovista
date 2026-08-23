@@ -3,8 +3,10 @@
 import { useMemo } from "react";
 import { CircleAlert } from "lucide-react";
 import { COLORS } from "@/utils/theme";
-import { formatDate, todayISO } from "@/utils/date";
-import { findCriterionById, findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
+import { todayISO } from "@/utils/date";
+import { EVIDENCE_QUALITY_LABEL, guidelineShortLabel, STRENGTH_LABEL } from "@/utils/guidelineLabels";
+import { criteriaSummaryText, criterionLine, evidenceLine } from "@/engines/guidelines/explain";
+import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { matchPatientToGuidelines } from "@/engines/guidelines/match";
 import { Card, Eyebrow, Val, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
@@ -22,9 +24,6 @@ import type { ClinicalExplanation } from "@/types/evidence";
  * + SEPAR 2018, evaluadas siempre por separado). NO conectado a Sentinel,
  * Turning Points, Missing Information ni Review Opportunities.
  */
-
-const STRENGTH_LABEL: Record<string, string> = { strong: "Fuerte", conditional: "Condicional" };
-const EVIDENCE_QUALITY_LABEL: Record<string, string> = { "very low": "Muy baja", low: "Baja", moderate: "Moderada", high: "Alta" };
 
 const STATUS_GROUPS: {
   key: GuidelineMatchStatus;
@@ -68,20 +67,6 @@ const STATUS_GROUPS: {
   },
 ];
 
-function guidelineShortLabel(society: string, year: number): string {
-  const abbrMatch = society.match(/\(([^)]+)\)/);
-  return `${abbrMatch ? abbrMatch[1] : society} ${year}`;
-}
-
-/** Descripción legible de un criterio; si no se encuentra, el propio id (no debería ocurrir — GuidelineMatch solo referencia criterionId reales). */
-function criterionLine(criterionId: string): string {
-  return findCriterionById(criterionId)?.description ?? criterionId;
-}
-
-function evidenceLine(e: { label: string; date?: string | null }): string {
-  return e.date ? `${formatDate(e.date)} — ${e.label}` : e.label;
-}
-
 function buildExplanation(match: GuidelineMatch): ClinicalExplanation {
   const recommendation = findRecommendationById(match.recommendationId);
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
@@ -89,14 +74,6 @@ function buildExplanation(match: GuidelineMatch): ClinicalExplanation {
   const datoText = match.patientEvidence.length
     ? match.patientEvidence.map(evidenceLine).join(" · ")
     : "Esta recomendación no depende de ningún dato concreto del paciente (sin criterios acotados en la base de conocimiento).";
-
-  const criterioParts = [
-    ...match.matchedCriteria.map((id) => `${criterionLine(id)} — cumplido`),
-    ...match.unmatchedCriteria.map((id) => `${criterionLine(id)} — no cumplido`),
-    ...match.missingCriteria.map((id) => `${criterionLine(id)} — sin datos suficientes`),
-    ...match.conflictingCriteria.map((id) => `${criterionLine(id)} — exclusión presente`),
-  ];
-  const criterioText = criterioParts.length ? criterioParts.join(" · ") : "Sin criterios verificables asociados a esta recomendación.";
 
   return {
     kindLabel: "guideline",
@@ -111,7 +88,7 @@ function buildExplanation(match: GuidelineMatch): ClinicalExplanation {
     },
     sections: [
       { label: "Dato del paciente", emphasis: true, text: datoText },
-      { label: "Criterio de la guía", text: criterioText },
+      { label: "Criterio de la guía", text: criteriaSummaryText(match) },
       { label: "Recomendación", text: recommendation?.recommendationText ?? "Texto no disponible." },
       { label: "Sección", text: match.guidelineCitation.section ?? "No documentada por la guía." },
       { label: "Página", text: match.guidelineCitation.page != null ? `p. ${match.guidelineCitation.page}` : "No documentada por la guía." },

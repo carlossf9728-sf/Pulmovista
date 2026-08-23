@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Card, ConfidencePill, DataConfidenceBadge, KindTag, StatusPill, Val, WhyButton, WhyModal } from "@/components/ui";
+import { Card, DataConfidenceBadge, KindTag, StatusPill, Val, WhyButton, WhyModal } from "@/components/ui";
 import type { ClinicalExplanation } from "@/types/evidence";
 
 describe("Val", () => {
@@ -22,11 +22,7 @@ describe("StatusPill", () => {
   });
 });
 
-describe("ConfidencePill / KindTag / DataConfidenceBadge", () => {
-  it("ConfidencePill muestra el nivel de confianza", () => {
-    render(<ConfidencePill level="Alta" />);
-    expect(screen.getByText("Confianza Alta")).toBeInTheDocument();
-  });
+describe("KindTag / DataConfidenceBadge", () => {
   it("KindTag muestra la etiqueta de tipo", () => {
     render(<KindTag kind="heurística experimental" />);
     expect(screen.getByText("heurística experimental")).toBeInTheDocument();
