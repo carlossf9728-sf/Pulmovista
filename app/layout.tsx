@@ -8,7 +8,7 @@ const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subset
 
 export const metadata: Metadata = {
   title: "PulmoVista",
-  description: "Seguimiento longitudinal de pacientes respiratorios. Prototype / research use only.",
+  description: "Seguimiento longitudinal de pacientes respiratorios. Prototipo — uso exclusivo de investigación.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

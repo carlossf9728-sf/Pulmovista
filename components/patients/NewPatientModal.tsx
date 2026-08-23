@@ -77,7 +77,7 @@ export function NewPatientModal({ onClose, onCreate }: { onClose: () => void; on
           />
         </div>
         <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginBottom: 18, display: "flex", gap: 6, alignItems: "center" }}>
-          <ShieldAlert size={13} /> El texto pasará por Privacy Shield y por el motor de extracción antes de guardarse.
+          <ShieldAlert size={13} /> El texto pasará por el Escudo de privacidad y por el motor de extracción antes de guardarse.
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: 9, border: `1px solid ${COLORS.line}`, background: "white", fontWeight: 600, fontSize: 13 }}>

@@ -13,7 +13,7 @@ import { COLORS } from "@/utils/theme";
  * Sentinel) es idéntico.
  */
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/", label: "Inicio", icon: LayoutDashboard },
   { href: "/pacientes", label: "Pacientes", icon: Users },
   { href: "/sentinel", label: "Sentinel", icon: Radar },
   { href: "/guias", label: "Guías", icon: BookOpen },
@@ -106,7 +106,7 @@ export function Sidebar({ alertCount }: { alertCount: number }) {
           lineHeight: 1.5,
         }}
       >
-        Prototype / research use only.
+        Prototipo — uso exclusivo de investigación.
         <br />
         No introducir datos identificativos reales.
       </div>

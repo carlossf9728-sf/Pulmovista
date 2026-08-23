@@ -15,7 +15,7 @@ export function PrivacyShieldModal({
   onCancel: () => void;
 }) {
   return (
-    <Modal title="Privacy Shield" onClose={onCancel} width={520}>
+    <Modal title="Escudo de privacidad" onClose={onCancel} width={520}>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14 }}>
         <ShieldAlert size={22} color={COLORS.red} style={{ flexShrink: 0, marginTop: 2 }} />
         <div style={{ fontSize: 14, lineHeight: 1.5 }}>
@@ -34,7 +34,7 @@ export function PrivacyShieldModal({
       </div>
       <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginBottom: 18, display: "flex", gap: 6, alignItems: "flex-start" }}>
         <CircleAlert size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-        Privacy Shield es una herramienta experimental basada en reglas locales; no garantiza anonimización completa. Revise
+        El Escudo de privacidad es una herramienta experimental basada en reglas locales; no garantiza anonimización completa. Revise
         siempre el texto manualmente.
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>

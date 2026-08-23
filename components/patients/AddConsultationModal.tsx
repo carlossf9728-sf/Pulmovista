@@ -34,7 +34,7 @@ export function AddConsultationModal({ onClose, onAdd }: { onClose: () => void; 
           style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 13.5, fontFamily: "inherit", lineHeight: 1.5, resize: "vertical" }}
         />
         <div style={{ fontSize: 11.5, color: COLORS.slateLight, margin: "10px 0 18px", display: "flex", gap: 6, alignItems: "center" }}>
-          <ShieldAlert size={13} /> El texto pasará por Privacy Shield y por el motor de extracción antes de guardarse.
+          <ShieldAlert size={13} /> El texto pasará por el Escudo de privacidad y por el motor de extracción antes de guardarse.
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: 9, border: `1px solid ${COLORS.line}`, background: "white", fontWeight: 600, fontSize: 13 }}>

@@ -24,7 +24,7 @@ export function computeMissingInfo(patient: Patient): MissingInfoResult {
   const source: ClinicalSource = {
     kind: "legacy_heuristic",
     ruleId: `missing-info:${category}`,
-    label: `Checklist de datos mínimos — ${category}`,
+    label: `Lista de comprobación de datos mínimos — ${category}`,
   };
   return { category, items: rules.filter((r) => r.check(patient)).map((r) => r.text), source };
 }

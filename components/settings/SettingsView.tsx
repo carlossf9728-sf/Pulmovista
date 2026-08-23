@@ -15,9 +15,9 @@ export function SettingsView() {
         <div style={{ display: "flex", gap: 10 }}>
           <CircleAlert size={20} color={COLORS.orange} style={{ flexShrink: 0 }} />
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Prototype / Research use only</div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Prototipo — uso exclusivo de investigación</div>
             <div style={{ fontSize: 13, color: COLORS.slate, marginTop: 4, lineHeight: 1.5 }}>
-              Do not enter real patient-identifiable information. Esta versión utiliza almacenamiento en memoria de la sesión;
+              No introduzca información real que identifique a pacientes. Esta versión utiliza almacenamiento en memoria de la sesión;
               la arquitectura queda preparada para cifrado y autenticación en fases futuras.
             </div>
           </div>
@@ -33,7 +33,7 @@ export function SettingsView() {
           ))}
         </div>
         <div style={{ fontSize: 13, color: COLORS.slate, marginTop: 12, lineHeight: 1.6 }}>
-          La extracción estructurada y Privacy Shield funcionan hoy mediante reglas locales simuladas, con una interfaz de
+          La extracción estructurada y el Escudo de privacidad funcionan hoy mediante reglas locales simuladas, con una interfaz de
           datos (ClinicalEvent) ya preparada para recibir la salida de un motor real sin cambios en el resto de la
           aplicación.
         </div>

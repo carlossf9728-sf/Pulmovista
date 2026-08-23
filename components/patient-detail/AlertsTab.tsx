@@ -98,7 +98,7 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
       </div>
 
       <div>
-        <Eyebrow color={COLORS.orange}>Clinical Turning Points</Eyebrow>
+        <Eyebrow color={COLORS.orange}>Momentos clave</Eyebrow>
         {!turningPoints.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>No se han identificado puntos de inflexión relevantes.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
           {turningPoints.map((tp) => (
@@ -151,8 +151,8 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
 
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <Eyebrow color={COLORS.slate}>What am I missing?</Eyebrow>
-          <span style={{ fontSize: 10.5, color: COLORS.slateLight }}>Checklist para: {missing.category}</span>
+          <Eyebrow color={COLORS.slate}>¿Qué me falta revisar?</Eyebrow>
+          <span style={{ fontSize: 10.5, color: COLORS.slateLight }}>Lista de comprobación para: {missing.category}</span>
         </div>
         {!missing.items.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>No se han identificado ausencias relevantes para este diagnóstico.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
@@ -166,7 +166,7 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
       </div>
 
       <div>
-        <Eyebrow color={COLORS.orange}>Clinical Review Opportunities</Eyebrow>
+        <Eyebrow color={COLORS.orange}>Oportunidades de revisión clínica</Eyebrow>
         {!opportunities.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>Sin oportunidades de revisión identificadas.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
           {opportunities.map((o) => (

@@ -29,7 +29,7 @@ type TabKey = "resumen" | "timeline" | "funcion" | "micro" | "tratamientos" | "r
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "resumen", label: "Resumen" },
-  { key: "timeline", label: "Timeline" },
+  { key: "timeline", label: "Cronología" },
   { key: "funcion", label: "Función pulmonar" },
   { key: "micro", label: "Microbiología" },
   { key: "tratamientos", label: "Tratamientos" },
