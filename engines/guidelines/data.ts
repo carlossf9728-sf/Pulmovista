@@ -1,20 +1,20 @@
 /**
- * Contenido SIMULADO — pendiente de cargar el texto real de cada
- * recomendación. No inventar contenido clínico aquí: esta fase solo deja
- * la arquitectura (GuidelineDefinition + GuidelineRecommendation)
- * preparada para la siguiente gran fase, en la que se cargarán guías
- * reales de bronquiectasias, EPOC, EPID, fibrosis quística, hipertensión
- * pulmonar y trasplante, y se implementará RAG.
+ * Contenido SIMULADO — stub original de la Fase 4, mantenido sin cambios
+ * de comportamiento. NO representa las guías reales de bronquiectasias
+ * (esas viven en engines/guidelines/knowledge/, separadas y todavía sin
+ * conectar a la interfaz ni a los motores clínicos). Este stub solo se
+ * ha ajustado mecánicamente al nuevo shape de tipos (GuidelineDocument,
+ * GuidelineRecommendation con cita) para seguir compilando; su contenido
+ * sigue siendo un marcador de posición honesto ("Contenido simulado…").
  */
-import type { GuidelineDefinition, GuidelineRecommendation } from "@/types/guideline";
+import type { GuidelineDocument, GuidelineRecommendation } from "@/types/guideline";
 
-export const GUIDELINE_DEFINITIONS: GuidelineDefinition[] = [
+export const GUIDELINE_DOCUMENTS: GuidelineDocument[] = [
   {
     guidelineId: "ers-bx-2025",
     source: { sourceId: "ers", society: "European Respiratory Society", title: "ERS Bronchiectasis Guidelines", year: 2025 },
     disease: "Bronquiectasias",
     section: "Manejo de exacerbaciones",
-    page: null,
     keywords: ["exacerbación", "bronquiectasias"],
   },
   {
@@ -27,7 +27,6 @@ export const GUIDELINE_DEFINITIONS: GuidelineDefinition[] = [
     },
     disease: "EPOC",
     section: "Tratamiento farmacológico escalonado",
-    page: null,
     keywords: ["epoc", "tratamiento"],
   },
   {
@@ -40,16 +39,21 @@ export const GUIDELINE_DEFINITIONS: GuidelineDefinition[] = [
     },
     disease: "Fibrosis pulmonar",
     section: "Terapia antifibrótica",
-    page: null,
     keywords: ["fibrosis", "antifibrótico"],
   },
 ];
 
-export const GUIDELINE_RECOMMENDATIONS: GuidelineRecommendation[] = GUIDELINE_DEFINITIONS.map((def) => ({
-  recommendationId: `${def.guidelineId}-rec-1`,
-  guidelineId: def.guidelineId,
-  title: def.section ?? def.source.title,
-  conditions: [],
+export const GUIDELINE_RECOMMENDATIONS: GuidelineRecommendation[] = GUIDELINE_DOCUMENTS.map((doc) => ({
+  recommendationId: `${doc.guidelineId}-rec-1`,
+  guidelineId: doc.guidelineId,
+  section: null,
+  page: null,
+  sourceText: "Contenido simulado — pendiente de cargar el texto real de la recomendación.",
+  topic: "tratamiento antibiótico",
   recommendationText: "Contenido simulado — pendiente de cargar el texto real de la recomendación.",
-  evidenceLevel: null,
+  criteria: [],
+  exclusions: [],
+  strength: null,
+  evidenceQuality: null,
+  keywords: doc.keywords,
 }));

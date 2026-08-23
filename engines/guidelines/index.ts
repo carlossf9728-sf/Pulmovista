@@ -13,11 +13,11 @@
  * sin cambios de interfaz el día que se implemente.
  */
 import { classifyDiagnosis } from "@/domain/diagnosis";
-import { GUIDELINE_DEFINITIONS, GUIDELINE_RECOMMENDATIONS } from "./data";
+import { GUIDELINE_DOCUMENTS, GUIDELINE_RECOMMENDATIONS } from "./data";
 import type { Patient } from "@/types/patient";
 import type { Guideline, GuidelineMatch } from "@/types/guideline";
 
-export const GUIDELINES: Guideline[] = GUIDELINE_DEFINITIONS.map((definition) => ({
+export const GUIDELINES: Guideline[] = GUIDELINE_DOCUMENTS.map((definition) => ({
   definition,
   recommendations: GUIDELINE_RECOMMENDATIONS.filter((r) => r.guidelineId === definition.guidelineId),
 }));
