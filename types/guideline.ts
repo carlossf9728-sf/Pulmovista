@@ -166,19 +166,27 @@ export type GuidelineMatchStatus =
 
 /**
  * Resultado de evaluar una recomendación de guía contra los datos de un
- * paciente concreto. No se genera todavía (GuidelineEngine expone
- * `matchGuidelines()` como stub que devuelve `[]`), pero el tipo queda
- * fijado para que Sentinel/Turning Points puedan consumirlo después.
+ * paciente concreto. Producido por engines/guidelines/match.ts
+ * (evaluación real, alcance inicial: macrólidos, antibióticos inhalados,
+ * erradicación de Pseudomonas, corticoides inhalados y fisioterapia/
+ * aclaramiento de vía aérea — ver ese archivo para el registro de
+ * criterios soportados). NO conectado todavía a Sentinel, Turning Points,
+ * Missing Information, Review Opportunities ni a la UI.
  */
 export interface GuidelineMatch {
-  recommendationId: string;
   patientId: string;
+  recommendationId: string;
   status: GuidelineMatchStatus;
-  /** GuidelineCriterion.criterionId que el paciente cumple. */
+  /** GuidelineCriterion.criterionId (de `criteria`) que el paciente cumple, con certeza o con evidencia de confianza baja (ver `status: "possibly_applies"`). */
   matchedCriteria: string[];
-  /** GuidelineCriterion.criterionId que no se pueden evaluar por falta de datos. */
+  /** GuidelineCriterion.criterionId (de `criteria`) evaluados y confirmados como NO cumplidos (distinto de faltar información). */
+  unmatchedCriteria: string[];
+  /** GuidelineCriterion.criterionId (de `criteria`) que no se pueden evaluar por falta de datos estructurados del paciente. */
   missingCriteria: string[];
-  /** GuidelineCriterion.criterionId de exclusión que el paciente sí cumple (contraindicarían la recomendación). */
+  /** GuidelineCriterion.criterionId (de `exclusions`) que el paciente sí cumple (contraindicarían la recomendación). */
   conflictingCriteria: string[];
+  /** Datos concretos del paciente usados en la evaluación (con fecha, cuando proceda), para trazabilidad. */
   patientEvidence: EvidenceItem[];
+  /** Cita exacta de la guía que respalda la recomendación evaluada (idéntica a la de la GuidelineRecommendation). */
+  guidelineCitation: GuidelineCitation;
 }
