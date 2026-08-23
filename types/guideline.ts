@@ -101,8 +101,23 @@ export interface GuidelineRecommendation extends GuidelineCitation {
   recommendationText: string;
   /** GuidelineCriterion.criterionId de las condiciones de inclusión/población que definen a quién aplica. */
   criteria: string[];
-  /** GuidelineCriterion.criterionId de las condiciones de exclusión explícitas. */
+  /** GuidelineCriterion.criterionId de las condiciones de exclusión explícitas (su presencia contraindica la recomendación). */
   exclusions: string[];
+  /**
+   * GuidelineCriterion.criterionId de comprobaciones de seguridad que el
+   * texto exige realizar/confirmar explícitamente antes de aplicar la
+   * recomendación (p. ej. "NTM infection should be excluded before
+   * initiating..."). Semánticamente distinto de `exclusions`: en una
+   * exclusión, no poder confirmarla no bloquea la recomendación (se
+   * asume ausente salvo evidencia en contra, como en la práctica
+   * clínica habitual); en un prerrequisito, no poder confirmar que la
+   * comprobación se hizo SÍ impide `applies` — la evaluación de cada
+   * criterionId listado aquí sigue la misma polaridad que en `criteria`
+   * (cumplido = no bloquea; no cumplido/con evidencia en contra =
+   * bloquea; sin datos = falta información), nunca la polaridad
+   * invertida de `exclusions`.
+   */
+  prerequisites: string[];
   /**
    * null cuando esta entrada es una actuación hija dentro de un bloque
    * cuya fuerza/evidencia es global (ver `parentRecommendationId`) y la
@@ -177,11 +192,11 @@ export interface GuidelineMatch {
   patientId: string;
   recommendationId: string;
   status: GuidelineMatchStatus;
-  /** GuidelineCriterion.criterionId (de `criteria`) que el paciente cumple, con certeza o con evidencia de confianza baja (ver `status: "possibly_applies"`). */
+  /** GuidelineCriterion.criterionId (de `criteria` o `prerequisites`) que el paciente cumple, con certeza o con evidencia de confianza baja (ver `status: "possibly_applies"`). */
   matchedCriteria: string[];
-  /** GuidelineCriterion.criterionId (de `criteria`) evaluados y confirmados como NO cumplidos (distinto de faltar información). */
+  /** GuidelineCriterion.criterionId (de `criteria` o `prerequisites`) evaluados y confirmados como NO cumplidos (distinto de faltar información). Un `prerequisites` no cumplido bloquea la recomendación igual que un `unmatchedCriteria` de `criteria`. */
   unmatchedCriteria: string[];
-  /** GuidelineCriterion.criterionId (de `criteria`) que no se pueden evaluar por falta de datos estructurados del paciente. */
+  /** GuidelineCriterion.criterionId (de `criteria` o `prerequisites`) que no se pueden evaluar por falta de datos estructurados del paciente. Cualquiera de los dos fuerza `insufficient_data` — nunca se asume cumplido. */
   missingCriteria: string[];
   /** GuidelineCriterion.criterionId (de `exclusions`) que el paciente sí cumple (contraindicarían la recomendación). */
   conflictingCriteria: string[];

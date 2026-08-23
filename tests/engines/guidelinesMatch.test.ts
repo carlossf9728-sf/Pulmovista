@@ -52,11 +52,15 @@ function rec(id: string) {
 }
 
 describe("Macrólidos", () => {
-  it("cumple claramente (ERS): ≥2 exacerbaciones en el año previo, sin NTM", () => {
-    const patient = makePatient("macro-applies", [exac("macro-applies", "2025-08-01"), exac("macro-applies", "2026-01-01")]);
+  it("faltan datos (ERS): alto riesgo confirmado, pero sin comprobación de exclusión de NTM — antes se devolvía \"applies\" por error", () => {
+    const patient = makePatient("macro-missing-ntm", [exac("macro-missing-ntm", "2025-08-01"), exac("macro-missing-ntm", "2026-01-01")]);
     const match = matchPatientToRecommendation(patient, rec("ers-rec-pico4"), AS_OF);
-    expect(match.status).toBe("applies");
+    // ers-crit-ntm-excluded-before-macrolide es un PRERREQUISITO (no una
+    // exclusión): no poder confirmar que se excluyó NTM impide "applies",
+    // aunque el criterio de indicación (alto riesgo) esté confirmado.
+    expect(match.status).toBe("insufficient_data");
     expect(match.matchedCriteria).toEqual(["ers-crit-high-risk-exacerbation"]);
+    expect(match.missingCriteria).toEqual(["ers-crit-ntm-excluded-before-macrolide"]);
     expect(match.conflictingCriteria).toEqual([]);
     expect(match.guidelineCitation.guidelineId).toBe("ers-bronchiectasis-2025");
     expect(match.patientEvidence.length).toBeGreaterThan(0);
@@ -68,7 +72,7 @@ describe("Macrólidos", () => {
     expect(separMatch.missingCriteria).toEqual(["separ-crit-macrolidos-poblacion"]);
   });
 
-  it("no cumple (ERS): la exclusión por NTM bloquea la recomendación aunque el resto de criterios se cumplan", () => {
+  it("no cumple (ERS): evidencia de NTM (prerrequisito NO cumplido) bloquea la recomendación aunque el resto de criterios se cumplan", () => {
     const patient = makePatient("macro-ntm", [
       exac("macro-ntm", "2025-08-01"),
       exac("macro-ntm", "2026-01-01"),
@@ -77,14 +81,17 @@ describe("Macrólidos", () => {
     const match = matchPatientToRecommendation(patient, rec("ers-rec-pico4"), AS_OF);
     expect(match.status).toBe("does_not_apply");
     expect(match.matchedCriteria).toEqual(["ers-crit-high-risk-exacerbation"]);
-    expect(match.conflictingCriteria).toEqual(["ers-crit-ntm-excluded-before-macrolide"]);
+    // El prerrequisito NO cumplido va a unmatchedCriteria, no a
+    // conflictingCriteria — esa lista queda reservada para `exclusions`.
+    expect(match.unmatchedCriteria).toEqual(["ers-crit-ntm-excluded-before-macrolide"]);
+    expect(match.conflictingCriteria).toEqual([]);
   });
 
   it("faltan datos: 1 sola exacerbación no grave — no se puede confirmar ni descartar la rama de síntomas diarios graves", () => {
     const patient = makePatient("macro-missing", [exac("macro-missing", "2026-01-01")]);
     const match = matchPatientToRecommendation(patient, rec("ers-rec-pico4"), AS_OF);
     expect(match.status).toBe("insufficient_data");
-    expect(match.missingCriteria).toEqual(["ers-crit-high-risk-exacerbation"]);
+    expect(match.missingCriteria.sort()).toEqual(["ers-crit-high-risk-exacerbation", "ers-crit-ntm-excluded-before-macrolide"]);
   });
 
   it("no cumple: sin exacerbaciones en el año previo, en ambas guías", () => {
@@ -189,24 +196,39 @@ describe("Erradicación de Pseudomonas", () => {
 });
 
 describe("Corticoides inhalados", () => {
-  it("SEPAR cumple / ERS no cumple, sobre el mismo paciente: asma explícito en el diagnóstico", () => {
+  it('SEPAR "no cumple" (la excepción por asma DESACTIVA la recomendación negativa, nunca la convierte en positiva) / ERS "no cumple" también, sobre el mismo paciente', () => {
     const patient = makePatient("cort-asma", [], { secondaryDiagnoses: "Asma bronquial leve" });
     const separ = matchPatientToRecommendation(patient, rec("separ-rec-corticoides-no-rutina"), AS_OF);
-    expect(separ.status).toBe("applies");
-    expect(separ.matchedCriteria).toEqual(["separ-crit-corticoides-poblacion"]);
+    // separ-crit-corticoides-poblacion es una EXCLUSIÓN de "no rutina", no
+    // una indicación: con asma confirmada, la prohibición de uso rutinario
+    // deja de regir para este paciente — el resultado es does_not_apply,
+    // NUNCA una lectura de "SEPAR recomienda ICS" (el texto no lo afirma).
+    expect(separ.status).toBe("does_not_apply");
+    expect(separ.conflictingCriteria).toEqual(["separ-crit-corticoides-poblacion"]);
+    expect(separ.matchedCriteria).toEqual([]);
+    // recommendationText sigue siendo el enunciado negativo original — el
+    // motor no lo reescribe ni lo invierte.
+    expect(rec("separ-rec-corticoides-no-rutina").recommendationText).toMatch(/^No se recomienda/);
 
     // ERS solo recomienda EN CONTRA de los ICS en pacientes SIN asma/EPOC:
-    // con asma confirmada, esta guía no aplica a este paciente.
+    // con asma confirmada, esta guía tampoco aplica a este paciente (aquí
+    // el criterio SÍ es de indicación de la propia guía, no una excepción).
     const ers = matchPatientToRecommendation(patient, rec("ers-rec-pico7"), AS_OF);
     expect(ers.status).toBe("does_not_apply");
     expect(ers.unmatchedCriteria).toEqual(["ers-crit-no-asthma-copd"]);
   });
 
-  it("faltan datos (SEPAR) / situación ambigua (ERS), sobre el mismo paciente: ninguna comorbilidad registrada", () => {
+  it('SEPAR "cumple" (sin excepción confirmada, la recomendación negativa rige) / ERS "situación ambigua", sobre el mismo paciente: ninguna comorbilidad registrada', () => {
     const patient = makePatient("cort-none", []);
     const separ = matchPatientToRecommendation(patient, rec("separ-rec-corticoides-no-rutina"), AS_OF);
-    expect(separ.status).toBe("insufficient_data");
-    expect(separ.missingCriteria).toEqual(["separ-crit-corticoides-poblacion"]);
+    // Sin asma/HRB/broncorrea confirmada, la exclusión no se cumple (queda
+    // "missing", pero una exclusión en "missing" no bloquea, igual que en
+    // el resto del modelo) → la prohibición de uso rutinario es la que
+    // rige por defecto para este paciente.
+    expect(separ.status).toBe("applies");
+    expect(separ.matchedCriteria).toEqual([]);
+    expect(separ.conflictingCriteria).toEqual([]);
+    expect(separ.patientEvidence.length).toBeGreaterThan(0);
 
     // Ausencia de mención de asma/EPOC no es una negación explícita — no se asume el "sin asma ni EPOC" de ERS.
     const ers = matchPatientToRecommendation(patient, rec("ers-rec-pico7"), AS_OF);

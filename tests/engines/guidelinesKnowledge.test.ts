@@ -126,6 +126,28 @@ describe("Referencias internas válidas", () => {
     }
   });
 
+  it("GuidelineRecommendation.prerequisites referencia criterionId existentes de la MISMA guía", () => {
+    for (const r of KNOWLEDGE_BASE_RECOMMENDATIONS) {
+      for (const critId of r.prerequisites) {
+        expect(CRITERION_IDS.has(critId)).toBe(true);
+        const crit = KNOWLEDGE_BASE_CRITERIA.find((c) => c.criterionId === critId);
+        expect(crit?.guidelineId).toBe(r.guidelineId);
+      }
+    }
+  });
+
+  it("ningún criterionId aparece a la vez en criteria/exclusions/prerequisites de una misma recomendación", () => {
+    for (const r of KNOWLEDGE_BASE_RECOMMENDATIONS) {
+      const buckets = [r.criteria, r.exclusions, r.prerequisites];
+      for (let i = 0; i < buckets.length; i++) {
+        for (let j = i + 1; j < buckets.length; j++) {
+          const overlap = buckets[i].filter((id) => buckets[j].includes(id));
+          expect(overlap).toEqual([]);
+        }
+      }
+    }
+  });
+
   it("parentRecommendationId (cuando existe) referencia una recomendación existente de la MISMA guía", () => {
     for (const r of KNOWLEDGE_BASE_RECOMMENDATIONS) {
       if (!r.parentRecommendationId) continue;
@@ -175,12 +197,12 @@ describe("Fidelidad al conteo declarado por la propia guía (Table 1, ERS p.8)",
 describe("ERS y SEPAR se mantienen separadas (no fusionadas)", () => {
   it("ninguna recomendación de ERS referencia un criterio de SEPAR ni viceversa", () => {
     for (const r of ERS_2025_RECOMMENDATIONS) {
-      for (const id of [...r.criteria, ...r.exclusions]) {
+      for (const id of [...r.criteria, ...r.exclusions, ...r.prerequisites]) {
         expect(SEPAR_2018_CRITERIA.some((c) => c.criterionId === id)).toBe(false);
       }
     }
     for (const r of SEPAR_2018_RECOMMENDATIONS) {
-      for (const id of [...r.criteria, ...r.exclusions]) {
+      for (const id of [...r.criteria, ...r.exclusions, ...r.prerequisites]) {
         expect(ERS_2025_CRITERIA.some((c) => c.criterionId === id)).toBe(false);
       }
     }

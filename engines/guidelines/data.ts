@@ -53,6 +53,7 @@ export const GUIDELINE_RECOMMENDATIONS: GuidelineRecommendation[] = GUIDELINE_DO
   recommendationText: "Contenido simulado — pendiente de cargar el texto real de la recomendación.",
   criteria: [],
   exclusions: [],
+  prerequisites: [],
   strength: null,
   evidenceQuality: null,
   keywords: doc.keywords,

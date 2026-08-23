@@ -16,27 +16,41 @@
  *   macrólidos · antibióticos inhalados · erradicación de Pseudomonas ·
  *   corticoides inhalados · fisioterapia/aclaramiento de vía aérea
  *
+ * Tres categorías de GuidelineCriterion en una GuidelineRecommendation,
+ * con polaridad distinta (ver types/guideline.ts):
+ * - `criteria` (indicación): cumplido = contribuye a `applies`.
+ * - `exclusions` (contraindicación): la PRESENCIA confirmada bloquea; no
+ *   poder confirmarla NO bloquea (se asume ausente salvo evidencia en
+ *   contra, como en la práctica clínica habitual — por eso un
+ *   `exclusions` en "missing" no tiene efecto en `status`).
+ * - `prerequisites` (comprobación de seguridad exigida explícitamente por
+ *   el texto antes de aplicar la recomendación, p. ej. "NTM infection
+ *   should be excluded before initiating..."): sigue la MISMA polaridad
+ *   que `criteria` (nunca la de `exclusions`) — cumplido no bloquea, no
+ *   cumplido/con evidencia en contra bloquea, y sin datos fuerza
+ *   `insufficient_data` en vez de ignorarse.
+ *
  * Diseño de `status` (GuidelineMatchStatus):
- * - `does_not_apply`  — algún GuidelineCriterion de `exclusions` se
+ * - `does_not_apply` — algún GuidelineCriterion de `exclusions` se
  *   cumple (conflictingCriteria), o algún GuidelineCriterion de
- *   `criteria` está confirmado como NO cumplido (unmatchedCriteria). Las
- *   condiciones de `criteria` se combinan en AND (son "las condiciones
- *   de inclusión/población que definen a quién aplica" — types/guideline.ts):
- *   basta con que una esté confirmada como no cumplida para descartar la
- *   recomendación, aunque otras falten.
- * - `insufficient_data` — ningún criterio confirmado como no cumplido,
- *   pero al menos uno no se puede evaluar por falta de datos
- *   estructurados. Nunca se asume que el paciente cumple.
- * - `possibly_applies` — todos los criterios evaluables se cumplen, pero
- *   al menos uno se apoya en evidencia de confianza baja: bien porque la
- *   propia guía no cuantifica el umbral (p. ej. "infección crónica" o
- *   "periodo prolongado sin detectarse" — ver notas de fidelidad en
- *   ers2025.ts/separ2018.ts), bien porque el dato del paciente es una
- *   inferencia (p. ej. ausencia de mención de una comorbilidad en el
- *   diagnóstico registrado, no una negación explícita).
- * - `applies` — o bien no hay `criteria` que evaluar (recomendación sin
- *   población acotada, p. ej. ers-rec-pico1) y no hay conflicto, o bien
- *   todos los criterios se cumplen con evidencia de confianza alta.
+ *   `criteria`/`prerequisites` está confirmado como NO cumplido
+ *   (unmatchedCriteria). Las condiciones de `criteria`/`prerequisites` se
+ *   combinan en AND: basta con que una esté confirmada como no cumplida
+ *   para descartar la recomendación, aunque otras falten.
+ * - `insufficient_data` — ningún criterio/prerrequisito confirmado como
+ *   no cumplido, pero al menos uno de `criteria`/`prerequisites` no se
+ *   puede evaluar por falta de datos estructurados. Nunca se asume que
+ *   el paciente cumple.
+ * - `possibly_applies` — todos los criterios/prerrequisitos evaluables se
+ *   cumplen, pero al menos uno se apoya en evidencia de confianza baja:
+ *   bien porque la propia guía no cuantifica el umbral (p. ej. "infección
+ *   crónica" o "periodo prolongado sin detectarse" — ver notas de
+ *   fidelidad en ers2025.ts/separ2018.ts), bien porque el dato del
+ *   paciente es una inferencia (p. ej. ausencia de mención de una
+ *   comorbilidad en el diagnóstico registrado, no una negación explícita).
+ * - `applies` — o bien no hay `criteria` ni `prerequisites` que evaluar
+ *   (recomendación sin población acotada, p. ej. ers-rec-pico1) y no hay
+ *   conflicto, o bien todos se cumplen con evidencia de confianza alta.
  *
  * Cada evaluador de criterio documenta, en su propio comentario, de qué
  * campo(s) de ClinicalEvent/Patient procede el dato y qué parte del
@@ -191,13 +205,20 @@ const evalChronicPseudomonas: CriterionEvaluator = (patient, asOfDate) => {
 };
 
 /**
- * ers-crit-ntm-excluded-before-macrolide (criterio de EXCLUSIÓN para
- * macrólidos): "matched" aquí significa que el paciente SÍ tiene NTM
- * (bloquea la recomendación). Solo se confirma con un organismo del
- * género Mycobacterium distinto de tuberculosis en MicrobiologyEvent —
- * un cultivo de esputo estándar no descarta NTM de forma fiable (requiere
- * medios de cultivo específicos), así que la ausencia de hallazgo se
- * marca "missing", nunca "unmatched" (no se asume descartado).
+ * ers-crit-ntm-excluded-before-macrolide (PRERREQUISITO de seguridad para
+ * macrólidos, no exclusión): el criterio, en su propio sentido literal,
+ * es "la infección por NTM ha sido excluida antes de iniciar macrólidos".
+ * Por eso su polaridad sigue la misma convención que un `criteria` normal
+ * (nunca la de `exclusions`, que está invertida): "matched" = prerrequisito
+ * CUMPLIDO (NTM excluida, no bloquea); "unmatched" = prerrequisito NO
+ * cumplido (hay evidencia de NTM, o no se ha excluido — bloquea igual que
+ * una exclusión); "missing" = no consta que se haya hecho la comprobación
+ * (fuerza insufficient_data, nunca se asume cumplido). Con el modelo de
+ * datos actual, "matched" no es alcanzable: no existe un evento
+ * estructurado de "cultivo específico de NTM negativo", solo cultivos de
+ * esputo estándar que no descartan NTM de forma fiable (requiere medios
+ * de cultivo específicos) — así que la ausencia de NTM en los cultivos
+ * disponibles se queda en "missing", nunca sube a "matched".
  */
 const evalNtmExcluded: CriterionEvaluator = (patient, asOfDate) => {
   const criterionId = "ers-crit-ntm-excluded-before-macrolide";
@@ -208,9 +229,9 @@ const evalNtmExcluded: CriterionEvaluator = (patient, asOfDate) => {
   if (ntm.length > 0) {
     return {
       criterionId,
-      outcome: "matched",
+      outcome: "unmatched",
       uncertain: false,
-      evidence: ntm.map((m) => ({ label: `Cultivo positivo: ${m.organism}`, date: m.date })),
+      evidence: ntm.map((m) => ({ label: `Cultivo positivo: ${m.organism} — NTM no excluida.`, date: m.date })),
     };
   }
   return {
@@ -220,7 +241,7 @@ const evalNtmExcluded: CriterionEvaluator = (patient, asOfDate) => {
     evidence: [
       {
         label:
-          "No consta cultivo positivo a micobacterias no tuberculosas; un cultivo de esputo estándar no descarta NTM de forma fiable (requiere medios específicos), así que no se puede confirmar la exclusión.",
+          "No consta cultivo positivo a micobacterias no tuberculosas, pero un cultivo de esputo estándar no descarta NTM de forma fiable (requiere medios específicos) — no se puede confirmar que la exclusión de NTM se haya realizado.",
         date: null,
       },
     ],
@@ -509,16 +530,24 @@ function evaluateCriterion(criterionId: string, patient: Patient, asOfDate: stri
   return evaluator(patient, asOfDate);
 }
 
+/**
+ * `criteria` y `prerequisites` comparten polaridad (cumplido no bloquea,
+ * no cumplido bloquea, sin datos fuerza insufficient_data) y por eso se
+ * combinan aquí; `exclusions` tiene la polaridad invertida (solo bloquea
+ * si SE CONFIRMA la condición, y "missing" no tiene efecto) y se evalúa
+ * aparte, antes.
+ */
 function deriveStatus(
-  recommendation: GuidelineRecommendation,
   criteriaResults: CriterionEvaluation[],
   exclusionResults: CriterionEvaluation[],
+  prerequisiteResults: CriterionEvaluation[],
 ): GuidelineMatchStatus {
   if (exclusionResults.some((r) => r.outcome === "matched")) return "does_not_apply";
-  if (recommendation.criteria.length === 0) return "applies";
-  if (criteriaResults.some((r) => r.outcome === "unmatched")) return "does_not_apply";
-  if (criteriaResults.some((r) => r.outcome === "missing")) return "insufficient_data";
-  if (criteriaResults.some((r) => r.outcome === "matched" && r.uncertain)) return "possibly_applies";
+
+  const gated = [...criteriaResults, ...prerequisiteResults];
+  if (gated.some((r) => r.outcome === "unmatched")) return "does_not_apply";
+  if (gated.some((r) => r.outcome === "missing")) return "insufficient_data";
+  if (gated.some((r) => r.outcome === "matched" && r.uncertain)) return "possibly_applies";
   return "applies";
 }
 
@@ -526,17 +555,19 @@ function deriveStatus(
 export function matchPatientToRecommendation(patient: Patient, recommendation: GuidelineRecommendation, asOfDate: string): GuidelineMatch {
   const criteriaResults = recommendation.criteria.map((id) => evaluateCriterion(id, patient, asOfDate));
   const exclusionResults = recommendation.exclusions.map((id) => evaluateCriterion(id, patient, asOfDate));
+  const prerequisiteResults = recommendation.prerequisites.map((id) => evaluateCriterion(id, patient, asOfDate));
 
-  const status = deriveStatus(recommendation, criteriaResults, exclusionResults);
-  const patientEvidence = [...criteriaResults, ...exclusionResults].flatMap((r) => r.evidence);
+  const status = deriveStatus(criteriaResults, exclusionResults, prerequisiteResults);
+  const gated = [...criteriaResults, ...prerequisiteResults];
+  const patientEvidence = [...criteriaResults, ...exclusionResults, ...prerequisiteResults].flatMap((r) => r.evidence);
 
   return {
     patientId: patient.id,
     recommendationId: recommendation.recommendationId,
     status,
-    matchedCriteria: criteriaResults.filter((r) => r.outcome === "matched").map((r) => r.criterionId),
-    unmatchedCriteria: criteriaResults.filter((r) => r.outcome === "unmatched").map((r) => r.criterionId),
-    missingCriteria: criteriaResults.filter((r) => r.outcome === "missing").map((r) => r.criterionId),
+    matchedCriteria: gated.filter((r) => r.outcome === "matched").map((r) => r.criterionId),
+    unmatchedCriteria: gated.filter((r) => r.outcome === "unmatched").map((r) => r.criterionId),
+    missingCriteria: gated.filter((r) => r.outcome === "missing").map((r) => r.criterionId),
     conflictingCriteria: exclusionResults.filter((r) => r.outcome === "matched").map((r) => r.criterionId),
     patientEvidence,
     guidelineCitation: {
