@@ -1,15 +1,18 @@
 "use client";
 
 import { useMemo } from "react";
-import { CircleAlert } from "lucide-react";
+import type { ReactNode } from "react";
+import { Info } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
 import { EVIDENCE_QUALITY_LABEL, guidelineShortLabel, STRENGTH_LABEL } from "@/utils/guidelineLabels";
-import { criteriaSummaryText, criterionLine, evidenceLine } from "@/engines/guidelines/explain";
+import { buildCitation, criteriaSummaryText, criterionLine, evidenceLine, interpretationSentence } from "@/engines/guidelines/explain";
 import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
-import { matchPatientToGuidelines } from "@/engines/guidelines/match";
+import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
+import { activeProblemCategories } from "@/domain/diagnosis";
 import { Card, Eyebrow, Val, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
+import type { DiagnosisCategory } from "@/domain/diagnosis";
 import type { GuidelineMatch, GuidelineMatchStatus } from "@/types/guideline";
 import type { ClinicalExplanation } from "@/types/evidence";
 
@@ -23,6 +26,13 @@ import type { ClinicalExplanation } from "@/types/evidence";
  * corticoides inhalados y fisioterapia/aclaramiento de vía aérea (ERS 2025
  * + SEPAR 2018, evaluadas siempre por separado). NO conectado a Sentinel,
  * Turning Points, Missing Information ni Review Opportunities.
+ *
+ * El término técnico "GuidelineMatch" nunca se muestra: cada tarjeta
+ * distingue tres cosas con su propio rótulo — Dato del paciente
+ * (estructurado, calculable), Interpretación de PulmoVista (síntesis en
+ * español de si el criterio se cumple, generada aquí) y Recomendación de
+ * la guía (texto verbatim de la fuente, en su idioma original) — para que
+ * no lea como una única respuesta generada por IA.
  */
 
 const STATUS_GROUPS: {
@@ -67,6 +77,19 @@ const STATUS_GROUPS: {
   },
 ];
 
+function categoryLabel(cat: DiagnosisCategory): string {
+  switch (cat) {
+    case "Bronquiectasias":
+      return "bronquiectasias";
+    case "EPOC":
+      return "EPOC";
+    case "Fibrosis pulmonar":
+      return "fibrosis pulmonar";
+    case "General":
+      return "otros problemas no clasificados";
+  }
+}
+
 function buildExplanation(match: GuidelineMatch): ClinicalExplanation {
   const recommendation = findRecommendationById(match.recommendationId);
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
@@ -88,13 +111,12 @@ function buildExplanation(match: GuidelineMatch): ClinicalExplanation {
     },
     sections: [
       { label: "Dato del paciente", emphasis: true, text: datoText },
-      { label: "Criterio de la guía", text: criteriaSummaryText(match) },
+      { label: "Criterio clínico de la guía", text: criteriaSummaryText(match) },
+      { label: "Interpretación de PulmoVista", text: interpretationSentence(match.status) },
       { label: "Recomendación", text: recommendation?.recommendationText ?? "Texto no disponible." },
-      { label: "Sección", text: match.guidelineCitation.section ?? "No documentada por la guía." },
-      { label: "Página", text: match.guidelineCitation.page != null ? `p. ${match.guidelineCitation.page}` : "No documentada por la guía." },
-      { label: "Fragmento fuente", text: match.guidelineCitation.sourceText },
     ],
     evidence: match.patientEvidence,
+    citation: buildCitation(match, document),
   };
 }
 
@@ -117,6 +139,16 @@ function CriterionList({ label, items, emptyText, tone }: { label: string; items
   );
 }
 
+/** Bloque con rótulo — usado para distinguir visualmente dato / interpretación / recomendación dentro de la tarjeta. */
+function Block({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
+      <div style={{ marginTop: 4 }}>{children}</div>
+    </div>
+  );
+}
+
 function MatchCard({ match, onWhy }: { match: GuidelineMatch; onWhy: () => void }) {
   const recommendation = findRecommendationById(match.recommendationId);
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
@@ -125,22 +157,42 @@ function MatchCard({ match, onWhy }: { match: GuidelineMatch; onWhy: () => void 
 
   return (
     <Card accent={group.color}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.45, flex: 1, minWidth: 220 }}>{recommendation.recommendationText}</div>
-        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-          <span
-            className="pv-mono"
-            style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.tealDeep, background: COLORS.tealTint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}
-          >
-            {guidelineShortLabel(document.source.society, document.source.year)}
-          </span>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: group.color, background: group.tint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}>
-            {group.singularLabel}
-          </span>
-        </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
+        <span
+          className="pv-mono"
+          style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.tealDeep, background: COLORS.tealTint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}
+        >
+          {guidelineShortLabel(document.source.society, document.source.year)}
+        </span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: group.color, background: group.tint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}>
+          {group.singularLabel}
+        </span>
       </div>
 
-      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "10px 0 0", fontSize: 12.5 }}>
+      {/* Tres bloques con su propio rótulo: dato objetivo / síntesis de PulmoVista / texto verbatim de la guía — nunca mezclados en un único párrafo. */}
+      <Block label="Dato del paciente">
+        {match.patientEvidence.length ? (
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {match.patientEvidence.map((e, i) => (
+              <li key={i} style={{ fontSize: 12.5, color: COLORS.ink, padding: "2px 0", display: "flex", gap: 6 }}>
+                <span style={{ color: COLORS.slate, fontWeight: 700, flexShrink: 0 }}>›</span> {evidenceLine(e)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span style={{ fontSize: 12.5, color: COLORS.slateLight, fontStyle: "italic" }}>Sin datos estructurados del paciente asociados a esta evaluación.</span>
+        )}
+      </Block>
+
+      <Block label="Interpretación de PulmoVista">
+        <span style={{ fontSize: 13, fontStyle: "italic", color: COLORS.navy }}>{interpretationSentence(match.status)}</span>
+      </Block>
+
+      <Block label="Recomendación de la guía">
+        <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.45, color: COLORS.ink }}>{recommendation.recommendationText}</span>
+      </Block>
+
+      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "12px 0 0", fontSize: 12.5 }}>
         <span>
           <span style={{ color: COLORS.slateLight, fontWeight: 700 }}>Fuerza </span>
           <Val value={recommendation.strength ? STRENGTH_LABEL[recommendation.strength] : null} />
@@ -151,12 +203,6 @@ function MatchCard({ match, onWhy }: { match: GuidelineMatch; onWhy: () => void 
         </span>
       </div>
 
-      <CriterionList
-        label="Datos del paciente utilizados"
-        items={match.patientEvidence.map(evidenceLine)}
-        emptyText="Sin datos estructurados del paciente asociados a esta evaluación."
-        tone={COLORS.slate}
-      />
       <CriterionList label="Criterios cumplidos" items={match.matchedCriteria.map(criterionLine)} emptyText="Ninguno." tone={COLORS.green} />
       <CriterionList label="Criterios que faltan" items={match.missingCriteria.map(criterionLine)} emptyText="Ninguno." tone={COLORS.slate} />
       {match.unmatchedCriteria.length > 0 && (
@@ -166,6 +212,38 @@ function MatchCard({ match, onWhy }: { match: GuidelineMatch; onWhy: () => void 
 
       <div style={{ marginTop: 12 }}>
         <WhyButton onClick={onWhy} />
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Estado informativo cuando ningún problema clínico activo del paciente
+ * tiene una base de conocimiento conectada. No es un error: PulmoVista
+ * simplemente no aplica una guía que no corresponde al problema clínico
+ * actual, y lo dice explícitamente en vez de mostrar una pantalla vacía.
+ */
+function NoCompatibleGuideline({ patient }: { patient: Patient }) {
+  const activeProblems = activeProblemCategories(patient);
+  const supportedLabel = SUPPORTED_DIAGNOSIS_CATEGORIES.map(categoryLabel).join(", ");
+  const problemsLabel = activeProblems.map(categoryLabel).join(", ");
+
+  return (
+    <Card accent={COLORS.slateLight}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <Info size={20} color={COLORS.slateLight} style={{ flexShrink: 0, marginTop: 2 }} />
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: COLORS.ink }}>No hay una guía compatible disponible para este problema clínico</div>
+          <p style={{ fontSize: 13.5, color: COLORS.slate, marginTop: 8, lineHeight: 1.55, maxWidth: 620 }}>
+            Actualmente PulmoVista dispone de una base de conocimiento estructurada para {supportedLabel}. No se han aplicado
+            recomendaciones de esa guía porque el diagnóstico registrado ({problemsLabel}) no corresponde a esa categoría.
+          </p>
+          <p style={{ fontSize: 12, color: COLORS.slateLight, marginTop: 10, lineHeight: 1.5, maxWidth: 620 }}>
+            Esto no es un error ni una omisión: PulmoVista no aplica una guía que no corresponde al problema clínico del
+            paciente. A medida que se incorporen bases de conocimiento para otros problemas, esta pestaña mostrará sus
+            recomendaciones automáticamente.
+          </p>
+        </div>
       </div>
     </Card>
   );
@@ -184,14 +262,9 @@ export function GuidelinesReviewTab({ patient, onWhy }: { patient: Patient; onWh
           aclaramiento de vía aérea — contra los datos estructurados de este paciente. ERS y SEPAR se evalúan siempre
           por separado; nunca se fusionan.
         </p>
-        {!matches.length && (
-          <div style={{ marginTop: 10, fontSize: 12.5, color: COLORS.slateLight, display: "flex", gap: 6, alignItems: "flex-start" }}>
-            <CircleAlert size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-            Esta base de conocimiento cubre bronquiectasias. Si el diagnóstico principal registrado no clasifica en
-            esa categoría, no hay recomendaciones que evaluar.
-          </div>
-        )}
       </div>
+
+      {!matches.length && <NoCompatibleGuideline patient={patient} />}
 
       {STATUS_GROUPS.map((group) => {
         const items = matches.filter((m) => m.status === group.key);

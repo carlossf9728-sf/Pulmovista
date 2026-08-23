@@ -49,10 +49,28 @@ export interface ClinicalExplanationSection {
   text: string;
 }
 
+/**
+ * Cita estructurada de guía (sociedad, año, sección, página, fragmento
+ * textual original). Se muestra en WhyModal como un bloque de "Fuente"
+ * visualmente diferenciado de las secciones de prosa — nunca como una
+ * sección más — para que quede claro que ese texto es una cita literal
+ * de la guía, no una síntesis de PulmoVista. `section`/`page` son null
+ * cuando la guía no los declara con claridad (nunca se inventan).
+ */
+export interface ClinicalExplanationCitation {
+  society: string;
+  year: number;
+  section: string | null;
+  page: number | null;
+  sourceText: string;
+}
+
 /** Contenido estructurado del modal "¿Por qué?". */
 export interface ClinicalExplanation {
   kindLabel: "heurística experimental" | "guideline";
   source: ClinicalSource;
   sections: ClinicalExplanationSection[];
   evidence: EvidenceItem[];
+  /** Presente solo cuando `source.kind === "guideline"` y hay una cita real que mostrar. */
+  citation?: ClinicalExplanationCitation;
 }

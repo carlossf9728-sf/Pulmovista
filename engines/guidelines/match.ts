@@ -57,9 +57,10 @@
  * GuidelineCriterion NO puede verificar el modelo de datos actual —
  * nunca se inventa un campo ni un umbral que la guía no declare.
  */
-import { classifyDiagnosis } from "@/domain/diagnosis";
+import { activeProblemCategories } from "@/domain/diagnosis";
 import { selectExacerbations, selectMicrobiology } from "@/domain/selectors";
 import { KNOWLEDGE_BASE_RECOMMENDATIONS, findCriterionById } from "./knowledge";
+import type { DiagnosisCategory } from "@/domain/diagnosis";
 import type { ExacerbationEvent } from "@/types/clinicalEvent";
 import type { EvidenceItem } from "@/types/evidence";
 import type { GuidelineMatch, GuidelineMatchStatus, GuidelineRecommendation } from "@/types/guideline";
@@ -517,6 +518,17 @@ const SUPPORTED_RECOMMENDATION_IDS: Record<string, readonly string[]> = {
 
 export const SUPPORTED_TOPICS = Object.keys(SUPPORTED_RECOMMENDATION_IDS);
 
+/**
+ * Categorías de diagnóstico (domain/diagnosis.ts) con una base de
+ * conocimiento real conectada a GuidelineMatch. Hoy solo bronquiectasias;
+ * añadir una categoría aquí (junto con sus GuidelineCriterion/
+ * GuidelineRecommendation y sus evaluadores) es el único cambio que
+ * debería hacer falta para dar cobertura a un problema clínico nuevo —
+ * ver activeProblemCategories() en domain/diagnosis.ts, que es lo que se
+ * compara contra esta lista en vez de leer `primaryDiagnosis` a pelo.
+ */
+export const SUPPORTED_DIAGNOSIS_CATEGORIES: DiagnosisCategory[] = ["Bronquiectasias"];
+
 const SUPPORTED_RECOMMENDATION_ID_SET = new Set(Object.values(SUPPORTED_RECOMMENDATION_IDS).flat());
 
 function evaluateCriterion(criterionId: string, patient: Patient, asOfDate: string): CriterionEvaluation {
@@ -585,12 +597,16 @@ export function matchPatientToRecommendation(patient: Patient, recommendation: G
  * por separado — cada GuidelineMatch cita una única guía (su propio
  * guidelineCitation.guidelineId), nunca una combinación de ambas.
  *
- * Devuelve `[]` si el diagnóstico principal del paciente no clasifica
- * como "Bronquiectasias" (domain/diagnosis.ts#classifyDiagnosis) — esta
- * base de conocimiento no aplica a otras patologías.
+ * Devuelve `[]` si ninguno de los problemas clínicos ACTIVOS del paciente
+ * (diagnóstico principal o secundarios — ver activeProblemCategories())
+ * está cubierto por SUPPORTED_DIAGNOSIS_CATEGORIES. No mira solo
+ * `primaryDiagnosis`: un paciente puede tener bronquiectasias como
+ * diagnóstico secundario (p. ej. junto a fibrosis pulmonar idiopática
+ * como principal) y sigue teniendo derecho a estas recomendaciones.
  */
 export function matchPatientToGuidelines(patient: Patient, asOfDate: string): GuidelineMatch[] {
-  if (classifyDiagnosis(patient.primaryDiagnosis) !== "Bronquiectasias") return [];
+  const hasSupportedProblem = activeProblemCategories(patient).some((c) => SUPPORTED_DIAGNOSIS_CATEGORIES.includes(c));
+  if (!hasSupportedProblem) return [];
   return KNOWLEDGE_BASE_RECOMMENDATIONS.filter((r) => SUPPORTED_RECOMMENDATION_ID_SET.has(r.recommendationId)).map((r) =>
     matchPatientToRecommendation(patient, r, asOfDate),
   );

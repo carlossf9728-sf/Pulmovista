@@ -28,6 +28,19 @@ export function WhyModal({ data, onClose }: { data: ClinicalExplanation | null; 
           <p style={{ fontSize: 14, margin: "5px 0 0", lineHeight: 1.5, fontWeight: s.emphasis ?? i === 0 ? 600 : 400 }}>{s.text}</p>
         </div>
       ))}
+      {data.citation && (
+        <div style={{ marginBottom: 14, background: COLORS.paper, border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: "12px 14px" }}>
+          <Eyebrow color={COLORS.tealDeep}>Fuente</Eyebrow>
+          <div style={{ fontSize: 12.5, color: COLORS.slate, margin: "5px 0 8px" }}>
+            {data.citation.society} · {data.citation.year}
+            {data.citation.section ? ` · ${data.citation.section}` : ""}
+            {data.citation.page != null ? ` · p. ${data.citation.page}` : ""}
+          </div>
+          <p className="pv-mono" style={{ fontSize: 12.5, fontStyle: "italic", color: COLORS.ink, margin: 0, lineHeight: 1.55 }}>
+            “{data.citation.sourceText}”
+          </p>
+        </div>
+      )}
       <Eyebrow color={COLORS.slate}>Evidencias</Eyebrow>
       <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none" }}>
         {data.evidence.map((e, i) => (

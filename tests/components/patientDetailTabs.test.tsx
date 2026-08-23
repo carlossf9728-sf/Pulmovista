@@ -10,6 +10,7 @@ import { ConsultsTab } from "@/components/patient-detail/ConsultsTab";
 import { AlertsTab } from "@/components/patient-detail/AlertsTab";
 import { GuidelinesReviewTab } from "@/components/patient-detail/GuidelinesReviewTab";
 import { buildDemoPatients } from "@/data/demoPatients";
+import type { Patient } from "@/types/patient";
 
 const [p1, p2, p3] = buildDemoPatients();
 
@@ -117,24 +118,43 @@ describe("GuidelinesReviewTab", () => {
     // ers-rec-pico1 (sin criterios acotados) siempre aplica a un paciente con bronquiectasias.
     expect(screen.getByText(/patients with bronchiectasis should be taught airway clearance techniques/i)).toBeInTheDocument();
 
+    // Cada tarjeta distingue tres cosas con su propio rótulo, no un único bloque indiferenciado.
+    expect(screen.getAllByText("Dato del paciente").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Interpretación de PulmoVista").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Recomendación de la guía").length).toBeGreaterThan(0);
+
     const [firstWhyButton] = screen.getAllByRole("button", { name: /por qué/i });
     await userEvent.click(firstWhyButton);
     expect(onWhy).toHaveBeenCalledOnce();
     const explanation = onWhy.mock.calls[0][0];
     expect(explanation.source.kind).toBe("guideline");
+    // Cadena completa: dato → criterio clínico → interpretación de PulmoVista → recomendación → fuente (bloque aparte, no una sección más).
     expect(explanation.sections.map((s: { label: string }) => s.label)).toEqual([
       "Dato del paciente",
-      "Criterio de la guía",
+      "Criterio clínico de la guía",
+      "Interpretación de PulmoVista",
       "Recomendación",
-      "Sección",
-      "Página",
-      "Fragmento fuente",
     ]);
+    expect(explanation.citation).toBeDefined();
+    expect(explanation.citation.sourceText.length).toBeGreaterThan(0);
+    expect(explanation.citation.year).toBeGreaterThan(2000);
+    // "GuidelineMatch" nunca aparece como término visible.
+    expect(JSON.stringify(explanation)).not.toContain("GuidelineMatch");
   });
 
-  it("no muestra ningún grupo y explica la ausencia de cobertura cuando el diagnóstico no es bronquiectasias", () => {
+  it("muestra un estado informativo (no un error) cuando ningún problema clínico activo tiene guía compatible", () => {
     render(<GuidelinesReviewTab patient={p2} onWhy={vi.fn()} />);
     expect(screen.queryByText("Aplicables")).not.toBeInTheDocument();
-    expect(screen.getByText(/no hay recomendaciones que evaluar/i)).toBeInTheDocument();
+    expect(screen.getByText("No hay una guía compatible disponible para este problema clínico")).toBeInTheDocument();
+    // El diagnóstico real del paciente (EPOC) aparece explícitamente, no un mensaje genérico de error.
+    expect(screen.getByText(/EPOC/)).toBeInTheDocument();
+    expect(screen.getByText(/no es un error/i)).toBeInTheDocument();
+  });
+
+  it("aplica recomendaciones cuando bronquiectasias consta como diagnóstico SECUNDARIO, no solo como principal", () => {
+    const patientWithSecondaryBx: Patient = { ...p2, secondaryDiagnoses: "Bronquiectasias por tracción" };
+    render(<GuidelinesReviewTab patient={patientWithSecondaryBx} onWhy={vi.fn()} />);
+    expect(screen.queryByText("No hay una guía compatible disponible para este problema clínico")).not.toBeInTheDocument();
+    expect(screen.getByText("Aplicables")).toBeInTheDocument();
   });
 });

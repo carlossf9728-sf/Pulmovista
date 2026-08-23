@@ -283,9 +283,14 @@ describe("Integración: matchPatientToGuidelines", () => {
     ]);
   });
 
-  it("devuelve [] para un paciente cuyo diagnóstico principal no es bronquiectasias", () => {
+  it("devuelve [] para un paciente sin bronquiectasias ni como diagnóstico principal ni secundario", () => {
     const patient = makePatient("other-dx", [], { primaryDiagnosis: "EPOC grave" });
     expect(matchPatientToGuidelines(patient, AS_OF)).toEqual([]);
+  });
+
+  it("evalúa recomendaciones aunque bronquiectasias conste solo como diagnóstico SECUNDARIO (no depende únicamente de primaryDiagnosis)", () => {
+    const patient = makePatient("secondary-dx", [], { primaryDiagnosis: "Fibrosis pulmonar idiopática", secondaryDiagnoses: "Bronquiectasias por tracción" });
+    expect(matchPatientToGuidelines(patient, AS_OF)).toHaveLength(11);
   });
 
   it("ERS y SEPAR se evalúan por separado: cada GuidelineMatch cita una única guía, nunca fusionada", () => {
