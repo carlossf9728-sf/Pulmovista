@@ -201,8 +201,8 @@ describe("Inventario (documentación del recuento, no verificación médica)", (
     expect(ERS_2025_DEFINITIONS.length).toBe(5);
     expect(ERS_2025_CRITERIA.length).toBe(8);
     expect(ERS_2025_RECOMMENDATIONS.length).toBe(33);
-    expect(SEPAR_2018_DEFINITIONS.length).toBe(5);
-    expect(SEPAR_2018_CRITERIA.length).toBe(11);
+    expect(SEPAR_2018_DEFINITIONS.length).toBe(4);
+    expect(SEPAR_2018_CRITERIA.length).toBe(16);
     expect(SEPAR_2018_RECOMMENDATIONS.length).toBe(19);
   });
 

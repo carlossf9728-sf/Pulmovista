@@ -75,19 +75,6 @@ export const SEPAR_2018_DEFINITIONS: GuidelineDefinition[] = [
     keywords: ["agudización", "definición"],
   },
   {
-    definitionId: "separ-def-tabla6-trasplante",
-    guidelineId: SEPAR_2018_GUIDELINE_ID,
-    section: "Tabla 6: Indicaciones de trasplante pulmonar",
-    page: 94,
-    term: "Indicaciones de trasplante pulmonar",
-    sourceText:
-      "Tabla 6. Indicaciones de trasplante pulmonar. FEV1 inferior al 30% o una pérdida rápida de la función pulmonar en pacientes con afectación grave. Insuficiencia respiratoria crónica o hipercapnia. Hipertensión pulmonar (presión sistólica de la arteria pulmonar > 35 mm Hg). Agudizaciones o complicaciones graves frecuentes como neumotórax o hemoptisis recidivantes.",
-    description:
-      "FEV1 <30% o pérdida rápida de función pulmonar en enfermedad grave; insuficiencia respiratoria crónica o hipercapnia; hipertensión pulmonar (PSAP >35 mmHg); agudizaciones o complicaciones graves frecuentes (p. ej. neumotórax o hemoptisis recidivantes).",
-    topic: "trasplante",
-    keywords: ["trasplante pulmonar", "indicaciones", "FEV1"],
-  },
-  {
     definitionId: "separ-def-tabla8-agudizacion-leve",
     guidelineId: SEPAR_2018_GUIDELINE_ID,
     section: "Tabla 8: Tratamiento antibiótico en las agudizaciones — agudización leve",
@@ -190,6 +177,17 @@ export const SEPAR_2018_CRITERIA: GuidelineCriterion[] = [
     keywords: ["suero hipertónico", "expectoración", "agudizaciones"],
   },
   {
+    criterionId: "separ-crit-drenaje-secreciones-poblacion",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Drenaje de secreciones (DS)",
+    page: 93,
+    sourceText: "pacientes adultos con BQ clínicamente estables con tos productiva",
+    description:
+      "Pacientes adultos con bronquiectasias clínicamente estables con tos productiva. (La propia guía señala mayor beneficio en pacientes hipersecretores o con agudizaciones frecuentes, sin plantearlo como un requisito adicional obligatorio — ver separ-rec-drenaje-secreciones.)",
+    topic: "aclaramiento mucociliar",
+    keywords: ["drenaje de secreciones", "adultos", "tos productiva", "estabilidad clínica"],
+  },
+  {
     criterionId: "separ-crit-entrenamiento-poblacion",
     guidelineId: SEPAR_2018_GUIDELINE_ID,
     section: "Entrenamiento muscular. Programa de ejercicios",
@@ -198,6 +196,47 @@ export const SEPAR_2018_CRITERIA: GuidelineCriterion[] = [
     description: "Pacientes estables con disnea mMRC >1.",
     topic: "rehabilitación pulmonar",
     keywords: ["entrenamiento muscular", "disnea", "mMRC"],
+  },
+  {
+    criterionId: "separ-crit-transplante-fev1-declive",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tabla 6: Indicaciones de trasplante pulmonar",
+    page: 94,
+    sourceText: "FEV1 inferior al 30% o una pérdida rápida de la función pulmonar en pacientes con afectación grave.",
+    description: "FEV1 <30%, o pérdida rápida de función pulmonar, en pacientes con afectación grave.",
+    topic: "trasplante",
+    keywords: ["trasplante pulmonar", "FEV1", "función pulmonar"],
+  },
+  {
+    criterionId: "separ-crit-transplante-insuficiencia-respiratoria",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tabla 6: Indicaciones de trasplante pulmonar",
+    page: 94,
+    sourceText: "Insuficiencia respiratoria crónica o hipercapnia.",
+    description:
+      "Insuficiencia respiratoria crónica o hipercapnia. (SEPAR no aporta un umbral numérico de hipercapnia en esta tabla — a diferencia de ERS, que sí cuantifica PaCO2 > 50 mmHg — por lo que no se reproduce ninguna cifra aquí.)",
+    topic: "trasplante",
+    keywords: ["trasplante pulmonar", "insuficiencia respiratoria", "hipercapnia"],
+  },
+  {
+    criterionId: "separ-crit-transplante-hipertension-pulmonar",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tabla 6: Indicaciones de trasplante pulmonar",
+    page: 94,
+    sourceText: "Hipertensión pulmonar (presión sistólica de la arteria pulmonar > 35 mm Hg).",
+    description: "Hipertensión pulmonar: presión sistólica de la arteria pulmonar >35 mmHg.",
+    topic: "trasplante",
+    keywords: ["trasplante pulmonar", "hipertensión pulmonar", "PSAP"],
+  },
+  {
+    criterionId: "separ-crit-transplante-agudizaciones-graves",
+    guidelineId: SEPAR_2018_GUIDELINE_ID,
+    section: "Tabla 6: Indicaciones de trasplante pulmonar",
+    page: 94,
+    sourceText: "Agudizaciones o complicaciones graves frecuentes como neumotórax o hemoptisis recidivantes.",
+    description: "Agudizaciones o complicaciones graves frecuentes, p. ej. neumotórax o hemoptisis recidivantes.",
+    topic: "trasplante",
+    keywords: ["trasplante pulmonar", "agudizaciones graves", "hemoptisis", "neumotórax"],
   },
   {
     criterionId: "separ-crit-transplante-supervivencia",
@@ -290,7 +329,8 @@ export const SEPAR_2018_RECOMMENDATIONS: GuidelineRecommendation[] = [
     page: 91,
     sourceText: "se recomienda la utilización de antibióticos inhalados frente a las administraciones sistémicas (Recomendación fuerte. Calidad de la evidencia moderada).",
     topic: "antibióticos inhalados",
-    recommendationText: "Se recomienda la utilización de antibióticos inhalados frente a las administraciones sistémicas, por la elevada efectividad y seguridad (altas concentraciones del antibiótico en el lugar de la infección con mínimos efectos secundarios sistémicos y menor tasa de resistencias).",
+    recommendationText:
+      "En el tratamiento antibiótico prolongado de la infección bronquial crónica (ver separ-rec-antibiotico-prolongado-pa y separ-rec-antibiotico-prolongado-otros-mpp), se recomienda la utilización de antibióticos inhalados frente a las administraciones sistémicas, por la elevada efectividad y seguridad (altas concentraciones del antibiótico en el lugar de la infección con mínimos efectos secundarios sistémicos y menor tasa de resistencias). El documento no restringe explícitamente esta preferencia a un solo microorganismo ni la extiende a otros contextos (p. ej. agudizaciones); no se ha añadido ese matiz por no estar respaldado por el texto fuente de este fragmento.",
     criteria: [],
     exclusions: [],
     strength: "strong",
@@ -390,8 +430,9 @@ export const SEPAR_2018_RECOMMENDATIONS: GuidelineRecommendation[] = [
     sourceText:
       "Las técnicas de DS son seguras y recomendables en pacientes adultos con BQ clínicamente estables con tos productiva porque mejoran, de forma significativa, la calidad de vida y en especial en aquellos pacientes hipersecretores o con agudizaciones frecuentes (Recomendación fuerte. Calidad de la evidencia baja).",
     topic: "aclaramiento mucociliar",
-    recommendationText: "Se recomiendan las técnicas de drenaje de secreciones en pacientes adultos con BQ clínicamente estables con tos productiva, especialmente hipersecretores o con agudizaciones frecuentes.",
-    criteria: [],
+    recommendationText:
+      "Se recomiendan las técnicas de drenaje de secreciones en pacientes adultos con BQ clínicamente estables con tos productiva, con especial beneficio (no como requisito adicional obligatorio) en aquellos hipersecretores o con agudizaciones frecuentes.",
+    criteria: ["separ-crit-drenaje-secreciones-poblacion"],
     exclusions: [],
     strength: "strong",
     evidenceQuality: "low",
