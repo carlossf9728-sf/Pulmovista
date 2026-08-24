@@ -10,6 +10,8 @@ import { ConsultsTab } from "@/components/patient-detail/ConsultsTab";
 import { AlertsTab } from "@/components/patient-detail/AlertsTab";
 import { GuidelinesReviewTab } from "@/components/patient-detail/GuidelinesReviewTab";
 import { buildDemoPatients } from "@/data/demoPatients";
+import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
+import type { MicrobiologyEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 const [p1, p2, p3] = buildDemoPatients();
@@ -106,40 +108,56 @@ describe("AlertsTab", () => {
 });
 
 describe("GuidelinesReviewTab", () => {
-  it("agrupa las recomendaciones de ERS/SEPAR por estado y permite abrir '¿Por qué?' con trazabilidad completa", async () => {
+  it("agrupa las recomendaciones en 3 bloques por bucket y permite abrir '¿Por qué?' con trazabilidad completa en el modal", async () => {
     const onWhy = vi.fn();
     render(<GuidelinesReviewTab patient={p1} onWhy={onWhy} />);
-    // p1 tiene bronquiectasias con asma, exacerbaciones y aislamientos de P. aeruginosa:
-    // produce ejemplos reales en varios de los 4 estados.
+    // p1 tiene bronquiectasias con asma, exacerbaciones y aislamientos de P. aeruginosa.
     expect(screen.getByText("Aplicables")).toBeInTheDocument();
-    expect(screen.getByText("Posiblemente aplicables")).toBeInTheDocument();
-    expect(screen.getByText("Información insuficiente")).toBeInTheDocument();
-    expect(screen.getByText("No aplicables")).toBeInTheDocument();
-    // ers-rec-pico1 (sin criterios acotados) siempre aplica a un paciente con bronquiectasias.
+    expect(screen.getByText("Pendientes de información")).toBeInTheDocument();
+    expect(screen.getByText("No indicadas / desaconsejadas")).toBeInTheDocument();
+    // ers-rec-pico1 (sin criterios acotados) siempre aplica a un paciente con bronquiectasias, y en una única tarjeta.
     expect(screen.getByText(/patients with bronchiectasis should be taught airway clearance techniques/i)).toBeInTheDocument();
 
-    // Cada tarjeta distingue tres cosas con su propio rótulo, no un único bloque indiferenciado.
-    expect(screen.getAllByText("Dato del paciente").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Interpretación de PulmoVista").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Recomendación de la guía").length).toBeGreaterThan(0);
+    // La tarjeta ya no muestra el detalle fino directamente: solo recomendación + motivo resumido + guía + estado + botón.
+    expect(screen.queryByText("Dato del paciente")).not.toBeInTheDocument();
+    expect(screen.queryByText("Interpretación de PulmoVista")).not.toBeInTheDocument();
+    expect(screen.queryByText("Recomendación de la guía")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fuerza")).not.toBeInTheDocument();
 
     const [firstWhyButton] = screen.getAllByRole("button", { name: /por qué/i });
     await userEvent.click(firstWhyButton);
     expect(onWhy).toHaveBeenCalledOnce();
     const explanation = onWhy.mock.calls[0][0];
     expect(explanation.source.kind).toBe("guideline");
-    // Cadena completa: dato → criterio clínico → interpretación de PulmoVista → recomendación → fuente (bloque aparte, no una sección más).
+    // El detalle fino (incluida fuerza/calidad de evidencia, antes en la tarjeta) vive ahora en el modal.
     expect(explanation.sections.map((s: { label: string }) => s.label)).toEqual([
       "Dato del paciente",
       "Criterio clínico de la guía",
       "Interpretación de PulmoVista",
       "Recomendación",
+      "Fuerza de la recomendación",
+      "Calidad de la evidencia",
     ]);
     expect(explanation.citation).toBeDefined();
     expect(explanation.citation.sourceText.length).toBeGreaterThan(0);
     expect(explanation.citation.year).toBeGreaterThan(2000);
     // "GuidelineMatch" nunca aparece como término visible.
     expect(JSON.stringify(explanation)).not.toContain("GuidelineMatch");
+  });
+
+  it("'No indicadas / desaconsejadas' está plegado por defecto y se puede expandir", async () => {
+    render(<GuidelinesReviewTab patient={p1} onWhy={vi.fn()} />);
+    // separ-rec-corticoides-no-rutina: p1 tiene asma como diagnóstico secundario, así que la exclusión
+    // siempre se cumple (no depende de la fecha de hoy) — cae siempre en "No indicadas / desaconsejadas".
+    const notIndicatedText = /No se recomienda el uso rutinario de corticosteroides inhalados/i;
+    expect(screen.queryByText(notIndicatedText)).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: /No indicadas \/ desaconsejadas/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(notIndicatedText)).toBeInTheDocument();
   });
 
   it("muestra un estado informativo (no un error) cuando ningún problema clínico activo tiene guía compatible", () => {
@@ -158,14 +176,12 @@ describe("GuidelinesReviewTab", () => {
     expect(screen.getByText("Aplicables")).toBeInTheDocument();
   });
 
-  it("una recomendación GENERAL (ers-rec-pico1) muestra el diagnóstico como dato y nunca dice 'cumple el criterio clínico'", async () => {
+  it("una recomendación GENERAL (ers-rec-pico1) resume el motivo en la tarjeta sin decir 'cumple el criterio clínico', y el diagnóstico aparece como dato en el modal", async () => {
     const onWhy = vi.fn();
     render(<GuidelinesReviewTab patient={p1} onWhy={onWhy} />);
     const generalCardText = screen.getByText(/patients with bronchiectasis should be taught airway clearance techniques/i);
     const card = generalCardText.closest(".pv-card-hover") as HTMLElement;
     expect(card).toBeTruthy();
-    // Diagnóstico registrado del paciente, visible como dato en la propia tarjeta.
-    expect(within(card).getByText(new RegExp(p1.primaryDiagnosis))).toBeInTheDocument();
     expect(within(card).getByText(/aplica de forma general/i)).toBeInTheDocument();
     expect(within(card).queryByText(/cumple el criterio clínico/i)).not.toBeInTheDocument();
 
@@ -176,27 +192,14 @@ describe("GuidelinesReviewTab", () => {
     expect(explanation.sections.find((s: { label: string }) => s.label === "Interpretación de PulmoVista").text).not.toContain("cumple el criterio clínico");
   });
 
-  it("oculta bloques de criterios vacíos y el encabezado 'Evidencias' cuando no hay evidencia adicional", async () => {
+  it("nunca muestra el encabezado 'Evidencias' ni una lista cruda de eventos en el modal, para ninguna tarjeta visible", async () => {
     const onWhy = vi.fn();
     render(<GuidelinesReviewTab patient={p1} onWhy={onWhy} />);
     // Nunca debe aparecer un bloque "Ninguno."/"Ninguna." en ninguna tarjeta.
     expect(screen.queryByText("Ninguno.")).not.toBeInTheDocument();
     expect(screen.queryByText("Ninguna.")).not.toBeInTheDocument();
 
-    const generalCardText = screen.getByText(/patients with bronchiectasis should be taught airway clearance techniques/i);
-    const card = generalCardText.closest(".pv-card-hover") as HTMLElement;
-    await userEvent.click(within(card).getByRole("button", { name: /por qué/i }));
-    const explanation = onWhy.mock.calls.at(-1)?.[0];
-    // ers-rec-pico1 no tiene ninguna evidencia estructurada asociada (criteria/exclusions/prerequisites vacíos): sin "Evidencias".
-    expect(explanation.evidence).toEqual([]);
-    expect(screen.queryByText("Evidencias")).not.toBeInTheDocument();
-  });
-
-  it("nunca muestra el encabezado 'Evidencias' ni una lista cruda de eventos, ni siquiera cuando la recomendación sí tiene evidencia estructurada", async () => {
-    const onWhy = vi.fn();
-    render(<GuidelinesReviewTab patient={p1} onWhy={onWhy} />);
     const whyButtons = screen.getAllByRole("button", { name: /por qué/i });
-    // Recorre todas las tarjetas (no solo la primera general): en ninguna debe aparecer "Evidencias" ni una línea con fecha suelta ("dd/mm/aaaa — ...").
     for (const button of whyButtons) {
       await userEvent.click(button);
       const explanation = onWhy.mock.calls.at(-1)?.[0];
@@ -204,5 +207,41 @@ describe("GuidelinesReviewTab", () => {
       expect(datoDelPaciente).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
     }
     expect(screen.queryByText("Evidencias")).not.toBeInTheDocument();
+  });
+
+  it("cuando una recomendación cambia de estado con nueva información, se marca 'Actualizada' y aparece en 'Cambios recientes' sin duplicar la tarjeta", async () => {
+    const patientNoCulture: Patient = {
+      id: "p-track",
+      code: "PV-TEST-TRACK",
+      sex: "Mujer",
+      age: 50,
+      primaryDiagnosis: "Bronquiectasias",
+      secondaryDiagnoses: "",
+      createdAt: "2020-01-01",
+      events: [],
+    };
+    const { rerender } = render(<GuidelinesReviewTab patient={patientNoCulture} onWhy={vi.fn()} />);
+    // Primera vez que se ve a este paciente en la sesión: nunca hay "Cambios recientes" todavía (no hay "antes" con qué comparar).
+    expect(screen.queryByText("Cambios recientes")).not.toBeInTheDocument();
+
+    const eradicationText = /offer eradication treatment to patients with a new isolation/i;
+    // Sin ningún cultivo registrado, ers-rec-pico6 (erradicación) no puede confirmarse: cae en un estado distinto de "applies".
+    const beforeUpdatedBadges = screen.queryAllByText("Actualizada").length;
+    expect(beforeUpdatedBadges).toBe(0);
+
+    const cultureEvent = mkEvent<MicrobiologyEvent>("p-track", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2020-01-02", {
+      sampleType: "Esputo",
+      organism: "Pseudomonas aeruginosa",
+      sensitivity: [],
+      resistance: [],
+    });
+    const patientWithCulture: Patient = { ...patientNoCulture, events: [cultureEvent] };
+    rerender(<GuidelinesReviewTab patient={patientWithCulture} onWhy={vi.fn()} />);
+
+    // Primer aislamiento de P. aeruginosa registrado: ers-rec-pico6 pasa a "applies" — cambio real de estado.
+    expect(screen.getByText("Cambios recientes")).toBeInTheDocument();
+    expect(screen.getAllByText("Actualizada").length).toBeGreaterThan(0);
+    // La misma recomendación aparece en su bucket habitual y en el digest de "Cambios recientes" — nunca más de esas dos veces.
+    expect(screen.getAllByText(eradicationText)).toHaveLength(2);
   });
 });

@@ -111,7 +111,18 @@ export function PatientDetailView({ patient }: { patient: Patient }) {
       {tab === "radiologia" && <ImagingTab patient={patient} />}
       {tab === "consultas" && <ConsultsTab patient={patient} onAddConsultation={() => setShowAddConsult(true)} />}
       {tab === "alertas" && <AlertsTab patient={patient} onWhy={setWhy} />}
-      {tab === "guias" && <GuidelinesReviewTab patient={patient} onWhy={setWhy} />}
+      {/*
+        A diferencia de las demás pestañas, esta se mantiene siempre montada
+        (solo oculta con CSS) en vez de montar/desmontar con la pestaña
+        activa: así su detección de "cambios recientes" (ver
+        useGuidelineMatches en GuidelinesReviewTab, memoria de sesión vía
+        useRef) sobrevive a cambiar de pestaña — p. ej. añadir una consulta
+        nueva desde "Consultas" y volver — en vez de reiniciarse cada vez
+        que se vuelve a "Revisión según guías".
+      */}
+      <div style={{ display: tab === "guias" ? "block" : "none" }}>
+        <GuidelinesReviewTab patient={patient} onWhy={setWhy} />
+      </div>
       <WhyModal data={why} onClose={() => setWhy(null)} />
       {showAddConsult && (
         <AddConsultationModal

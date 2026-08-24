@@ -1,19 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Info } from "lucide-react";
+import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
 import { EVIDENCE_QUALITY_LABEL, guidelineShortLabel, STRENGTH_LABEL } from "@/utils/guidelineLabels";
-import { buildCitation, criteriaSummaryText, criterionLine, interpretationSentence, patientDatumLines } from "@/engines/guidelines/explain";
+import { buildCitation, criteriaSummaryText, interpretationSentence, patientDatumLines } from "@/engines/guidelines/explain";
+import { diffChangedRecommendations, snapshotStatuses } from "@/engines/guidelines/changeTracking";
 import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
 import { activeProblemCategories } from "@/domain/diagnosis";
-import { Card, Eyebrow, Val, WhyButton } from "@/components/ui";
+import { Card, Eyebrow, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 import type { DiagnosisCategory } from "@/domain/diagnosis";
 import type { GuidelineMatch, GuidelineMatchStatus } from "@/types/guideline";
+import type { GuidelineStatusSnapshot } from "@/engines/guidelines/changeTracking";
 import type { ClinicalExplanation } from "@/types/evidence";
 
 /**
@@ -27,53 +29,60 @@ import type { ClinicalExplanation } from "@/types/evidence";
  * + SEPAR 2018, evaluadas siempre por separado). NO conectado a Sentinel,
  * Turning Points, Missing Information ni Review Opportunities.
  *
- * El término técnico "GuidelineMatch" nunca se muestra: cada tarjeta
- * distingue tres cosas con su propio rótulo — Dato del paciente
- * (estructurado, calculable), Interpretación de PulmoVista (síntesis en
- * español de si el criterio se cumple, generada aquí) y Recomendación de
- * la guía (texto verbatim de la fuente, en su idioma original) — para que
- * no lea como una única respuesta generada por IA.
+ * La unidad visual es la RECOMENDACIÓN, no el evento clínico: cada
+ * recommendationId tiene siempre una única tarjeta (matchPatientToGuidelines
+ * ya evalúa exactamente una vez por recomendación, contra el estado
+ * COMPLETO del paciente — nunca se acumula una entrada nueva por evento).
+ * Cuando llegan datos nuevos que cambian su estado, esa misma tarjeta se
+ * actualiza en el sitio (mismo `key={recommendationId}`) y se marca
+ * "Actualizada" — nunca aparece una segunda tarjeta para la misma
+ * recomendación. El detalle fino (dato del paciente, criterio de la guía,
+ * fuerza, calidad de evidencia, cita exacta) vive en el modal "¿Por qué?";
+ * la tarjeta solo muestra los 5 datos imprescindibles: recomendación,
+ * estado, motivo clínico resumido, guía y el botón para abrir el detalle.
  */
 
-const STATUS_GROUPS: {
-  key: GuidelineMatchStatus;
-  label: string;
-  singularLabel: string;
-  color: string;
-  tint: string;
-  emptyText: string;
-}[] = [
+const STATUS_BADGE: Record<GuidelineMatchStatus, { label: string; color: string; tint: string }> = {
+  applies: { label: "Aplica", color: COLORS.green, tint: COLORS.greenTint },
+  possibly_applies: { label: "Posiblemente aplica", color: COLORS.orange, tint: COLORS.orangeTint },
+  insufficient_data: { label: "Falta información", color: COLORS.slate, tint: COLORS.paper },
+  does_not_apply: { label: "No aplica", color: COLORS.slateLight, tint: COLORS.paper },
+};
+
+type BucketKey = "aplicables" | "pendientes" | "no_indicadas";
+
+/** A qué bloque de la vista pertenece cada GuidelineMatchStatus — agrupación de presentación, no una reclasificación clínica nueva. */
+const BUCKET_FOR_STATUS: Record<GuidelineMatchStatus, BucketKey> = {
+  applies: "aplicables",
+  possibly_applies: "pendientes",
+  insufficient_data: "pendientes",
+  does_not_apply: "no_indicadas",
+};
+
+const BUCKETS: { key: BucketKey; label: string; color: string; tint: string; emptyText: string; defaultOpen: boolean }[] = [
   {
-    key: "applies",
+    key: "aplicables",
     label: "Aplicables",
-    singularLabel: "Aplica",
     color: COLORS.green,
     tint: COLORS.greenTint,
     emptyText: "Ninguna recomendación evaluada como aplicable con los datos actuales.",
+    defaultOpen: true,
   },
   {
-    key: "possibly_applies",
-    label: "Posiblemente aplicables",
-    singularLabel: "Posiblemente aplica",
+    key: "pendientes",
+    label: "Pendientes de información",
     color: COLORS.orange,
     tint: COLORS.orangeTint,
-    emptyText: "Ninguna recomendación evaluada como posiblemente aplicable.",
+    emptyText: "Ninguna recomendación pendiente de información adicional.",
+    defaultOpen: true,
   },
   {
-    key: "insufficient_data",
-    label: "Información insuficiente",
-    singularLabel: "Falta información",
-    color: COLORS.slate,
-    tint: COLORS.paper,
-    emptyText: "No hay recomendaciones marcadas con información insuficiente.",
-  },
-  {
-    key: "does_not_apply",
-    label: "No aplicables",
-    singularLabel: "No aplica",
+    key: "no_indicadas",
+    label: "No indicadas / desaconsejadas",
     color: COLORS.slateLight,
     tint: COLORS.paper,
-    emptyText: "Ninguna recomendación evaluada como no aplicable.",
+    emptyText: "Ninguna recomendación no indicada o desaconsejada.",
+    defaultOpen: false,
   },
 ];
 
@@ -94,6 +103,7 @@ function buildExplanation(patient: Patient, match: GuidelineMatch): ClinicalExpl
   const recommendation = findRecommendationById(match.recommendationId);
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
   const applicability = recommendation?.applicability ?? "conditional";
+  const narrativeBlockNote = "No especificada por la guía para esta actuación: forma parte de un bloque narrativo evaluado en conjunto.";
 
   return {
     kindLabel: "guideline",
@@ -111,100 +121,126 @@ function buildExplanation(patient: Patient, match: GuidelineMatch): ClinicalExpl
       { label: "Criterio clínico de la guía", text: criteriaSummaryText(match, applicability) },
       { label: "Interpretación de PulmoVista", text: interpretationSentence(match, applicability) },
       { label: "Recomendación", text: recommendation?.recommendationText ?? "Texto no disponible." },
+      { label: "Fuerza de la recomendación", text: recommendation?.strength ? STRENGTH_LABEL[recommendation.strength] : narrativeBlockNote },
+      { label: "Calidad de la evidencia", text: recommendation?.evidenceQuality ? EVIDENCE_QUALITY_LABEL[recommendation.evidenceQuality] : narrativeBlockNote },
     ],
     evidence: match.patientEvidence,
     citation: buildCitation(match, document),
   };
 }
 
-/** Solo se renderiza cuando `items` no está vacío — un bloque "Ninguno"/"Ninguna" no aporta nada y se oculta en el punto de uso. */
-function CriterionList({ label, items, tone }: { label: string; items: string[]; tone: string }) {
+/**
+ * Evalúa las recomendaciones soportadas contra el paciente y detecta
+ * cuáles cambiaron de estado desde la última vez que se calcularon en
+ * esta misma sesión del navegador (ver changeTracking.ts). Usa el patrón
+ * de React "ajustar el estado durante el renderizado" (sin useEffect,
+ * sin leer un ref durante el render) para comparar contra la fotografía
+ * de la evaluación anterior: solo sirve mientras este componente
+ * permanece montado, así que quien lo use debe mantenerlo montado
+ * mientras dure la visita al paciente (ver PatientDetailView, que ya no
+ * desmonta esta pestaña al cambiar de pestaña, precisamente para que
+ * esto funcione).
+ */
+function useGuidelineMatches(patient: Patient): { matches: GuidelineMatch[]; changedRecommendationIds: ReadonlySet<string> } {
+  const matches = useMemo(() => matchPatientToGuidelines(patient, todayISO()), [patient]);
+  const [tracked, setTracked] = useState<{ matches: GuidelineMatch[]; snapshot: GuidelineStatusSnapshot; changed: ReadonlySet<string> } | null>(null);
+
+  if (tracked === null || tracked.matches !== matches) {
+    const changed = diffChangedRecommendations(tracked?.snapshot ?? null, matches);
+    setTracked({ matches, snapshot: snapshotStatuses(matches), changed });
+    return { matches, changedRecommendationIds: changed };
+  }
+  return { matches, changedRecommendationIds: tracked.changed };
+}
+
+function GuidelineBadge({ society, year }: { society: string; year: number }) {
   return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
-      <ul style={{ margin: "4px 0 0", padding: 0, listStyle: "none" }}>
-        {items.map((item, i) => (
-          <li key={i} style={{ fontSize: 12.5, color: COLORS.ink, padding: "2px 0", display: "flex", gap: 6 }}>
-            <span style={{ color: tone, fontWeight: 700, flexShrink: 0 }}>›</span> {item}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <span
+      className="pv-mono"
+      style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.tealDeep, background: COLORS.tealTint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}
+    >
+      {guidelineShortLabel(society, year)}
+    </span>
   );
 }
 
-/** Bloque con rótulo — usado para distinguir visualmente dato / interpretación / recomendación dentro de la tarjeta. */
-function Block({ label, children }: { label: string; children: ReactNode }) {
+function StatusBadge({ status }: { status: GuidelineMatchStatus }) {
+  const badge = STATUS_BADGE[status];
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
-      <div style={{ marginTop: 4 }}>{children}</div>
-    </div>
+    <span style={{ fontSize: 10.5, fontWeight: 700, color: badge.color, background: badge.tint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}>
+      {badge.label}
+    </span>
   );
 }
 
-function MatchCard({ patient, match, onWhy }: { patient: Patient; match: GuidelineMatch; onWhy: () => void }) {
+function UpdatedBadge() {
+  return (
+    <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.tealDeep, background: COLORS.tealTint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}>
+      Actualizada
+    </span>
+  );
+}
+
+/**
+ * Tarjeta única por recomendación — solo los 5 datos imprescindibles:
+ * guía, estado, recomendación, motivo clínico resumido y "¿Por qué?".
+ * El resto (dato del paciente, criterio de la guía, fuerza, calidad de
+ * evidencia, cita exacta) vive en el modal, no aquí.
+ */
+function MatchCard({ match, isUpdated, onWhy }: { match: GuidelineMatch; isUpdated: boolean; onWhy: () => void }) {
   const recommendation = findRecommendationById(match.recommendationId);
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
-  const group = STATUS_GROUPS.find((g) => g.key === match.status);
-  if (!recommendation || !document || !group) return null;
-
-  const datumLines = patientDatumLines(patient, match, recommendation.applicability);
+  if (!recommendation || !document) return null;
 
   return (
-    <Card accent={group.color}>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
-        <span
-          className="pv-mono"
-          style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.tealDeep, background: COLORS.tealTint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}
-        >
-          {guidelineShortLabel(document.source.society, document.source.year)}
-        </span>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: group.color, background: group.tint, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap" }}>
-          {group.singularLabel}
-        </span>
+    <Card accent={STATUS_BADGE[match.status].color}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <GuidelineBadge society={document.source.society} year={document.source.year} />
+        <StatusBadge status={match.status} />
+        {isUpdated && <UpdatedBadge />}
       </div>
 
-      {/* Tres bloques con su propio rótulo: dato objetivo / síntesis de PulmoVista / texto verbatim de la guía — nunca mezclados en un único párrafo. */}
-      <Block label="Dato del paciente">
-        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-          {datumLines.map((line, i) => (
-            <li key={i} style={{ fontSize: 12.5, color: COLORS.ink, padding: "2px 0", display: "flex", gap: 6 }}>
-              <span style={{ color: COLORS.slate, fontWeight: 700, flexShrink: 0 }}>›</span> {line}
-            </li>
-          ))}
-        </ul>
-      </Block>
+      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 700, lineHeight: 1.45, color: COLORS.ink }}>{recommendation.recommendationText}</div>
 
-      <Block label="Interpretación de PulmoVista">
-        <span style={{ fontSize: 13, fontStyle: "italic", color: COLORS.navy }}>{interpretationSentence(match, recommendation.applicability)}</span>
-      </Block>
-
-      <Block label="Recomendación de la guía">
-        <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.45, color: COLORS.ink }}>{recommendation.recommendationText}</span>
-      </Block>
-
-      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "12px 0 0", fontSize: 12.5 }}>
-        <span>
-          <span style={{ color: COLORS.slateLight, fontWeight: 700 }}>Fuerza </span>
-          <Val value={recommendation.strength ? STRENGTH_LABEL[recommendation.strength] : null} />
-        </span>
-        <span>
-          <span style={{ color: COLORS.slateLight, fontWeight: 700 }}>Calidad de evidencia </span>
-          <Val value={recommendation.evidenceQuality ? EVIDENCE_QUALITY_LABEL[recommendation.evidenceQuality] : null} />
-        </span>
-      </div>
-
-      {/* Bloques de criterios: solo se muestran cuando tienen contenido — nunca "Ninguno"/"Ninguna" vacío. */}
-      {match.matchedCriteria.length > 0 && <CriterionList label="Criterios cumplidos" items={match.matchedCriteria.map(criterionLine)} tone={COLORS.green} />}
-      {match.missingCriteria.length > 0 && <CriterionList label="Criterios que faltan" items={match.missingCriteria.map(criterionLine)} tone={COLORS.slate} />}
-      {match.unmatchedCriteria.length > 0 && <CriterionList label="Criterios no cumplidos" items={match.unmatchedCriteria.map(criterionLine)} tone={COLORS.slateLight} />}
-      {match.conflictingCriteria.length > 0 && <CriterionList label="Exclusiones o conflictos" items={match.conflictingCriteria.map(criterionLine)} tone={COLORS.red} />}
+      <div style={{ marginTop: 6, fontSize: 13, fontStyle: "italic", color: COLORS.navy }}>{interpretationSentence(match, recommendation.applicability)}</div>
 
       <div style={{ marginTop: 12 }}>
         <WhyButton onClick={onWhy} />
       </div>
     </Card>
+  );
+}
+
+/** Grupo plegable — "No indicadas / desaconsejadas" empieza plegado; el resto, abierto. */
+function CollapsibleGroup({
+  label,
+  color,
+  tint,
+  count,
+  defaultOpen,
+  children,
+}: {
+  label: string;
+  color: string;
+  tint: string;
+  count: number;
+  defaultOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", width: "100%", textAlign: "left" }}
+      >
+        {open ? <ChevronDown size={14} color={COLORS.slateLight} /> : <ChevronRight size={14} color={COLORS.slateLight} />}
+        <Eyebrow color={color}>{label}</Eyebrow>
+        <span style={{ fontSize: 11, fontWeight: 700, color, background: tint, borderRadius: 20, padding: "1px 8px" }}>{count}</span>
+      </button>
+      {open && <div style={{ marginTop: 10 }}>{children}</div>}
+    </div>
   );
 }
 
@@ -241,7 +277,8 @@ function NoCompatibleGuideline({ patient }: { patient: Patient }) {
 }
 
 export function GuidelinesReviewTab({ patient, onWhy }: { patient: Patient; onWhy: (explanation: ClinicalExplanation) => void }) {
-  const matches = useMemo(() => matchPatientToGuidelines(patient, todayISO()), [patient]);
+  const { matches, changedRecommendationIds } = useGuidelineMatches(patient);
+  const recentChanges = matches.filter((m) => changedRecommendationIds.has(m.recommendationId));
 
   return (
     <div className="pv-fade-in" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -251,30 +288,48 @@ export function GuidelinesReviewTab({ patient, onWhy }: { patient: Patient; onWh
           Evaluación automática de las recomendaciones soportadas de ERS 2025 y SEPAR 2018 —
           macrólidos, antibióticos inhalados, erradicación de Pseudomonas, corticoides inhalados y fisioterapia/
           aclaramiento de vía aérea — contra los datos estructurados de este paciente. ERS y SEPAR se evalúan siempre
-          por separado; nunca se fusionan.
+          por separado; nunca se fusionan. Cada recomendación tiene una única tarjeta: cuando llegan datos nuevos,
+          esa misma tarjeta se actualiza en vez de duplicarse.
         </p>
       </div>
 
       {!matches.length && <NoCompatibleGuideline patient={patient} />}
 
-      {STATUS_GROUPS.map((group) => {
-        const items = matches.filter((m) => m.status === group.key);
+      {BUCKETS.map((bucket) => {
         if (!matches.length) return null;
+        const items = matches.filter((m) => BUCKET_FOR_STATUS[m.status] === bucket.key);
         return (
-          <div key={group.key}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Eyebrow color={group.color}>{group.label}</Eyebrow>
-              <span style={{ fontSize: 11, fontWeight: 700, color: group.color, background: group.tint, borderRadius: 20, padding: "1px 8px" }}>{items.length}</span>
-            </div>
-            {!items.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>{group.emptyText}</div>}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+          <CollapsibleGroup key={bucket.key} label={bucket.label} color={bucket.color} tint={bucket.tint} count={items.length} defaultOpen={bucket.defaultOpen}>
+            {!items.length && <div style={{ fontSize: 13, color: COLORS.slateLight }}>{bucket.emptyText}</div>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {items.map((m) => (
-                <MatchCard key={m.recommendationId} patient={patient} match={m} onWhy={() => onWhy(buildExplanation(patient, m))} />
+                <MatchCard
+                  key={m.recommendationId}
+                  match={m}
+                  isUpdated={changedRecommendationIds.has(m.recommendationId)}
+                  onWhy={() => onWhy(buildExplanation(patient, m))}
+                />
               ))}
             </div>
-          </div>
+          </CollapsibleGroup>
         );
       })}
+
+      {!!recentChanges.length && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Eyebrow color={COLORS.tealDeep}>Cambios recientes</Eyebrow>
+            <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.tealDeep, background: COLORS.tealTint, borderRadius: 20, padding: "1px 8px" }}>
+              {recentChanges.length}
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+            {recentChanges.map((m) => (
+              <MatchCard key={m.recommendationId} match={m} isUpdated onWhy={() => onWhy(buildExplanation(patient, m))} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
