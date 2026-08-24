@@ -191,4 +191,18 @@ describe("GuidelinesReviewTab", () => {
     expect(explanation.evidence).toEqual([]);
     expect(screen.queryByText("Evidencias")).not.toBeInTheDocument();
   });
+
+  it("nunca muestra el encabezado 'Evidencias' ni una lista cruda de eventos, ni siquiera cuando la recomendación sí tiene evidencia estructurada", async () => {
+    const onWhy = vi.fn();
+    render(<GuidelinesReviewTab patient={p1} onWhy={onWhy} />);
+    const whyButtons = screen.getAllByRole("button", { name: /por qué/i });
+    // Recorre todas las tarjetas (no solo la primera general): en ninguna debe aparecer "Evidencias" ni una línea con fecha suelta ("dd/mm/aaaa — ...").
+    for (const button of whyButtons) {
+      await userEvent.click(button);
+      const explanation = onWhy.mock.calls.at(-1)?.[0];
+      const datoDelPaciente = explanation.sections.find((s: { label: string }) => s.label === "Dato del paciente").text;
+      expect(datoDelPaciente).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
+    }
+    expect(screen.queryByText("Evidencias")).not.toBeInTheDocument();
+  });
 });

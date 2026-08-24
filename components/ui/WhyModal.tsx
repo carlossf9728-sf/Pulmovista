@@ -41,31 +41,14 @@ export function WhyModal({ data, onClose }: { data: ClinicalExplanation | null; 
           </p>
         </div>
       )}
-      {data.evidence.length > 0 && (
-        <>
-          <Eyebrow color={COLORS.slate}>Evidencias</Eyebrow>
-          <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none" }}>
-            {data.evidence.map((e, i) => (
-              <li
-                key={i}
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "flex-start",
-                  fontSize: 13.5,
-                  padding: "9px 0",
-                  borderBottom: i < data.evidence.length - 1 ? `1px dashed ${COLORS.line}` : "none",
-                }}
-              >
-                <span className="pv-mono" style={{ color: COLORS.teal, fontWeight: 700 }}>
-                  ›
-                </span>
-                <span>{e.label}</span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      {/*
+        Sin bloque "Evidencias": la lista cruda de eventos (data.evidence)
+        se conserva en el objeto para trazabilidad interna — y para un
+        futuro "Ver datos utilizados" si hace falta — pero no se muestra
+        aquí, porque ya está resumida en la sección "Dato del paciente" de
+        arriba (o cubierta por el bloque "Fuente" cuando no hay evidencia
+        adicional que resumir).
+      */}
       <div style={{ marginTop: 16, fontSize: 12, color: COLORS.slateLight, display: "flex", alignItems: "center", gap: 6 }}>
         <Eye size={13} /> Esto permite auditar siempre el razonamiento detrás de cada conclusión.
       </div>

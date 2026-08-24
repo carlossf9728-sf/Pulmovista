@@ -571,7 +571,9 @@ export function matchPatientToRecommendation(patient: Patient, recommendation: G
 
   const status = deriveStatus(criteriaResults, exclusionResults, prerequisiteResults);
   const gated = [...criteriaResults, ...prerequisiteResults];
-  const patientEvidence = [...criteriaResults, ...exclusionResults, ...prerequisiteResults].flatMap((r) => r.evidence);
+  const patientEvidence = [...criteriaResults, ...exclusionResults, ...prerequisiteResults].flatMap((r) =>
+    r.evidence.map((e) => ({ ...e, criterionId: r.criterionId })),
+  );
 
   return {
     patientId: patient.id,

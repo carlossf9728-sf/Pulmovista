@@ -7,7 +7,7 @@
  */
 import { formatDate } from "@/utils/date";
 import { findCriterionById } from "./knowledge";
-import type { GuidelineDocument, GuidelineMatch, GuidelineMatchStatus, RecommendationApplicability } from "@/types/guideline";
+import type { GuidelineDocument, GuidelineMatch, RecommendationApplicability } from "@/types/guideline";
 import type { ClinicalExplanationCitation, EvidenceItem } from "@/types/evidence";
 import type { Patient } from "@/types/patient";
 
@@ -21,18 +21,66 @@ export function evidenceLine(e: EvidenceItem): string {
 }
 
 /**
- * Líneas de "Dato del paciente" para una GuidelineMatch. En una
+ * Agrega la evidencia de UN único criterio (ya agrupada por criterionId,
+ * ver patientDatumLines) en una sola frase clínica legible, en vez de
+ * listar cada evento fechado por separado — esa lista cruda sigue
+ * disponible en match.patientEvidence para trazabilidad interna (p. ej.
+ * un futuro "Ver datos utilizados"), simplemente no se muestra aquí.
+ * Reconoce los dos patrones de evidencia con múltiples eventos que
+ * producen los evaluadores de match.ts (exacerbaciones, cultivos
+ * microbiológicos) y agrega sus recuentos con los mismos datos que ya
+ * calculó match.ts, sin inventar ningún umbral nuevo. Para cualquier
+ * otro criterio — normalmente ya 1-2 líneas redactadas como frase por su
+ * propio evaluador — conserva ese texto tal cual.
+ */
+function summarizeCriterionEvidence(items: EvidenceItem[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0].label;
+
+  const dated = items.filter((e) => e.date != null);
+
+  const exacerbations = dated.filter((e) => /^Exacerbación/i.test(e.label));
+  if (exacerbations.length > 0 && exacerbations.length === dated.length) {
+    const severe = exacerbations.filter((e) => /grave|ingreso hospitalario/i.test(e.label));
+    const hospitalized = exacerbations.filter((e) => /ingreso hospitalario/i.test(e.label));
+    let sentence = `${exacerbations.length} ${exacerbations.length === 1 ? "exacerbación" : "exacerbaciones"} en el último año`;
+    if (severe.length > 0) {
+      sentence += `, ${severe.length === 1 ? "incluida" : "incluidas"} ${severe.length} ${severe.length === 1 ? "grave" : "graves"}`;
+      if (hospitalized.length > 0) sentence += " con ingreso hospitalario";
+    }
+    return `${sentence}.`;
+  }
+
+  const cultures = dated.filter((e) => /^Cultivo positivo:/i.test(e.label));
+  if (cultures.length > 0 && cultures.length === dated.length) {
+    const organism = cultures[0].label.replace(/^Cultivo positivo:\s*/i, "").trim();
+    return `${cultures.length} cultivo${cultures.length === 1 ? "" : "s"} positivo${cultures.length === 1 ? "" : "s"} para ${organism} registrado${cultures.length === 1 ? "" : "s"}.`;
+  }
+
+  return items.map((e) => e.label).join(" ");
+}
+
+/**
+ * Líneas de "Dato del paciente" para una GuidelineMatch, una frase clínica
+ * resumida por cada criterio evaluado (nunca un evento por línea). En una
  * recomendación GENERAL (applicability === "general"), el diagnóstico
  * registrado es el dato que la hace aplicable — es la población diana,
  * no un criterio clínico adicional — así que encabeza la lista, seguido
  * de cualquier evidencia real que sí se haya evaluado (p. ej. una
- * exclusión). En una recomendación CONDICIONADA son exactamente los
- * datos que match.patientEvidence ya reunió al evaluar sus criterios.
+ * exclusión).
  */
 export function patientDatumLines(patient: Patient, match: GuidelineMatch, applicability: RecommendationApplicability): string[] {
-  const evidenceLines = match.patientEvidence.map(evidenceLine);
-  if (applicability !== "general") return evidenceLines;
-  return [`Diagnóstico registrado: "${patient.primaryDiagnosis}".`, ...evidenceLines];
+  const groups = new Map<string, EvidenceItem[]>();
+  for (const item of match.patientEvidence) {
+    const key = item.criterionId ?? "";
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  const summaryLines = [...groups.values()].map(summarizeCriterionEvidence).filter((line) => line.length > 0);
+
+  if (applicability !== "general") return summaryLines;
+  return [`Diagnóstico registrado: "${patient.primaryDiagnosis}".`, ...summaryLines];
 }
 
 /** Resume matchedCriteria/unmatchedCriteria/missingCriteria/conflictingCriteria de un GuidelineMatch en una línea legible, con su resultado. */
@@ -49,36 +97,58 @@ export function criteriaSummaryText(match: GuidelineMatch, applicability: Recomm
     : "Sin criterios verificables asociados a esta recomendación.";
 }
 
+function joinCriterionLines(criterionIds: string[], fallback: string): string {
+  if (!criterionIds.length) return fallback;
+  return criterionIds.map(criterionLine).join("; ");
+}
+
 /**
- * Traduce el status de una GuidelineMatch a una frase completa en
+ * Traduce el resultado de una GuidelineMatch a una frase completa en
  * español — la síntesis propia de PulmoVista, distinta tanto del dato
  * del paciente como del texto literal de la recomendación. El término
- * "GuidelineMatch" nunca aparece: solo esta frase. En una recomendación
- * GENERAL nunca dice "cumple el criterio clínico" (no existe ninguno):
- * explica que aplica por pertenecer a la población diana.
+ * "GuidelineMatch" nunca aparece: solo esta frase. Siempre nombra el
+ * criterio concreto involucrado (vía criterionLine) en vez de una frase
+ * genérica: nunca dice solo "cumple el criterio clínico" sin decir cuál.
+ * En una recomendación GENERAL nunca dice "cumple el criterio clínico"
+ * (no existe ninguno): explica que aplica por pertenecer a la población
+ * diana, y nombra la exclusión concreta cuando es ella la que decide el
+ * resultado.
  */
-export function interpretationSentence(status: GuidelineMatchStatus, applicability: RecommendationApplicability): string {
+export function interpretationSentence(match: GuidelineMatch, applicability: RecommendationApplicability): string {
   if (applicability === "general") {
-    switch (status) {
+    const exclusion = joinCriterionLines(match.conflictingCriteria, "una exclusión de la guía");
+    switch (match.status) {
       case "applies":
         return "Esta recomendación aplica de forma general a los pacientes con este diagnóstico; no depende de ningún criterio clínico adicional.";
       case "does_not_apply":
-        return "Esta recomendación aplica de forma general a los pacientes con este diagnóstico, pero no es aplicable a este paciente por la exclusión indicada.";
+        return `Esta recomendación aplica de forma general a los pacientes con este diagnóstico, pero no es aplicable a este paciente porque se cumple la exclusión de la guía: ${exclusion}.`;
       case "possibly_applies":
-        return "Esta recomendación aplica de forma general a los pacientes con este diagnóstico; con los datos disponibles no se puede confirmar con certeza si la exclusión indicada afecta a este paciente.";
+        return `Esta recomendación aplica de forma general a los pacientes con este diagnóstico; con los datos disponibles no se puede confirmar con certeza si se cumple la exclusión de la guía: ${exclusion}.`;
       case "insufficient_data":
-        return "Esta recomendación aplica de forma general a los pacientes con este diagnóstico; no hay información suficiente para confirmar si la exclusión indicada afecta a este paciente.";
+        return `Esta recomendación aplica de forma general a los pacientes con este diagnóstico; no hay información suficiente para confirmar si se cumple la exclusión de la guía: ${exclusion}.`;
     }
   }
-  switch (status) {
-    case "applies":
-      return "Con los datos disponibles, este paciente cumple el criterio clínico de la guía para esta recomendación.";
-    case "possibly_applies":
-      return "Con los datos disponibles, este paciente podría cumplir el criterio clínico de la guía, pero la evidencia disponible no permite confirmarlo con certeza.";
-    case "insufficient_data":
-      return "No hay información suficiente en los datos estructurados del paciente para determinar si cumple este criterio clínico de la guía.";
-    case "does_not_apply":
-      return "Con los datos disponibles, este paciente no cumple el criterio clínico de la guía para esta recomendación.";
+  switch (match.status) {
+    case "applies": {
+      const criteria = joinCriterionLines(match.matchedCriteria, "el criterio clínico de la guía");
+      return `Cumple el criterio de la guía para esta recomendación: ${criteria}.`;
+    }
+    case "possibly_applies": {
+      const criteria = joinCriterionLines(match.matchedCriteria, "el criterio clínico de la guía");
+      return `Cumple de forma orientativa el criterio de la guía (${criteria}), pero la evidencia disponible no permite confirmarlo con certeza.`;
+    }
+    case "insufficient_data": {
+      const criteria = joinCriterionLines(match.missingCriteria, "un criterio clínico de la guía");
+      return `No hay información suficiente en los datos estructurados del paciente para confirmar el criterio de la guía: ${criteria}.`;
+    }
+    case "does_not_apply": {
+      if (match.conflictingCriteria.length) {
+        const exclusion = joinCriterionLines(match.conflictingCriteria, "una exclusión de la guía");
+        return `No aplica: se cumple la exclusión de la guía: ${exclusion}.`;
+      }
+      const criteria = joinCriterionLines(match.unmatchedCriteria, "el criterio clínico de la guía");
+      return `No cumple el criterio de la guía para esta recomendación: ${criteria}.`;
+    }
   }
 }
 

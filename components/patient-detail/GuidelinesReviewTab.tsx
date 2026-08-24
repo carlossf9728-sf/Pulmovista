@@ -109,7 +109,7 @@ function buildExplanation(patient: Patient, match: GuidelineMatch): ClinicalExpl
     sections: [
       { label: "Dato del paciente", emphasis: true, text: patientDatumLines(patient, match, applicability).join(" · ") },
       { label: "Criterio clínico de la guía", text: criteriaSummaryText(match, applicability) },
-      { label: "Interpretación de PulmoVista", text: interpretationSentence(match.status, applicability) },
+      { label: "Interpretación de PulmoVista", text: interpretationSentence(match, applicability) },
       { label: "Recomendación", text: recommendation?.recommendationText ?? "Texto no disponible." },
     ],
     evidence: match.patientEvidence,
@@ -177,7 +177,7 @@ function MatchCard({ patient, match, onWhy }: { patient: Patient; match: Guideli
       </Block>
 
       <Block label="Interpretación de PulmoVista">
-        <span style={{ fontSize: 13, fontStyle: "italic", color: COLORS.navy }}>{interpretationSentence(match.status, recommendation.applicability)}</span>
+        <span style={{ fontSize: 13, fontStyle: "italic", color: COLORS.navy }}>{interpretationSentence(match, recommendation.applicability)}</span>
       </Block>
 
       <Block label="Recomendación de la guía">

@@ -72,7 +72,7 @@ describe("WhyModal", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renderiza secciones y evidencias estructuradas de un ClinicalExplanation", () => {
+  it("renderiza las secciones de un ClinicalExplanation, sin mostrar la lista cruda de evidencia", () => {
     const explanation: ClinicalExplanation = {
       kindLabel: "heurística experimental",
       source: { kind: "legacy_heuristic", ruleId: "test-rule", label: "Regla de prueba" },
@@ -80,6 +80,8 @@ describe("WhyModal", () => {
         { label: "Dato", text: "FEV1 80% -> 70%", emphasis: true },
         { label: "Interpretación", text: "Tendencia descendente." },
       ],
+      // La evidencia estructurada se conserva en el objeto para trazabilidad interna,
+      // pero WhyModal ya no la renderiza (sin encabezado "Evidencias" ni lista de eventos).
       evidence: [{ label: "01/01/2024 — FEV1 80%" }, { label: "01/06/2024 — FEV1 70%" }],
     };
     render(<WhyModal data={explanation} onClose={() => {}} />);
@@ -87,6 +89,7 @@ describe("WhyModal", () => {
     expect(screen.getByText("heurística experimental")).toBeInTheDocument();
     expect(screen.getByText("FEV1 80% -> 70%")).toBeInTheDocument();
     expect(screen.getByText("Tendencia descendente.")).toBeInTheDocument();
-    expect(screen.getByText("01/01/2024 — FEV1 80%")).toBeInTheDocument();
+    expect(screen.queryByText("Evidencias")).not.toBeInTheDocument();
+    expect(screen.queryByText("01/01/2024 — FEV1 80%")).not.toBeInTheDocument();
   });
 });

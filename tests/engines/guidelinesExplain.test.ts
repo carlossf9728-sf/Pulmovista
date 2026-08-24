@@ -1,14 +1,18 @@
 /**
  * Tests de engines/guidelines/explain.ts — helpers de presentación sobre
- * GuidelineMatch. Cubren específicamente la distinción general/
- * condicionada: una recomendación general (sin criteria ni
- * prerequisites) nunca debe leerse como si exigiera un criterio
- * clínico, y su "Dato del paciente" debe incluir el diagnóstico.
+ * GuidelineMatch. Cubren la distinción general/condicionada (una
+ * recomendación general nunca debe leerse como si exigiera un criterio
+ * clínico) y el resumen clínico de "Dato del paciente" (una frase legible
+ * por criterio, nunca un evento por línea) e "Interpretación de
+ * PulmoVista" (siempre nombra el criterio concreto, nunca la frase
+ * genérica "cumple el criterio clínico" sin decir cuál).
  */
 import { describe, expect, it } from "vitest";
-import { criteriaSummaryText, evidenceLine, interpretationSentence, patientDatumLines } from "@/engines/guidelines/explain";
+import { criteriaSummaryText, criterionLine, evidenceLine, interpretationSentence, patientDatumLines } from "@/engines/guidelines/explain";
 import { findRecommendationById } from "@/engines/guidelines/knowledge";
 import { matchPatientToRecommendation } from "@/engines/guidelines/match";
+import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
+import type { ExacerbationEvent, MicrobiologyEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 function basePatient(overrides: Partial<Patient> = {}): Patient {
@@ -25,6 +29,19 @@ function basePatient(overrides: Partial<Patient> = {}): Patient {
   };
 }
 
+function exac(patientId: string, date: string, severity: string, hospitalization = false): ExacerbationEvent {
+  return mkEvent<ExacerbationEvent>(patientId, CLINICAL_EVENT_TYPES.EXACERBATION, date, { severity, hospitalization });
+}
+
+function culture(patientId: string, date: string, organism: string): MicrobiologyEvent {
+  return mkEvent<MicrobiologyEvent>(patientId, CLINICAL_EVENT_TYPES.MICROBIOLOGY, date, {
+    sampleType: "Esputo",
+    organism,
+    sensitivity: [],
+    resistance: [],
+  });
+}
+
 const AS_OF = "2026-06-01";
 
 describe("interpretationSentence — recomendaciones GENERALES", () => {
@@ -34,31 +51,48 @@ describe("interpretationSentence — recomendaciones GENERALES", () => {
     const match = matchPatientToRecommendation(basePatient(), recommendation, AS_OF);
     expect(match.status).toBe("applies");
 
-    const sentence = interpretationSentence(match.status, recommendation.applicability);
+    const sentence = interpretationSentence(match, recommendation.applicability);
     expect(sentence).not.toContain("cumple el criterio clínico");
     expect(sentence).toContain("aplica de forma general");
   });
 
-  it("explica la exclusión sin decir 'cumple el criterio clínico' para una recomendación general con exclusión (separ-rec-corticoides-no-rutina)", () => {
+  it("nombra la exclusión concreta (no una frase genérica) para una recomendación general con exclusión (separ-rec-corticoides-no-rutina)", () => {
     const recommendation = findRecommendationById("separ-rec-corticoides-no-rutina")!;
     expect(recommendation.applicability).toBe("general");
     const patientWithAsma = basePatient({ secondaryDiagnoses: "Asma bronquial leve" });
     const match = matchPatientToRecommendation(patientWithAsma, recommendation, AS_OF);
     expect(match.status).toBe("does_not_apply");
 
-    const sentence = interpretationSentence(match.status, recommendation.applicability);
+    const sentence = interpretationSentence(match, recommendation.applicability);
     expect(sentence).not.toContain("cumple el criterio clínico");
     expect(sentence).toContain("aplica de forma general");
-    expect(sentence).toContain("exclusión");
+    expect(sentence).toContain(criterionLine("separ-crit-corticoides-poblacion"));
   });
 });
 
-describe("interpretationSentence — recomendaciones CONDICIONADAS (sin cambios de comportamiento)", () => {
-  it("sí describe cumplimiento de criterio clínico cuando la recomendación exige uno (ers-rec-pico4)", () => {
-    const recommendation = findRecommendationById("ers-rec-pico4")!;
+describe("interpretationSentence — recomendaciones CONDICIONADAS", () => {
+  it("nombra el criterio concreto que cumple, nunca una frase genérica sin decir cuál (ers-rec-pico6, primer aislamiento de P. aeruginosa)", () => {
+    const recommendation = findRecommendationById("ers-rec-pico6")!;
     expect(recommendation.applicability).toBe("conditional");
-    const sentence = interpretationSentence("applies", recommendation.applicability);
-    expect(sentence).toContain("cumple el criterio clínico");
+    const patient = basePatient({ events: [culture("p-explain", "2026-01-01", "Pseudomonas aeruginosa")] });
+    const match = matchPatientToRecommendation(patient, recommendation, AS_OF);
+    expect(match.status).toBe("applies");
+
+    const sentence = interpretationSentence(match, recommendation.applicability);
+    expect(sentence).not.toContain("cumple el criterio clínico de la guía para esta recomendación.");
+    expect(sentence).toContain(criterionLine("ers-crit-new-pseudomonas-isolation"));
+  });
+
+  it("nombra el criterio concreto que falta cuando el estado es información insuficiente (prerrequisito de NTM sin comprobar)", () => {
+    const recommendation = findRecommendationById("ers-rec-pico4")!;
+    const patient = basePatient({
+      events: [exac("p-explain", "2025-08-01", "Moderada"), exac("p-explain", "2026-01-01", "Grave", true)],
+    });
+    const match = matchPatientToRecommendation(patient, recommendation, AS_OF);
+    expect(match.status).toBe("insufficient_data");
+
+    const sentence = interpretationSentence(match, recommendation.applicability);
+    expect(sentence).toContain(criterionLine("ers-crit-ntm-excluded-before-macrolide"));
   });
 });
 
@@ -71,13 +105,39 @@ describe("patientDatumLines", () => {
     expect(lines[0]).toBe(`Diagnóstico registrado: "${patient.primaryDiagnosis}".`);
   });
 
-  it("no antepone el diagnóstico para una recomendación condicionada — usa exactamente la evidencia de match.patientEvidence", () => {
+  it("no antepone el diagnóstico para una recomendación condicionada", () => {
     const recommendation = findRecommendationById("ers-rec-pico4")!;
     const patient = basePatient();
     const match = matchPatientToRecommendation(patient, recommendation, AS_OF);
     const lines = patientDatumLines(patient, match, recommendation.applicability);
-    expect(lines).toEqual(match.patientEvidence.map(evidenceLine));
     expect(lines.join(" ")).not.toContain("Diagnóstico registrado:");
+  });
+
+  it("resume varias exacerbaciones en una única frase clínica, en vez de listar cada evento por separado", () => {
+    const recommendation = findRecommendationById("ers-rec-pico4")!;
+    const patient = basePatient({
+      events: [
+        exac("p-explain", "2025-08-01", "Leve"),
+        exac("p-explain", "2025-11-01", "Moderada"),
+        exac("p-explain", "2026-02-05", "Grave", true),
+        exac("p-explain", "2026-05-01", "Leve"),
+      ],
+    });
+    const match = matchPatientToRecommendation(patient, recommendation, AS_OF);
+    const lines = patientDatumLines(patient, match, recommendation.applicability);
+    // El ejemplo pedido explícitamente: una frase clínica clara, no 4 líneas con fecha por evento.
+    expect(lines).toContain("4 exacerbaciones en el último año, incluida 1 grave con ingreso hospitalario.");
+    expect(lines.some((l) => /^\d{2}\/\d{2}\/\d{4}/.test(l))).toBe(false);
+  });
+
+  it("resume varios cultivos positivos en una única frase clínica (ers-crit-chronic-pseudomonas, dentro de ers-rec-pico3-with-pa)", () => {
+    const recommendation = findRecommendationById("ers-rec-pico3-with-pa")!;
+    const patient = basePatient({
+      events: [culture("p-explain", "2025-01-01", "Pseudomonas aeruginosa"), culture("p-explain", "2025-06-01", "Pseudomonas aeruginosa")],
+    });
+    const match = matchPatientToRecommendation(patient, recommendation, AS_OF);
+    const lines = patientDatumLines(patient, match, recommendation.applicability);
+    expect(lines.some((l) => /^2 cultivos positivos para Pseudomonas aeruginosa registrados\.$/.test(l))).toBe(true);
   });
 });
 
@@ -95,5 +155,11 @@ describe("criteriaSummaryText", () => {
     const match = matchPatientToRecommendation(basePatient(), findRecommendationById("ers-rec-pico4")!, AS_OF);
     const emptyMatch = { ...match, matchedCriteria: [], unmatchedCriteria: [], missingCriteria: [], conflictingCriteria: [] };
     expect(criteriaSummaryText(emptyMatch, "conditional")).toBe("Sin criterios verificables asociados a esta recomendación.");
+  });
+});
+
+describe("evidenceLine", () => {
+  it("sigue disponible para trazabilidad interna aunque ya no se muestre en el modal '¿Por qué?'", () => {
+    expect(evidenceLine({ label: "Cultivo positivo: Pseudomonas aeruginosa", date: "2025-01-01" })).toContain("Cultivo positivo");
   });
 });

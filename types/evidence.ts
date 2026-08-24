@@ -17,6 +17,14 @@ export interface EvidenceItem {
   label: string;
   /** Fecha ISO asociada, si la evidencia proviene de un evento fechado. */
   date?: string | null;
+  /**
+   * GuidelineCriterion.criterionId que generó este item, cuando procede
+   * de GuidelineMatch (ver engines/guidelines/match.ts). Permite agrupar
+   * la evidencia por criterio en la capa de presentación (p. ej. para
+   * resumirla en una sola frase clínica) sin tener que volver a evaluar
+   * nada ni reconstruir esa asociación a partir del texto.
+   */
+  criterionId?: string;
 }
 
 /**
