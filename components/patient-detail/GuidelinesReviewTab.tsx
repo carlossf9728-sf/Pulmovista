@@ -6,7 +6,7 @@ import { Info } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
 import { EVIDENCE_QUALITY_LABEL, guidelineShortLabel, STRENGTH_LABEL } from "@/utils/guidelineLabels";
-import { buildCitation, criteriaSummaryText, criterionLine, evidenceLine, interpretationSentence } from "@/engines/guidelines/explain";
+import { buildCitation, criteriaSummaryText, criterionLine, interpretationSentence, patientDatumLines } from "@/engines/guidelines/explain";
 import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
 import { activeProblemCategories } from "@/domain/diagnosis";
@@ -90,13 +90,10 @@ function categoryLabel(cat: DiagnosisCategory): string {
   }
 }
 
-function buildExplanation(match: GuidelineMatch): ClinicalExplanation {
+function buildExplanation(patient: Patient, match: GuidelineMatch): ClinicalExplanation {
   const recommendation = findRecommendationById(match.recommendationId);
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
-
-  const datoText = match.patientEvidence.length
-    ? match.patientEvidence.map(evidenceLine).join(" · ")
-    : "Esta recomendación no depende de ningún dato concreto del paciente (sin criterios acotados en la base de conocimiento).";
+  const applicability = recommendation?.applicability ?? "conditional";
 
   return {
     kindLabel: "guideline",
@@ -110,9 +107,9 @@ function buildExplanation(match: GuidelineMatch): ClinicalExplanation {
       page: match.guidelineCitation.page,
     },
     sections: [
-      { label: "Dato del paciente", emphasis: true, text: datoText },
-      { label: "Criterio clínico de la guía", text: criteriaSummaryText(match) },
-      { label: "Interpretación de PulmoVista", text: interpretationSentence(match.status) },
+      { label: "Dato del paciente", emphasis: true, text: patientDatumLines(patient, match, applicability).join(" · ") },
+      { label: "Criterio clínico de la guía", text: criteriaSummaryText(match, applicability) },
+      { label: "Interpretación de PulmoVista", text: interpretationSentence(match.status, applicability) },
       { label: "Recomendación", text: recommendation?.recommendationText ?? "Texto no disponible." },
     ],
     evidence: match.patientEvidence,
@@ -120,21 +117,18 @@ function buildExplanation(match: GuidelineMatch): ClinicalExplanation {
   };
 }
 
-function CriterionList({ label, items, emptyText, tone }: { label: string; items: string[]; emptyText: string; tone: string }) {
+/** Solo se renderiza cuando `items` no está vacío — un bloque "Ninguno"/"Ninguna" no aporta nada y se oculta en el punto de uso. */
+function CriterionList({ label, items, tone }: { label: string; items: string[]; tone: string }) {
   return (
     <div style={{ marginTop: 10 }}>
       <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
-      {items.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: COLORS.slateLight, fontStyle: "italic", marginTop: 3 }}>{emptyText}</div>
-      ) : (
-        <ul style={{ margin: "4px 0 0", padding: 0, listStyle: "none" }}>
-          {items.map((item, i) => (
-            <li key={i} style={{ fontSize: 12.5, color: COLORS.ink, padding: "2px 0", display: "flex", gap: 6 }}>
-              <span style={{ color: tone, fontWeight: 700, flexShrink: 0 }}>›</span> {item}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul style={{ margin: "4px 0 0", padding: 0, listStyle: "none" }}>
+        {items.map((item, i) => (
+          <li key={i} style={{ fontSize: 12.5, color: COLORS.ink, padding: "2px 0", display: "flex", gap: 6 }}>
+            <span style={{ color: tone, fontWeight: 700, flexShrink: 0 }}>›</span> {item}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -149,11 +143,13 @@ function Block({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function MatchCard({ match, onWhy }: { match: GuidelineMatch; onWhy: () => void }) {
+function MatchCard({ patient, match, onWhy }: { patient: Patient; match: GuidelineMatch; onWhy: () => void }) {
   const recommendation = findRecommendationById(match.recommendationId);
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
   const group = STATUS_GROUPS.find((g) => g.key === match.status);
   if (!recommendation || !document || !group) return null;
+
+  const datumLines = patientDatumLines(patient, match, recommendation.applicability);
 
   return (
     <Card accent={group.color}>
@@ -171,21 +167,17 @@ function MatchCard({ match, onWhy }: { match: GuidelineMatch; onWhy: () => void 
 
       {/* Tres bloques con su propio rótulo: dato objetivo / síntesis de PulmoVista / texto verbatim de la guía — nunca mezclados en un único párrafo. */}
       <Block label="Dato del paciente">
-        {match.patientEvidence.length ? (
-          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-            {match.patientEvidence.map((e, i) => (
-              <li key={i} style={{ fontSize: 12.5, color: COLORS.ink, padding: "2px 0", display: "flex", gap: 6 }}>
-                <span style={{ color: COLORS.slate, fontWeight: 700, flexShrink: 0 }}>›</span> {evidenceLine(e)}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <span style={{ fontSize: 12.5, color: COLORS.slateLight, fontStyle: "italic" }}>Sin datos estructurados del paciente asociados a esta evaluación.</span>
-        )}
+        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+          {datumLines.map((line, i) => (
+            <li key={i} style={{ fontSize: 12.5, color: COLORS.ink, padding: "2px 0", display: "flex", gap: 6 }}>
+              <span style={{ color: COLORS.slate, fontWeight: 700, flexShrink: 0 }}>›</span> {line}
+            </li>
+          ))}
+        </ul>
       </Block>
 
       <Block label="Interpretación de PulmoVista">
-        <span style={{ fontSize: 13, fontStyle: "italic", color: COLORS.navy }}>{interpretationSentence(match.status)}</span>
+        <span style={{ fontSize: 13, fontStyle: "italic", color: COLORS.navy }}>{interpretationSentence(match.status, recommendation.applicability)}</span>
       </Block>
 
       <Block label="Recomendación de la guía">
@@ -203,12 +195,11 @@ function MatchCard({ match, onWhy }: { match: GuidelineMatch; onWhy: () => void 
         </span>
       </div>
 
-      <CriterionList label="Criterios cumplidos" items={match.matchedCriteria.map(criterionLine)} emptyText="Ninguno." tone={COLORS.green} />
-      <CriterionList label="Criterios que faltan" items={match.missingCriteria.map(criterionLine)} emptyText="Ninguno." tone={COLORS.slate} />
-      {match.unmatchedCriteria.length > 0 && (
-        <CriterionList label="Criterios no cumplidos" items={match.unmatchedCriteria.map(criterionLine)} emptyText="Ninguno." tone={COLORS.slateLight} />
-      )}
-      <CriterionList label="Exclusiones o conflictos" items={match.conflictingCriteria.map(criterionLine)} emptyText="Ninguna." tone={COLORS.red} />
+      {/* Bloques de criterios: solo se muestran cuando tienen contenido — nunca "Ninguno"/"Ninguna" vacío. */}
+      {match.matchedCriteria.length > 0 && <CriterionList label="Criterios cumplidos" items={match.matchedCriteria.map(criterionLine)} tone={COLORS.green} />}
+      {match.missingCriteria.length > 0 && <CriterionList label="Criterios que faltan" items={match.missingCriteria.map(criterionLine)} tone={COLORS.slate} />}
+      {match.unmatchedCriteria.length > 0 && <CriterionList label="Criterios no cumplidos" items={match.unmatchedCriteria.map(criterionLine)} tone={COLORS.slateLight} />}
+      {match.conflictingCriteria.length > 0 && <CriterionList label="Exclusiones o conflictos" items={match.conflictingCriteria.map(criterionLine)} tone={COLORS.red} />}
 
       <div style={{ marginTop: 12 }}>
         <WhyButton onClick={onWhy} />
@@ -278,7 +269,7 @@ export function GuidelinesReviewTab({ patient, onWhy }: { patient: Patient; onWh
             {!items.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>{group.emptyText}</div>}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
               {items.map((m) => (
-                <MatchCard key={m.recommendationId} match={m} onWhy={() => onWhy(buildExplanation(m))} />
+                <MatchCard key={m.recommendationId} patient={patient} match={m} onWhy={() => onWhy(buildExplanation(patient, m))} />
               ))}
             </div>
           </div>

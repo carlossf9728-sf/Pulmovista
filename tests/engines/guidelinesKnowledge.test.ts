@@ -136,6 +136,13 @@ describe("Referencias internas válidas", () => {
     }
   });
 
+  it("GuidelineRecommendation.applicability es 'general' exactamente cuando criteria y prerequisites están vacíos", () => {
+    for (const r of KNOWLEDGE_BASE_RECOMMENDATIONS) {
+      const expected = r.criteria.length === 0 && r.prerequisites.length === 0 ? "general" : "conditional";
+      expect(r.applicability).toBe(expected);
+    }
+  });
+
   it("ningún criterionId aparece a la vez en criteria/exclusions/prerequisites de una misma recomendación", () => {
     for (const r of KNOWLEDGE_BASE_RECOMMENDATIONS) {
       const buckets = [r.criteria, r.exclusions, r.prerequisites];

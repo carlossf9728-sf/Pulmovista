@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SummaryTab } from "@/components/patient-detail/SummaryTab";
 import { TimelineTab } from "@/components/patient-detail/TimelineTab";
@@ -156,5 +156,39 @@ describe("GuidelinesReviewTab", () => {
     render(<GuidelinesReviewTab patient={patientWithSecondaryBx} onWhy={vi.fn()} />);
     expect(screen.queryByText("No hay una guía compatible disponible para este problema clínico")).not.toBeInTheDocument();
     expect(screen.getByText("Aplicables")).toBeInTheDocument();
+  });
+
+  it("una recomendación GENERAL (ers-rec-pico1) muestra el diagnóstico como dato y nunca dice 'cumple el criterio clínico'", async () => {
+    const onWhy = vi.fn();
+    render(<GuidelinesReviewTab patient={p1} onWhy={onWhy} />);
+    const generalCardText = screen.getByText(/patients with bronchiectasis should be taught airway clearance techniques/i);
+    const card = generalCardText.closest(".pv-card-hover") as HTMLElement;
+    expect(card).toBeTruthy();
+    // Diagnóstico registrado del paciente, visible como dato en la propia tarjeta.
+    expect(within(card).getByText(new RegExp(p1.primaryDiagnosis))).toBeInTheDocument();
+    expect(within(card).getByText(/aplica de forma general/i)).toBeInTheDocument();
+    expect(within(card).queryByText(/cumple el criterio clínico/i)).not.toBeInTheDocument();
+
+    const whyButton = within(card).getByRole("button", { name: /por qué/i });
+    await userEvent.click(whyButton);
+    const explanation = onWhy.mock.calls.at(-1)?.[0];
+    expect(explanation.sections.find((s: { label: string }) => s.label === "Dato del paciente").text).toContain(p1.primaryDiagnosis);
+    expect(explanation.sections.find((s: { label: string }) => s.label === "Interpretación de PulmoVista").text).not.toContain("cumple el criterio clínico");
+  });
+
+  it("oculta bloques de criterios vacíos y el encabezado 'Evidencias' cuando no hay evidencia adicional", async () => {
+    const onWhy = vi.fn();
+    render(<GuidelinesReviewTab patient={p1} onWhy={onWhy} />);
+    // Nunca debe aparecer un bloque "Ninguno."/"Ninguna." en ninguna tarjeta.
+    expect(screen.queryByText("Ninguno.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ninguna.")).not.toBeInTheDocument();
+
+    const generalCardText = screen.getByText(/patients with bronchiectasis should be taught airway clearance techniques/i);
+    const card = generalCardText.closest(".pv-card-hover") as HTMLElement;
+    await userEvent.click(within(card).getByRole("button", { name: /por qué/i }));
+    const explanation = onWhy.mock.calls.at(-1)?.[0];
+    // ers-rec-pico1 no tiene ninguna evidencia estructurada asociada (criteria/exclusions/prerequisites vacíos): sin "Evidencias".
+    expect(explanation.evidence).toEqual([]);
+    expect(screen.queryByText("Evidencias")).not.toBeInTheDocument();
   });
 });

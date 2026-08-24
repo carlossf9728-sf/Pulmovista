@@ -51,6 +51,7 @@ export const GUIDELINE_RECOMMENDATIONS: GuidelineRecommendation[] = GUIDELINE_DO
   sourceText: "Contenido simulado — pendiente de cargar el texto real de la recomendación.",
   topic: "tratamiento antibiótico",
   recommendationText: "Contenido simulado — pendiente de cargar el texto real de la recomendación.",
+  applicability: "conditional",
   criteria: [],
   exclusions: [],
   prerequisites: [],

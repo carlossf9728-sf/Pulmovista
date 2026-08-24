@@ -24,7 +24,7 @@ import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guid
 import { matchPatientToGuidelines } from "@/engines/guidelines/match";
 import { todayISO } from "@/utils/date";
 import type { Patient } from "@/types/patient";
-import type { GuidelineMatch, GuidelineMatchStatus } from "@/types/guideline";
+import type { GuidelineMatch, GuidelineMatchStatus, GuidelineRecommendation } from "@/types/guideline";
 import type { ClinicalExplanation } from "@/types/evidence";
 import type { ObjectiveSentinelSignal, SentinelGuidelineInterpretation, SentinelStatusLabel } from "@/types/sentinel";
 
@@ -53,8 +53,7 @@ function relatedCriteriaFor(signal: ObjectiveSentinelSignal): string[] {
   }
 }
 
-function buildExplanation(signal: ObjectiveSentinelSignal, match: GuidelineMatch, statusLabel: SentinelStatusLabel): ClinicalExplanation {
-  const recommendation = findRecommendationById(match.recommendationId);
+function buildExplanation(signal: ObjectiveSentinelSignal, match: GuidelineMatch, recommendation: GuidelineRecommendation, statusLabel: SentinelStatusLabel): ClinicalExplanation {
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
 
   return {
@@ -70,7 +69,7 @@ function buildExplanation(signal: ObjectiveSentinelSignal, match: GuidelineMatch
     },
     sections: [
       { label: "Dato del paciente", emphasis: true, text: signal.datum },
-      { label: "Criterio de la guía", text: criteriaSummaryText(match) },
+      { label: "Criterio de la guía", text: criteriaSummaryText(match, recommendation.applicability) },
       { label: "Evaluación", text: `${statusLabel} para este criterio.` },
       { label: "Recomendación", text: recommendation?.recommendationText ?? "Texto no disponible." },
       { label: "Guía", text: document ? `${document.source.society} · ${document.source.year}` : match.guidelineCitation.guidelineId },
@@ -115,7 +114,7 @@ export function buildGuidelineInterpretations(patient: Patient, signal: Objectiv
         section: match.guidelineCitation.section,
         page: match.guidelineCitation.page,
         sourceText: match.guidelineCitation.sourceText,
-        explanation: buildExplanation(signal, match, statusLabel),
+        explanation: buildExplanation(signal, match, recommendation, statusLabel),
       },
     ];
   });

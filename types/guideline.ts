@@ -93,12 +93,30 @@ export interface GuidelineCriterion extends GuidelineCitation {
   keywords: string[];
 }
 
+/**
+ * Si una recomendación aplica por pertenecer a la población diana de la
+ * guía (p. ej. "todos los pacientes con bronquiectasias") o si exige
+ * comprobar criterios clínicos concretos en el paciente.
+ *
+ * Se declara explícitamente en cada GuidelineRecommendation en vez de
+ * inferirse de `criteria`/`prerequisites` vacíos, para que el código que
+ * lo consume (p. ej. GuidelinesReviewTab) no tenga que reconstruir esa
+ * distinción cada vez ni arriesgarse a inferirla mal si el modelo
+ * cambia. El valor SÍ se deriva del contenido real de cada recomendación
+ * (general ⟺ `criteria.length === 0 && prerequisites.length === 0`,
+ * ver notas de fidelidad en ers2025.ts/separ2018.ts) — no es una
+ * clasificación clínica nueva, solo la hace explícita.
+ */
+export type RecommendationApplicability = "general" | "conditional";
+
 /** Recomendación GRADE puntual, o una actuación hija dentro de un bloque narrativo. */
 export interface GuidelineRecommendation extends GuidelineCitation {
   recommendationId: string;
   topic: GuidelineTopic;
   /** El texto operativo de la recomendación ("we recommend...", "se recomienda..."), fiel al original — no se convierte una condicional en absoluta. */
   recommendationText: string;
+  /** Si aplica por población diana ("general") o exige criterios clínicos concretos ("conditional") — ver RecommendationApplicability. */
+  applicability: RecommendationApplicability;
   /** GuidelineCriterion.criterionId de las condiciones de inclusión/población que definen a quién aplica. */
   criteria: string[];
   /** GuidelineCriterion.criterionId de las condiciones de exclusión explícitas (su presencia contraindica la recomendación). */
