@@ -8,7 +8,7 @@ import { GROUP_COLOR, GROUP_ICON, TIMELINE_GROUPS } from "@/utils/eventGroupStyl
 import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import { selectConsultations, selectPFT } from "@/domain/selectors";
 import { comparePft } from "@/domain/pft";
-import { displayForEvent, groupTimelineRows, isNotableEvent } from "@/domain/timeline";
+import { displayForEvent, episodeSummary, groupTimelineRows, isNotableEvent } from "@/domain/timeline";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { DataConfidenceBadge } from "@/components/ui";
 import type { ClinicalEvent, PulmonaryFunctionEvent } from "@/types/clinicalEvent";
@@ -30,6 +30,60 @@ type TimelineRow = ClinicalEvent & { display: TimelineEntry };
 
 function isPft(e: ClinicalEvent): e is PulmonaryFunctionEvent {
   return e.type === CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION;
+}
+
+const TRUNCATE_AT = 220;
+
+/** Corta en el último espacio antes del límite, para no partir una palabra por la mitad. */
+function truncateAtWordBoundary(text: string, limit: number): string {
+  const cut = text.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(" ");
+  return lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
+}
+
+/**
+ * Consultas/evoluciones largas se muestran truncadas con "Ver más" —
+ * el resto del detalle (PFR, microbiología, imagen…) ya es
+ * suficientemente corto y se sigue mostrando entero. No resume el
+ * texto: solo lo corta y permite revelarlo completo bajo demanda.
+ */
+function TruncatedText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  if (text.length <= TRUNCATE_AT || expanded) {
+    return (
+      <>
+        {text}
+        {text.length > TRUNCATE_AT && (
+          <>
+            {" "}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(false);
+              }}
+              style={{ background: "none", border: "none", padding: 0, color: COLORS.tealDeep, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+            >
+              Ver menos
+            </button>
+          </>
+        )}
+      </>
+    );
+  }
+  return (
+    <>
+      {truncateAtWordBoundary(text, TRUNCATE_AT)}…{" "}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded(true);
+        }}
+        style={{ background: "none", border: "none", padding: 0, color: COLORS.tealDeep, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+      >
+        Ver más
+      </button>
+    </>
+  );
 }
 
 /** Cluster de eventos agrupados por año, en el mismo orden (descendente) en que ya vienen los clusters. */
@@ -85,7 +139,7 @@ function EventLine({
       <div style={{ fontSize: 13.5, fontWeight: notable ? 700 : 500, color: notable ? COLORS.ink : COLORS.slate, marginTop: 3 }}>{row.display.title}</div>
       {open && (
         <div style={{ fontSize: 13, color: COLORS.slate, marginTop: 8, lineHeight: 1.55, borderTop: `1px solid ${COLORS.line}`, paddingTop: 8 }}>
-          {row.display.detail}
+          {row.type === CLINICAL_EVENT_TYPES.CONSULTATION ? <TruncatedText text={row.display.detail} /> : row.display.detail}
           {extraDetailLines.map((line, i) => (
             <div key={i} style={{ marginTop: 6, fontSize: 12.5, color: COLORS.ink }}>
               {line}
@@ -132,9 +186,9 @@ function ClusterCard({
       />
       <div style={{ background: COLORS.white, border: `1px solid ${COLORS.line}`, borderLeft: `${notable ? 4 : 3}px solid ${accent}`, borderRadius: 10, padding: "10px 14px" }}>
         {cluster.rows.length > 1 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.slate }}>{formatDate(cluster.date)}</span>
-            <span style={{ fontSize: 11, color: COLORS.slateLight }}>{cluster.rows.length} elementos de la misma visita</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.ink }}>{episodeSummary(cluster.rows)}</span>
             {momentoClaveNote && (
               <span
                 title={momentoClaveNote}

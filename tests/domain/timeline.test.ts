@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
-import { displayForEvent, episodeKeyForEvent, groupTimelineRows, isNotableEvent } from "@/domain/timeline";
+import { displayForEvent, episodeKeyForEvent, episodeSummary, groupTimelineRows, isNotableEvent } from "@/domain/timeline";
 import type { ExacerbationEvent, HospitalizationEvent, MicrobiologyEvent, PulmonaryFunctionEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
 
 describe("displayForEvent", () => {
@@ -118,5 +118,36 @@ describe("isNotableEvent", () => {
     const ev = mkEvent<MicrobiologyEvent>("p1", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2024-01-01", { sampleType: "Esputo", organism: "P. aeruginosa", sensitivity: [], resistance: [] });
     expect(isNotableEvent(ev, new Set(["2024-01-01"]))).toBe(true);
     expect(isNotableEvent(ev, new Set(["2024-06-01"]))).toBe(false);
+  });
+});
+
+describe("episodeSummary", () => {
+  it("compone una cabecera clínica breve a partir de lo que cada evento ya trae, no de texto libre resumido", () => {
+    const consulta = mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-01-01", {}, { rawText: "..." });
+    const tratamiento = mkEvent<RespiratorySupportEvent>("p1", CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT, "2024-01-01", { drug: "tobramicina inhalada" });
+    expect(episodeSummary([consulta, tratamiento])).toBe("Consulta + inicio de tobramicina inhalada");
+  });
+
+  it("otro ejemplo: ingreso + exacerbación + TAC", () => {
+    const ingreso = mkEvent<HospitalizationEvent>("p1", CLINICAL_EVENT_TYPES.HOSPITALIZATION, "2024-01-01", {});
+    const exacerbacion = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Grave", hospitalization: true });
+    const tac = mkEvent("p1", CLINICAL_EVENT_TYPES.IMAGING, "2024-01-01", { label: "TAC tórax", text: "..." });
+    expect(episodeSummary([ingreso, exacerbacion, tac])).toBe("Ingreso + exacerbación + TAC tórax");
+  });
+
+  it("con más eventos que el máximo, corta y añade un contador de los que faltan", () => {
+    const events = [
+      mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-01-01", {}, { rawText: "..." }),
+      mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false }),
+      mkEvent<MicrobiologyEvent>("p1", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2024-01-01", { sampleType: "Esputo", organism: "H. influenzae", sensitivity: [], resistance: [] }),
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-01-01", { FEV1Percent: 70 }),
+    ];
+    expect(episodeSummary(events, 3)).toBe("Consulta + exacerbación + cultivo de H. influenzae +1 más");
+  });
+
+  it("un procedimiento identificado se nombra en vez del genérico 'ingreso'", () => {
+    const procedimiento = mkEvent<HospitalizationEvent>("p1", CLINICAL_EVENT_TYPES.HOSPITALIZATION, "2024-01-01", { procedureLabel: "broncoscopia" });
+    const consulta = mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-01-01", {}, { rawText: "..." });
+    expect(episodeSummary([consulta, procedimiento])).toBe("Consulta + broncoscopia");
   });
 });

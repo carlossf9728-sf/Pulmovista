@@ -119,3 +119,48 @@ export function isNotableEvent(e: ClinicalEvent, turningPointDates: ReadonlySet<
   if (e.type === CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT) return true;
   return false;
 }
+
+/** Fragmento breve de UN evento para la cabecera resumida de un episodio — nunca el detalle completo, solo "qué fue". */
+function episodeFragment(e: ClinicalEvent): string {
+  switch (e.type) {
+    case CLINICAL_EVENT_TYPES.CONSULTATION:
+      return "consulta";
+    case CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION:
+      return "función pulmonar";
+    case CLINICAL_EVENT_TYPES.MICROBIOLOGY:
+      return `cultivo de ${e.organism}`;
+    case CLINICAL_EVENT_TYPES.EXACERBATION:
+      return "exacerbación";
+    case CLINICAL_EVENT_TYPES.HOSPITALIZATION:
+      return e.procedureLabel || "ingreso";
+    case CLINICAL_EVENT_TYPES.IMAGING:
+      return e.label;
+    case CLINICAL_EVENT_TYPES.LAB_RESULTS:
+      return "analítica";
+    case CLINICAL_EVENT_TYPES.TREATMENT_STARTED:
+    case CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT:
+      return `inicio de ${e.drug}`;
+    case CLINICAL_EVENT_TYPES.TREATMENT_STOPPED:
+      return `fin de ${e.drug}`;
+    default:
+      return "evento clínico";
+  }
+}
+
+/**
+ * Cabecera clínica resumida de un episodio con varios eventos, p. ej.
+ * "Consulta + inicio de tobramicina inhalada" o "Ingreso + exacerbación
+ * + TAC tórax" — sustituye a un contador genérico ("N elementos") por
+ * algo que ya dice de qué trató la visita. Solo compone los `label`/
+ * `drug`/`organism` que ya trae cada evento: no resume texto libre ni
+ * añade ningún juicio clínico. Con más de `maxFragments` eventos, corta
+ * y añade un contador de los que faltan para no alargar la cabecera sin
+ * límite.
+ */
+export function episodeSummary(rows: ClinicalEvent[], maxFragments = 3): string {
+  const fragments = rows.map(episodeFragment);
+  const shown = fragments.slice(0, maxFragments);
+  const rest = fragments.length - shown.length;
+  const text = rest > 0 ? `${shown.join(" + ")} +${rest} más` : shown.join(" + ");
+  return cap(text) ?? text;
+}

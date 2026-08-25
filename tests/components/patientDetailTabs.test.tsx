@@ -11,7 +11,7 @@ import { AlertsTab } from "@/components/patient-detail/AlertsTab";
 import { GuidelinesReviewTab } from "@/components/patient-detail/GuidelinesReviewTab";
 import { buildDemoPatients } from "@/data/demoPatients";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
-import type { ExacerbationEvent, MicrobiologyEvent } from "@/types/clinicalEvent";
+import type { ExacerbationEvent, MicrobiologyEvent, PulmonaryFunctionEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 function basePatient(overrides: Partial<Patient> = {}): Patient {
@@ -52,7 +52,7 @@ describe("TimelineTab", () => {
     expect(screen.queryAllByText((_, el) => el?.textContent === "Microbiología" && el.tagName === "SPAN")).toHaveLength(0);
   });
 
-  it("agrupa varios eventos del mismo día en una única tarjeta de episodio, en vez de una lista plana", () => {
+  it("agrupa varios eventos del mismo día en una única tarjeta de episodio con una cabecera clínica resumida, no un contador genérico", () => {
     const patient = basePatient({
       events: [
         mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-03-10", { severity: "Moderada", hospitalization: false }),
@@ -65,18 +65,62 @@ describe("TimelineTab", () => {
       ],
     });
     render(<TimelineTab patient={patient} />);
-    expect(screen.getByText("2 elementos de la misma visita")).toBeInTheDocument();
-    // "Exacerbación"/"Microbiología" aparecen también como chip de filtro: basta con que la fila del episodio los incluya.
+    expect(screen.queryByText(/elementos de la misma visita/)).not.toBeInTheDocument();
+    // La Cronología muestra lo más reciente primero; dentro del mismo día, el orden interno sigue el mismo criterio que ya usaba la lista antes de agrupar.
+    expect(screen.getByText("Cultivo de Pseudomonas aeruginosa + exacerbación")).toBeInTheDocument();
+    // "Exacerbación"/"Microbiología" aparecen también como chip de filtro y como etiqueta de categoría de la fila.
     expect(screen.getAllByText("Exacerbación").length).toBeGreaterThan(1);
     expect(screen.getAllByText("Microbiología").length).toBeGreaterThan(1);
   });
 
-  it("un único evento en su fecha se muestra igual que antes, sin la cabecera de episodio", () => {
+  it("con más de 3 elementos, la cabecera del episodio corta y cuenta los que faltan en vez de alargarse sin límite", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-03-10", { severity: "Moderada", hospitalization: false }),
+        mkEvent<MicrobiologyEvent>("p-timeline", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2024-03-10", { sampleType: "Esputo", organism: "P. aeruginosa", sensitivity: [], resistance: [] }),
+        mkEvent<PulmonaryFunctionEvent>("p-timeline", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-03-10", { FEV1Percent: 70 }),
+        mkEvent("p-timeline", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-03-10", {}, { rawText: "Consulta de revisión." }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.getByText("Consulta + función pulmonar + cultivo de P. aeruginosa +1 más")).toBeInTheDocument();
+  });
+
+  it("un único evento en su fecha se muestra igual que antes, sin cabecera de episodio", () => {
     const patient = basePatient({
       events: [mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-03-10", { severity: "Moderada", hospitalization: false })],
     });
     render(<TimelineTab patient={patient} />);
     expect(screen.queryByText(/elementos de la misma visita/)).not.toBeInTheDocument();
+    // Sin cabecera de episodio: "Exacerbación" solo aparece como chip de filtro y como etiqueta de categoría de la única fila.
+    expect(screen.getAllByText("Exacerbación")).toHaveLength(2);
+  });
+
+  it("trunca una consulta/evolución larga con 'Ver más', y permite revelarla completa", async () => {
+    const longText = "Consulta de revisión muy detallada. ".repeat(10);
+    const patient = basePatient({
+      events: [mkEvent("p-timeline", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-03-10", {}, { rawText: longText })],
+    });
+    render(<TimelineTab patient={patient} />);
+    await userEvent.click(screen.getByText("Consulta / evolución"));
+    expect(screen.getByText(/…/)).toBeInTheDocument();
+    const verMas = screen.getByRole("button", { name: "Ver más" });
+    // El texto completo todavía no está en el documento — solo la versión truncada.
+    expect(screen.queryByText(longText.trim())).not.toBeInTheDocument();
+
+    await userEvent.click(verMas);
+    expect(screen.getByText(longText.trim(), { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver menos" })).toBeInTheDocument();
+  });
+
+  it("una consulta/evolución corta se muestra entera, sin 'Ver más'", async () => {
+    const patient = basePatient({
+      events: [mkEvent("p-timeline", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-03-10", {}, { rawText: "Consulta breve, sin novedades." })],
+    });
+    render(<TimelineTab patient={patient} />);
+    await userEvent.click(screen.getByText("Consulta / evolución"));
+    expect(screen.getByText("Consulta breve, sin novedades.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver más" })).not.toBeInTheDocument();
   });
 
   it("marca 'Momento clave' solo en el episodio cuya fecha coincide con un Turning Point ya detectado — reutiliza computeTurningPoints(), no una regla nueva", () => {
