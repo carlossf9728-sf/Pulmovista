@@ -8,6 +8,37 @@ describe("runExtractionEngine", () => {
     expect(pft).toMatchObject({ FEV1Percent: 78, FVCPercent: 85, DLCOPercent: 70 });
   });
 
+  it("extrae el z-score de FEV1, FVC y FEV1/FVC por separado, y nunca el z-score de DLCO (no se toca)", () => {
+    const events = runExtractionEngine(
+      "FEV1 68%, z-score -1.9. FVC 76%, z-score -1.7. FEV1/FVC 74%, z-score -1.1. DLCO 65%.",
+      "2024-01-01",
+    );
+    const pft = events.find((e) => e.type === "pulmonary_function");
+    expect(pft).toMatchObject({
+      FEV1Percent: 68,
+      FEV1zScore: -1.9,
+      FVCPercent: 76,
+      FVCzScore: -1.7,
+      FEV1FVCRatio: 74,
+      FEV1FVCzScore: -1.1,
+      DLCOPercent: 65,
+    });
+    // El tipo PulmonaryFunctionEvent no tiene ningún campo de z-score para DLCO — no hay nada que verificar ahí más allá de que no exista el campo.
+    expect(pft && "DLCOzScore" in pft).toBe(false);
+  });
+
+  it("no confunde 'FEV1/FVC' con 'FEV1' o 'FVC' sueltos al extraer el % (evita el falso positivo de leer el cociente como si fuera el volumen)", () => {
+    const events = runExtractionEngine("FEV1/FVC 65%.", "2024-01-01");
+    const pft = events.find((e) => e.type === "pulmonary_function");
+    expect(pft).toMatchObject({ FEV1FVCRatio: 65, FEV1Percent: null, FVCPercent: null });
+  });
+
+  it("tampoco confunde el z-score de FEV1/FVC con el de FEV1 o FVC sueltos", () => {
+    const events = runExtractionEngine("FEV1/FVC z-score -1.2.", "2024-01-01");
+    const pft = events.find((e) => e.type === "pulmonary_function");
+    expect(pft).toMatchObject({ FEV1FVCzScore: -1.2, FEV1zScore: null, FVCzScore: null });
+  });
+
   it("extrae un microorganismo con sensibilidad", () => {
     const events = runExtractionEngine("Cultivo de esputo con Pseudomonas aeruginosa, sensible a ciprofloxacino.", "2024-01-01");
     const micro = events.find((e) => e.type === "microbiology");

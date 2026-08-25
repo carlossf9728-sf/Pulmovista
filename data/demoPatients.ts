@@ -73,18 +73,27 @@ export function buildDemoPatients(): Patient[] {
       FVCLiters: 2.48,
       DLCOPercent: 69,
     }),
+    // A partir de esta prueba el laboratorio empieza a informar z-score (referencia GLI) además del % del predicho — dato longitudinal que se conserva y se muestra tal cual, sin ningún umbral clínico nuevo.
     mkEvent<PulmonaryFunctionEvent>(p1, CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2026-01-14", {
       FEV1Percent: 69,
       FEV1Liters: 1.77,
+      FEV1zScore: -1.9,
       FVCPercent: 77,
       FVCLiters: 2.38,
+      FVCzScore: -1.6,
+      FEV1FVCRatio: 74,
+      FEV1FVCzScore: -1.1,
       DLCOPercent: 66,
     }),
     mkEvent<PulmonaryFunctionEvent>(p1, CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2026-06-20", {
       FEV1Percent: 68,
       FEV1Liters: 1.74,
+      FEV1zScore: -2.0,
       FVCPercent: 76,
       FVCLiters: 2.35,
+      FVCzScore: -1.7,
+      FEV1FVCRatio: 74,
+      FEV1FVCzScore: -1.1,
       DLCOPercent: 65,
     }),
     mkEvent<MicrobiologyEvent>(p1, CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2023-03-01", {

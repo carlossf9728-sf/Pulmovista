@@ -1,29 +1,253 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Filter } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Filter } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { formatDate, sortByDate } from "@/utils/date";
 import { GROUP_COLOR, GROUP_ICON, TIMELINE_GROUPS } from "@/utils/eventGroupStyle";
 import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
-import { selectConsultations } from "@/domain/selectors";
-import { displayForEvent } from "@/domain/timeline";
+import { selectConsultations, selectPFT } from "@/domain/selectors";
+import { comparePft } from "@/domain/pft";
+import { displayForEvent, groupTimelineRows, isNotableEvent } from "@/domain/timeline";
+import { computeTurningPoints } from "@/engines/turningPoints";
 import { DataConfidenceBadge } from "@/components/ui";
-import type { ClinicalEvent } from "@/types/clinicalEvent";
+import type { ClinicalEvent, PulmonaryFunctionEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
+import type { TimelineCluster } from "@/domain/timeline";
 import type { TimelineEntry, TimelineGroup } from "@/types/timeline";
+import type { TurningPoint } from "@/types/turningPoints";
+
+/**
+ * Cronología rediseñada — la unidad de lectura es el EPISODIO (hoy: el
+ * día, ver domain/timeline.ts#episodeKeyForEvent), no el evento suelto.
+ * Objetivo: que se entienda la evolución de un vistazo, no leyendo una
+ * lista plana. Nada de esto reevalúa ni reinterpreta datos: agrupa,
+ * compara aritméticamente (PFR) y reutiliza `computeTurningPoints()`
+ * para decidir qué destacar — cero reglas clínicas nuevas.
+ */
 
 type TimelineRow = ClinicalEvent & { display: TimelineEntry };
 
+function isPft(e: ClinicalEvent): e is PulmonaryFunctionEvent {
+  return e.type === CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION;
+}
+
+/** Cluster de eventos agrupados por año, en el mismo orden (descendente) en que ya vienen los clusters. */
+function groupClustersByYear<T extends ClinicalEvent>(clusters: TimelineCluster<T>[]): { year: number; clusters: TimelineCluster<T>[] }[] {
+  const out: { year: number; clusters: TimelineCluster<T>[] }[] = [];
+  for (const cluster of clusters) {
+    const year = new Date(cluster.date).getFullYear();
+    const last = out[out.length - 1];
+    if (last && last.year === year) last.clusters.push(cluster);
+    else out.push({ year, clusters: [cluster] });
+  }
+  return out;
+}
+
+function EventLine({
+  row,
+  notable,
+  momentoClaveNote,
+  showDate,
+  open,
+  onToggle,
+  extraDetailLines,
+}: {
+  row: TimelineRow;
+  notable: boolean;
+  momentoClaveNote: string | null;
+  showDate: boolean;
+  open: boolean;
+  onToggle: () => void;
+  extraDetailLines: string[];
+}) {
+  const c = GROUP_COLOR[row.display.group];
+  const Icon = GROUP_ICON[row.display.group];
+  return (
+    <div onClick={onToggle} style={{ cursor: "pointer", padding: "8px 0" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", minWidth: 0 }}>
+          <Icon size={13} color={c} style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: c, textTransform: "uppercase", letterSpacing: "0.03em" }}>{row.display.group}</span>
+          {showDate && <span style={{ fontSize: 12, color: COLORS.slateLight }}>{formatDate(row.date)}</span>}
+          {momentoClaveNote && (
+            <span
+              title={momentoClaveNote}
+              style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, background: COLORS.redTint, padding: "1px 7px", borderRadius: 20, whiteSpace: "nowrap" }}
+            >
+              Momento clave
+            </span>
+          )}
+          {row.confidence !== "confirmado" && <DataConfidenceBadge reason={row.confidenceReason} />}
+        </div>
+        <ChevronDown size={13} color={COLORS.slateLight} style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </div>
+      <div style={{ fontSize: 13.5, fontWeight: notable ? 700 : 500, color: notable ? COLORS.ink : COLORS.slate, marginTop: 3 }}>{row.display.title}</div>
+      {open && (
+        <div style={{ fontSize: 13, color: COLORS.slate, marginTop: 8, lineHeight: 1.55, borderTop: `1px solid ${COLORS.line}`, paddingTop: 8 }}>
+          {row.display.detail}
+          {extraDetailLines.map((line, i) => (
+            <div key={i} style={{ marginTop: 6, fontSize: 12.5, color: COLORS.ink }}>
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClusterCard({
+  cluster,
+  notable,
+  momentoClaveNote,
+  openId,
+  onToggle,
+  extraDetailLinesFor,
+}: {
+  cluster: TimelineCluster<TimelineRow>;
+  notable: boolean;
+  momentoClaveNote: string | null;
+  openId: string | null;
+  onToggle: (id: string) => void;
+  extraDetailLinesFor: (row: TimelineRow) => string[];
+}) {
+  const accent = notable ? COLORS.red : cluster.rows.length === 1 ? GROUP_COLOR[cluster.rows[0].display.group] : COLORS.line;
+  const dotColor = notable ? COLORS.red : cluster.rows.length === 1 ? GROUP_COLOR[cluster.rows[0].display.group] : COLORS.slateLight;
+
+  return (
+    <div style={{ position: "relative", marginBottom: 12 }}>
+      <div
+        style={{
+          position: "absolute",
+          left: notable ? -23 : -21,
+          top: notable ? 3 : 5,
+          width: notable ? 12 : 8,
+          height: notable ? 12 : 8,
+          borderRadius: 99,
+          background: dotColor,
+          border: "2px solid white",
+          boxShadow: notable ? `0 0 0 2px ${dotColor}33` : "none",
+        }}
+      />
+      <div style={{ background: COLORS.white, border: `1px solid ${COLORS.line}`, borderLeft: `${notable ? 4 : 3}px solid ${accent}`, borderRadius: 10, padding: "10px 14px" }}>
+        {cluster.rows.length > 1 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.slate }}>{formatDate(cluster.date)}</span>
+            <span style={{ fontSize: 11, color: COLORS.slateLight }}>{cluster.rows.length} elementos de la misma visita</span>
+            {momentoClaveNote && (
+              <span
+                title={momentoClaveNote}
+                style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, background: COLORS.redTint, padding: "1px 7px", borderRadius: 20 }}
+              >
+                Momento clave
+              </span>
+            )}
+          </div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {cluster.rows.map((row, i) => (
+            <div key={row.id} style={{ borderTop: i > 0 ? `1px dashed ${COLORS.line}` : "none" }}>
+              <EventLine
+                row={row}
+                notable={notable}
+                momentoClaveNote={cluster.rows.length === 1 ? momentoClaveNote : null}
+                showDate={cluster.rows.length === 1}
+                open={openId === row.id}
+                onToggle={() => onToggle(row.id)}
+                extraDetailLines={extraDetailLinesFor(row)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function YearSection({ year, count, defaultOpen, children }: { year: number; count: number; defaultOpen: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", marginBottom: open ? 10 : 0 }}
+      >
+        {open ? <ChevronDown size={14} color={COLORS.slateLight} /> : <ChevronRight size={14} color={COLORS.slateLight} />}
+        <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy }}>{year}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.slateLight, background: COLORS.paper, borderRadius: 20, padding: "1px 8px" }}>{count}</span>
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
+function ClusterList({
+  clusters,
+  turningPointByDate,
+  turningPointDates,
+  openId,
+  onToggle,
+  extraDetailLinesFor,
+}: {
+  clusters: TimelineCluster<TimelineRow>[];
+  turningPointByDate: Map<string, TurningPoint>;
+  turningPointDates: ReadonlySet<string>;
+  openId: string | null;
+  onToggle: (id: string) => void;
+  extraDetailLinesFor: (row: TimelineRow) => string[];
+}) {
+  return (
+    <div style={{ position: "relative", paddingLeft: 22 }}>
+      <div style={{ position: "absolute", left: 6, top: 6, bottom: 6, width: 2, background: COLORS.line }} />
+      {clusters.map((cluster) => {
+        const notable = cluster.rows.some((r) => isNotableEvent(r, turningPointDates));
+        const tp = cluster.rows.map((r) => turningPointByDate.get(r.date)).find((t): t is TurningPoint => t != null);
+        return (
+          <ClusterCard
+            key={cluster.key}
+            cluster={cluster}
+            notable={notable}
+            momentoClaveNote={tp?.interpretation ?? null}
+            openId={openId}
+            onToggle={onToggle}
+            extraDetailLinesFor={extraDetailLinesFor}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export function TimelineTab({ patient }: { patient: Patient }) {
-  const events: TimelineRow[] = patient.events
-    .filter((e) => e.type !== CLINICAL_EVENT_TYPES.CONSULTATION)
-    .map((e) => ({ ...e, display: displayForEvent(e) }));
-  const consultEvents: TimelineRow[] = selectConsultations(patient.events).map((e) => ({
-    ...e,
-    display: { title: "Nueva consulta registrada", detail: e.rawText ?? "", group: "Consulta" },
-  }));
-  const all = sortByDate([...events, ...consultEvents]).reverse();
+  const rows: TimelineRow[] = useMemo(() => {
+    const events: TimelineRow[] = patient.events
+      .filter((e) => e.type !== CLINICAL_EVENT_TYPES.CONSULTATION)
+      .map((e) => ({ ...e, display: displayForEvent(e) }));
+    const consultEvents: TimelineRow[] = selectConsultations(patient.events).map((e) => ({ ...e, display: displayForEvent(e) }));
+    return sortByDate([...events, ...consultEvents]).reverse();
+  }, [patient]);
+
+  const turningPointByDate = useMemo(() => {
+    const map = new Map<string, TurningPoint>();
+    for (const tp of computeTurningPoints(patient)) if (!map.has(tp.date)) map.set(tp.date, tp);
+    return map;
+  }, [patient]);
+  const turningPointDates = useMemo(() => new Set(turningPointByDate.keys()), [turningPointByDate]);
+
+  // Prueba de función pulmonar inmediatamente anterior a cada una — para la comparación FEV1/FVC/FEV1-FVC (ver domain/pft.ts).
+  const previousPftById = useMemo(() => {
+    const sorted = selectPFT(patient.events);
+    const map = new Map<string, PulmonaryFunctionEvent | null>();
+    sorted.forEach((p, i) => map.set(p.id, i > 0 ? sorted[i - 1] : null));
+    return map;
+  }, [patient]);
+
+  const extraDetailLinesFor = (row: TimelineRow): string[] => {
+    if (!isPft(row)) return [];
+    return comparePft(row, previousPftById.get(row.id) ?? null);
+  };
 
   const [active, setActive] = useState<Set<TimelineGroup>>(new Set(TIMELINE_GROUPS));
   const toggle = (g: TimelineGroup) =>
@@ -33,8 +257,12 @@ export function TimelineTab({ patient }: { patient: Patient }) {
       else n.add(g);
       return n;
     });
-  const filtered = all.filter((e) => active.has(e.display.group));
-  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const filtered = rows.filter((e) => active.has(e.display.group));
+  const [openId, setOpenId] = useState<string | null>(null);
+  const onToggleOpen = (id: string) => setOpenId((prev) => (prev === id ? null : id));
+
+  const clusters = useMemo(() => groupTimelineRows(filtered), [filtered]);
+  const yearGroups = useMemo(() => groupClustersByYear(clusters), [clusters]);
 
   return (
     <div className="pv-fade-in">
@@ -61,33 +289,33 @@ export function TimelineTab({ patient }: { patient: Patient }) {
           </button>
         ))}
       </div>
-      <div style={{ position: "relative", paddingLeft: 22 }}>
-        <div style={{ position: "absolute", left: 6, top: 6, bottom: 6, width: 2, background: COLORS.line }} />
-        {filtered.map((ev, i) => {
-          const c = GROUP_COLOR[ev.display.group];
-          const Icon = GROUP_ICON[ev.display.group];
-          const open = openIdx === i;
-          return (
-            <div key={ev.id} style={{ position: "relative", marginBottom: 14 }}>
-              <div style={{ position: "absolute", left: -22, top: 3, width: 12, height: 12, borderRadius: 99, background: c, border: "2px solid white", boxShadow: `0 0 0 2px ${c}33` }} />
-              <div onClick={() => setOpenIdx(open ? null : i)} style={{ background: COLORS.white, border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: "12px 14px", cursor: "pointer" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Icon size={14} color={c} />
-                    <span style={{ fontSize: 11, fontWeight: 700, color: c, textTransform: "uppercase", letterSpacing: "0.04em" }}>{ev.display.group}</span>
-                    <span style={{ fontSize: 12, color: COLORS.slateLight }}>{formatDate(ev.date)}</span>
-                    {ev.confidence && ev.confidence !== "confirmado" && <DataConfidenceBadge reason={ev.confidenceReason} />}
-                  </div>
-                  <ChevronDown size={15} color={COLORS.slateLight} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-                </div>
-                <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 4 }}>{ev.display.title}</div>
-                {open && <div style={{ fontSize: 13, color: COLORS.slate, marginTop: 8, lineHeight: 1.55, borderTop: `1px solid ${COLORS.line}`, paddingTop: 8 }}>{ev.display.detail}</div>}
-              </div>
-            </div>
-          );
-        })}
-        {!filtered.length && <div style={{ color: COLORS.slateLight, fontSize: 13.5, paddingLeft: 4 }}>Ningún evento coincide con los filtros seleccionados.</div>}
-      </div>
+
+      {!filtered.length && <div style={{ color: COLORS.slateLight, fontSize: 13.5, paddingLeft: 4 }}>Ningún evento coincide con los filtros seleccionados.</div>}
+
+      {yearGroups.length <= 1
+        ? yearGroups.map((yg) => (
+            <ClusterList
+              key={yg.year}
+              clusters={yg.clusters}
+              turningPointByDate={turningPointByDate}
+              turningPointDates={turningPointDates}
+              openId={openId}
+              onToggle={onToggleOpen}
+              extraDetailLinesFor={extraDetailLinesFor}
+            />
+          ))
+        : yearGroups.map((yg, i) => (
+            <YearSection key={yg.year} year={yg.year} count={yg.clusters.reduce((n, c) => n + c.rows.length, 0)} defaultOpen={i === 0}>
+              <ClusterList
+                clusters={yg.clusters}
+                turningPointByDate={turningPointByDate}
+                turningPointDates={turningPointDates}
+                openId={openId}
+                onToggle={onToggleOpen}
+                extraDetailLinesFor={extraDetailLinesFor}
+              />
+            </YearSection>
+          ))}
     </div>
   );
 }

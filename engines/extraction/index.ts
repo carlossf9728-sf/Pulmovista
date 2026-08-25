@@ -56,11 +56,17 @@ export function runExtractionEngine(text: string, date: string): ClinicalEvent[]
   const events: ClinicalEvent[] = [];
   const common = { source: "extraction_simulated" as const, rawText: text };
 
-  const fev1L = text.match(/FEV1[^\d]{0,10}(\d(?:[.,]\d+)?)\s?L/i);
-  const fev1P = text.match(/FEV1[^\d%]{0,12}(\d{1,3})\s?%/i);
-  const fvcP = text.match(/FVC[^\d%]{0,12}(\d{1,3})\s?%/i);
+  // Negative lookahead/lookbehind evitan que "FEV1/FVC ..." se confunda con "FEV1 ..." o "FVC ..." sueltos (ver notas de fidelidad del regex de dosis, mismo principio).
+  const fev1L = text.match(/FEV1(?!\/FVC)[^\d]{0,10}(\d(?:[.,]\d+)?)\s?L/i);
+  const fev1P = text.match(/FEV1(?!\/FVC)[^\d%]{0,12}(\d{1,3})\s?%/i);
+  const fvcP = text.match(/(?<!FEV1\/)FVC[^\d%]{0,12}(\d{1,3})\s?%/i);
   const dlcoP = text.match(/DLCO[^\d%]{0,12}(\d{1,3})\s?%/i);
-  if (fev1L || fev1P || fvcP || dlcoP) {
+  const fev1fvcRatio = text.match(/FEV1\/FVC[^\d%]{0,12}(\d{1,3})\s?%/i);
+  // z-score — dato longitudinal que se conserva y se muestra tal cual, nunca interpretado con un umbral nuevo (ver domain/pft.ts).
+  const fev1Z = text.match(/FEV1(?!\/FVC)[^\n]{0,20}z[-\s]?score[:\s]*(-?\d(?:[.,]\d+)?)/i);
+  const fvcZ = text.match(/(?<!FEV1\/)FVC[^\n]{0,20}z[-\s]?score[:\s]*(-?\d(?:[.,]\d+)?)/i);
+  const fev1fvcZ = text.match(/FEV1\/FVC[^\n]{0,20}z[-\s]?score[:\s]*(-?\d(?:[.,]\d+)?)/i);
+  if (fev1L || fev1P || fvcP || dlcoP || fev1fvcRatio || fev1Z || fvcZ || fev1fvcZ) {
     events.push(
       mkEvent<PulmonaryFunctionEvent>(
         null,
@@ -69,7 +75,11 @@ export function runExtractionEngine(text: string, date: string): ClinicalEvent[]
         {
           FEV1Liters: fev1L ? parseFloat(fev1L[1].replace(",", ".")) : null,
           FEV1Percent: fev1P ? parseInt(fev1P[1], 10) : null,
+          FEV1zScore: fev1Z ? parseFloat(fev1Z[1].replace(",", ".")) : null,
           FVCPercent: fvcP ? parseInt(fvcP[1], 10) : null,
+          FVCzScore: fvcZ ? parseFloat(fvcZ[1].replace(",", ".")) : null,
+          FEV1FVCRatio: fev1fvcRatio ? parseInt(fev1fvcRatio[1], 10) : null,
+          FEV1FVCzScore: fev1fvcZ ? parseFloat(fev1fvcZ[1].replace(",", ".")) : null,
           DLCOPercent: dlcoP ? parseInt(dlcoP[1], 10) : null,
         },
         { ...common, confidence: "confirmado" },

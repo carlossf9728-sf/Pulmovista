@@ -1,4 +1,5 @@
 import { cap } from "@/utils/text";
+import { formatZScore } from "./pft";
 import { CLINICAL_EVENT_TYPES } from "./clinicalEvent";
 import type { ClinicalEvent } from "@/types/clinicalEvent";
 import type { TimelineEntry } from "@/types/timeline";
@@ -8,12 +9,16 @@ export function displayForEvent(e: ClinicalEvent): TimelineEntry {
   switch (e.type) {
     case CLINICAL_EVENT_TYPES.CONSULTATION:
       return { group: "Consulta", title: "Consulta / evolución", detail: e.rawText || "" };
-    case CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION:
+    case CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION: {
+      // El z-score (cuando la prueba lo trae) se añade junto al % del predicho, nunca en su lugar — ver domain/pft.ts.
+      const fev1 = `FEV1 ${e.FEV1Percent ?? "—"}%${e.FEV1zScore != null ? ` (z ${formatZScore(e.FEV1zScore)})` : ""}`;
+      const fvc = e.FVCPercent != null ? ` · FVC ${e.FVCPercent}%${e.FVCzScore != null ? ` (z ${formatZScore(e.FVCzScore)})` : ""}` : "";
       return {
         group: "Función pulmonar",
-        title: `FEV1 ${e.FEV1Percent ?? "—"}%${e.FVCPercent ? ` · FVC ${e.FVCPercent}%` : ""}`,
+        title: `${fev1}${fvc}`,
         detail: `DLCO ${e.DLCOPercent ?? "No disponible"}%`,
       };
+    }
     case CLINICAL_EVENT_TYPES.MICROBIOLOGY:
       return {
         group: "Microbiología",
@@ -51,4 +56,66 @@ export function displayForEvent(e: ClinicalEvent): TimelineEntry {
     default:
       return { group: "Consulta", title: "Evento clínico", detail: e.rawText || "" };
   }
+}
+
+/**
+ * Clave de agrupación por "episodio" para la Cronología. Hoy siempre
+ * cae a la fecha (agrupa lo del mismo día), pero ya respeta
+ * `episodeId` si algún evento lo trae informado — ningún motor lo
+ * asigna todavía (ver nota de fidelidad en ClinicalEventBase), así que
+ * en la práctica esto sigue agrupando por día. El punto es no tener que
+ * volver a tocar la lógica de agrupación el día que exista una fuente
+ * real de episodios: bastará con que esa fuente rellene `episodeId`.
+ */
+export function episodeKeyForEvent(e: ClinicalEvent): string {
+  return e.episodeId ?? e.date;
+}
+
+export interface TimelineCluster<T> {
+  key: string;
+  /** Fecha representativa del cluster (la del primer evento agrupado). */
+  date: string;
+  rows: T[];
+}
+
+/**
+ * Agrupa una lista de eventos (ya trae su propio `.display`, sea el que
+ * sea) por `episodeKeyForEvent`. Preserva el orden de aparición: si la
+ * lista de entrada ya viene ordenada por fecha, los clusters resultantes
+ * también lo están (los eventos de una misma clave quedan siempre
+ * contiguos tras un `sort` estable). No decide nada clínico: es
+ * agrupación pura por clave.
+ */
+export function groupTimelineRows<T extends ClinicalEvent>(rows: T[]): TimelineCluster<T>[] {
+  const clusters: TimelineCluster<T>[] = [];
+  const indexByKey = new Map<string, number>();
+  for (const row of rows) {
+    const key = episodeKeyForEvent(row);
+    const existingIdx = indexByKey.get(key);
+    if (existingIdx == null) {
+      indexByKey.set(key, clusters.length);
+      clusters.push({ key, date: row.date, rows: [row] });
+    } else {
+      clusters[existingIdx].rows.push(row);
+    }
+  }
+  return clusters;
+}
+
+/**
+ * Si un ClinicalEvent debe destacarse visualmente en la Cronología —
+ * reutiliza `computeTurningPoints()` (comparando por fecha exacta,
+ * calculado por quien llama para no acoplar este módulo a
+ * engines/turningPoints) y campos ya existentes del propio evento
+ * (hospitalización, soporte respiratorio). No introduce ningún umbral
+ * clínico nuevo: son las mismas condiciones que ya usan otros motores,
+ * solo reutilizadas aquí para decidir peso visual, no para generar una
+ * alerta nueva.
+ */
+export function isNotableEvent(e: ClinicalEvent, turningPointDates: ReadonlySet<string>): boolean {
+  if (turningPointDates.has(e.date)) return true;
+  if (e.type === CLINICAL_EVENT_TYPES.EXACERBATION && e.hospitalization) return true;
+  if (e.type === CLINICAL_EVENT_TYPES.HOSPITALIZATION) return true;
+  if (e.type === CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT) return true;
+  return false;
 }

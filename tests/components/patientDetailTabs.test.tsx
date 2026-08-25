@@ -11,8 +11,22 @@ import { AlertsTab } from "@/components/patient-detail/AlertsTab";
 import { GuidelinesReviewTab } from "@/components/patient-detail/GuidelinesReviewTab";
 import { buildDemoPatients } from "@/data/demoPatients";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
-import type { MicrobiologyEvent } from "@/types/clinicalEvent";
+import type { ExacerbationEvent, MicrobiologyEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
+
+function basePatient(overrides: Partial<Patient> = {}): Patient {
+  return {
+    id: "p-timeline",
+    code: "PV-TEST-TIMELINE",
+    sex: "Mujer",
+    age: 55,
+    primaryDiagnosis: "Bronquiectasias",
+    secondaryDiagnoses: "",
+    createdAt: "2023-01-01",
+    events: [],
+    ...overrides,
+  };
+}
 
 const [p1, p2, p3] = buildDemoPatients();
 
@@ -36,6 +50,88 @@ describe("TimelineTab", () => {
     await userEvent.click(filterButton);
     // Tras desactivar el filtro de Microbiología no deberían quedar eventos de ese grupo en la línea de tiempo.
     expect(screen.queryAllByText((_, el) => el?.textContent === "Microbiología" && el.tagName === "SPAN")).toHaveLength(0);
+  });
+
+  it("agrupa varios eventos del mismo día en una única tarjeta de episodio, en vez de una lista plana", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-03-10", { severity: "Moderada", hospitalization: false }),
+        mkEvent<MicrobiologyEvent>("p-timeline", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2024-03-10", {
+          sampleType: "Esputo",
+          organism: "Pseudomonas aeruginosa",
+          sensitivity: [],
+          resistance: [],
+        }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.getByText("2 elementos de la misma visita")).toBeInTheDocument();
+    // "Exacerbación"/"Microbiología" aparecen también como chip de filtro: basta con que la fila del episodio los incluya.
+    expect(screen.getAllByText("Exacerbación").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("Microbiología").length).toBeGreaterThan(1);
+  });
+
+  it("un único evento en su fecha se muestra igual que antes, sin la cabecera de episodio", () => {
+    const patient = basePatient({
+      events: [mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-03-10", { severity: "Moderada", hospitalization: false })],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.queryByText(/elementos de la misma visita/)).not.toBeInTheDocument();
+  });
+
+  it("marca 'Momento clave' solo en el episodio cuya fecha coincide con un Turning Point ya detectado — reutiliza computeTurningPoints(), no una regla nueva", () => {
+    // first-persistent-organism: se dispara en la fecha del SEGUNDO aislamiento del mismo organismo — determinista, no depende de la fecha de hoy.
+    const patient = basePatient({
+      events: [
+        mkEvent<MicrobiologyEvent>("p-timeline", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2024-01-01", {
+          sampleType: "Esputo",
+          organism: "Pseudomonas aeruginosa",
+          sensitivity: [],
+          resistance: [],
+        }),
+        mkEvent<MicrobiologyEvent>("p-timeline", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2024-06-01", {
+          sampleType: "Esputo",
+          organism: "Pseudomonas aeruginosa",
+          sensitivity: [],
+          resistance: [],
+        }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.getAllByText("Momento clave")).toHaveLength(1);
+  });
+
+  it("agrupa por año cuando hay más de un año de historia, con solo el año más reciente abierto por defecto", async () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2023-05-01", { severity: "Leve", hospitalization: false }),
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-05-01", { severity: "Leve", hospitalization: false }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    const toggle2023 = screen.getByRole("button", { name: /2023/ });
+    expect(toggle2023).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(toggle2023);
+    expect(toggle2023).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("una sola fecha con historia no muestra ninguna cabecera de año", () => {
+    const patient = basePatient({
+      events: [mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-05-01", { severity: "Leve", hospitalization: false })],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.queryByRole("button", { name: /2024/ })).not.toBeInTheDocument();
+  });
+
+  it("muestra el z-score de FEV1/FVC junto al % del predicho, y la comparación longitudinal con la prueba anterior al expandir", async () => {
+    render(<TimelineTab patient={p1} />);
+    // p1 tiene z-score a partir de la prueba de 2026-01-14 (ver data/demoPatients.ts) — la de 2026-06-20 ya tiene con qué comparar.
+    const title = screen.getByText(/FEV1 68% \(z −2\.0\)/);
+    await userEvent.click(title);
+    expect(screen.getByText(/FEV1: 1\.74 L \(−0\.03 L\)/)).toBeInTheDocument();
+    expect(screen.getByText(/68% predicho \(−1 puntos\)/)).toBeInTheDocument();
+    expect(screen.getByText(/z −2\.0 \(−0\.1\)/)).toBeInTheDocument();
   });
 });
 

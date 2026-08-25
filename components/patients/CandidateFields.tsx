@@ -73,7 +73,11 @@ export function CandidateFields({ event, onChange }: { event: ClinicalEvent; onC
       return (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           <NumberField label="FEV1 %" value={event.FEV1Percent} onChange={(v) => onChange({ ...event, FEV1Percent: v })} />
+          <NumberField label="FEV1 z-score" value={event.FEV1zScore} onChange={(v) => onChange({ ...event, FEV1zScore: v })} />
           <NumberField label="FVC %" value={event.FVCPercent} onChange={(v) => onChange({ ...event, FVCPercent: v })} />
+          <NumberField label="FVC z-score" value={event.FVCzScore} onChange={(v) => onChange({ ...event, FVCzScore: v })} />
+          <NumberField label="FEV1/FVC %" value={event.FEV1FVCRatio} onChange={(v) => onChange({ ...event, FEV1FVCRatio: v })} />
+          <NumberField label="FEV1/FVC z-score" value={event.FEV1FVCzScore} onChange={(v) => onChange({ ...event, FEV1FVCzScore: v })} />
           <NumberField label="DLCO %" value={event.DLCOPercent} onChange={(v) => onChange({ ...event, DLCOPercent: v })} />
         </div>
       );

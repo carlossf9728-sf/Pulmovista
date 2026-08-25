@@ -44,6 +44,16 @@ export interface ClinicalEventBase {
   rawText: string | null;
   confidence: ConfidenceLevel;
   confidenceReason: string | null;
+  /**
+   * Identificador de episodio/visita, para agrupar en la Cronología
+   * varios ClinicalEvent que pertenecen al mismo encuentro clínico.
+   * Ningún motor lo asigna todavía — es una preparación estructural
+   * (ver domain/timeline.ts#episodeKeyForEvent, que hoy cae a `date`
+   * cuando falta) para cuando exista una forma real de determinar el
+   * episodio, en vez de asumir que "mismo día" siempre significa "misma
+   * visita".
+   */
+  episodeId?: string | null;
 }
 
 export interface ConsultationEvent extends ClinicalEventBase {
@@ -54,8 +64,16 @@ export interface PulmonaryFunctionEvent extends ClinicalEventBase {
   type: "pulmonary_function";
   FEV1Liters?: number | null;
   FEV1Percent?: number | null;
+  /** Z-score de FEV1 (referencia GLI), cuando la prueba lo informa. No sustituye a FEV1Percent — se muestra junto a él, nunca en su lugar. */
+  FEV1zScore?: number | null;
   FVCPercent?: number | null;
   FVCLiters?: number | null;
+  /** Z-score de FVC, cuando la prueba lo informa. */
+  FVCzScore?: number | null;
+  /** Cociente FEV1/FVC medido, en %. Distinto de FEV1Percent/FVCPercent (que son cada volumen sobre su propio predicho). */
+  FEV1FVCRatio?: number | null;
+  /** Z-score del cociente FEV1/FVC, cuando la prueba lo informa. */
+  FEV1FVCzScore?: number | null;
   DLCOPercent?: number | null;
 }
 
