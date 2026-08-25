@@ -41,7 +41,7 @@ function CandidateCard({ candidate, onToggle, onEdit }: { candidate: ReviewCandi
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
               <span style={{ fontSize: 10.5, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.03em" }}>{display.group}</span>
-              {event.confidence !== "confirmado" && <DataConfidenceBadge level={event.confidence} reason={event.confidenceReason} />}
+              {event.confidence !== "confirmado" && <DataConfidenceBadge reason={event.confidenceReason} />}
             </div>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: COLORS.ink, marginTop: 3 }}>{display.title}</div>
             {!editing && (

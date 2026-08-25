@@ -3,11 +3,9 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { buildDemoPatients } from "@/data/demoPatients";
-import { runExtractionEngine } from "@/engines/extraction";
-import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
 import { uid, generatePulmoVistaCode } from "@/utils/id";
 import { todayISO } from "@/utils/date";
-import type { ClinicalEvent, ConsultationEvent } from "@/types/clinicalEvent";
+import type { ClinicalEvent } from "@/types/clinicalEvent";
 import type { NewPatientInput, Patient } from "@/types/patient";
 
 /**
@@ -19,7 +17,13 @@ import type { NewPatientInput, Patient } from "@/types/patient";
  */
 interface PatientsContextValue {
   patients: Patient[];
-  createPatient(input: NewPatientInput): Patient;
+  /**
+   * Crea el paciente con los datos demográficos y los ClinicalEvent que
+   * el médico ya confirmó/corrigió en la vista de revisión de "Nuevo
+   * paciente" (ver NewPatientModal) — igual que addClinicalEvents(), no
+   * vuelve a ejecutar el motor de extracción aquí.
+   */
+  createPatient(input: NewPatientInput, events: ClinicalEvent[]): Patient;
   /**
    * Añade los ClinicalEvent que el médico ya confirmó/corrigió en la
    * vista de revisión de "Añadir información clínica" (ver
@@ -35,28 +39,17 @@ const PatientsContext = createContext<PatientsContextValue | null>(null);
 export function PatientsProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>(() => buildDemoPatients());
 
-  function createPatient(input: NewPatientInput): Patient {
+  function createPatient(input: NewPatientInput, events: ClinicalEvent[]): Patient {
     const id = uid("p");
-    const code = generatePulmoVistaCode();
-    const date = todayISO();
-    const extracted = input.rawText ? runExtractionEngine(input.rawText, date) : [];
-    const consultEvent = mkEvent<ConsultationEvent>(
-      id,
-      CLINICAL_EVENT_TYPES.CONSULTATION,
-      date,
-      {},
-      { rawText: input.rawText || "Sin texto clínico inicial.", source: "manual" },
-    );
-    const events: ClinicalEvent[] = [consultEvent, ...extracted.map((e) => ({ ...e, patientId: id }))];
     const newPatient: Patient = {
       id,
-      code,
+      code: generatePulmoVistaCode(),
       sex: input.sex,
       age: input.age,
       primaryDiagnosis: input.primaryDiagnosis,
       secondaryDiagnoses: input.secondaryDiagnoses,
-      createdAt: date,
-      events,
+      createdAt: todayISO(),
+      events: events.map((e) => ({ ...e, patientId: id })),
     };
     setPatients((prev) => [newPatient, ...prev]);
     return newPatient;

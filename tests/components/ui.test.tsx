@@ -27,9 +27,11 @@ describe("KindTag / DataConfidenceBadge", () => {
     render(<KindTag kind="heurística experimental" />);
     expect(screen.getByText("heurística experimental")).toBeInTheDocument();
   });
-  it("DataConfidenceBadge usa el nivel de confianza del dato como title", () => {
-    render(<DataConfidenceBadge level="posible" reason="motivo de ejemplo" />);
+  it("DataConfidenceBadge muestra siempre la señal simple 'Revisar' (nunca la taxonomía técnica ni un porcentaje), con el motivo como title", () => {
+    render(<DataConfidenceBadge reason="motivo de ejemplo" />);
+    expect(screen.getByText("Revisar")).toBeInTheDocument();
     expect(screen.getByTitle("motivo de ejemplo")).toBeInTheDocument();
+    expect(screen.queryByText(/posible|probable|incompleto|contradictorio|%/i)).not.toBeInTheDocument();
   });
 });
 

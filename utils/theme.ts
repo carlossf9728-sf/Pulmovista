@@ -1,4 +1,3 @@
-import type { ConfidenceLevel } from "@/types/clinicalEvent";
 import type { PatientStatus } from "@/types/patient";
 
 /** Tokens de diseño. Réplica exacta de la paleta del prototipo original. */
@@ -30,10 +29,3 @@ export const STATUS: Record<PatientStatus, { label: string; color: string; tint:
   estable: { label: "Estable", color: COLORS.green, tint: COLORS.greenTint },
 };
 
-export const CONFIDENCE_COLOR: Record<ConfidenceLevel, string> = {
-  confirmado: COLORS.green,
-  probable: COLORS.teal,
-  posible: COLORS.orange,
-  "dato incompleto": COLORS.slate,
-  "dato contradictorio": COLORS.red,
-};

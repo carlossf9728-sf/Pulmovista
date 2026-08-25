@@ -76,7 +76,7 @@ export function TimelineTab({ patient }: { patient: Patient }) {
                     <Icon size={14} color={c} />
                     <span style={{ fontSize: 11, fontWeight: 700, color: c, textTransform: "uppercase", letterSpacing: "0.04em" }}>{ev.display.group}</span>
                     <span style={{ fontSize: 12, color: COLORS.slateLight }}>{formatDate(ev.date)}</span>
-                    {ev.confidence && ev.confidence !== "confirmado" && <DataConfidenceBadge level={ev.confidence} reason={ev.confidenceReason} />}
+                    {ev.confidence && ev.confidence !== "confirmado" && <DataConfidenceBadge reason={ev.confidenceReason} />}
                   </div>
                   <ChevronDown size={15} color={COLORS.slateLight} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
                 </div>

@@ -23,11 +23,15 @@ export interface Patient {
  */
 export type PatientStatus = "estable" | "revision" | "deterioro";
 
-/** Datos del formulario "Nuevo paciente". */
+/**
+ * Datos demográficos del formulario "Nuevo paciente" — sin el texto
+ * clínico inicial: ese texto se separa en ClinicalEvent[] ya revisados
+ * antes de llegar a createPatient() (ver NewPatientModal), igual que
+ * "Añadir información clínica" para un paciente existente.
+ */
 export interface NewPatientInput {
   sex: PatientSex;
   age: number | null;
   primaryDiagnosis: string;
   secondaryDiagnoses: string;
-  rawText: string;
 }

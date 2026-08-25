@@ -154,8 +154,8 @@ export function HomeView() {
       {showNewPatient && (
         <NewPatientModal
           onClose={() => setShowNewPatient(false)}
-          onCreate={(input) => {
-            const patient = createPatient(input);
+          onCreate={(input, events) => {
+            const patient = createPatient(input, events);
             setShowNewPatient(false);
             router.push(`/pacientes/${patient.id}`);
           }}
