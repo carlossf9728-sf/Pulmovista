@@ -65,10 +65,10 @@ describe("ImagingTab", () => {
 });
 
 describe("ConsultsTab", () => {
-  it("invoca onAddConsultation al pulsar el botón", async () => {
+  it("invoca onAddClinicalInfo al pulsar el botón", async () => {
     const onAdd = vi.fn();
-    render(<ConsultsTab patient={p1} onAddConsultation={onAdd} />);
-    await userEvent.click(screen.getByRole("button", { name: /añadir nueva consulta/i }));
+    render(<ConsultsTab patient={p1} onAddClinicalInfo={onAdd} />);
+    await userEvent.click(screen.getByRole("button", { name: /añadir información clínica/i }));
     expect(onAdd).toHaveBeenCalledOnce();
   });
 });

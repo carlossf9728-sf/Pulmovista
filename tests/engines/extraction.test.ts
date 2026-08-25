@@ -72,4 +72,42 @@ describe("runExtractionEngine", () => {
     const events = runExtractionEngine("FEV1 78%. Exacerbación en enero de 2023.", "2024-06-01");
     expect(events.every((e) => e.date === "2024-06-01")).toBe(true);
   });
+
+  it("detecta una prueba de imagen torácica y separa solo la frase que la contiene", () => {
+    const events = runExtractionEngine("Buena tolerancia al ejercicio. TC tórax con progresión leve de bronquiectasias en língula. Se mantiene tratamiento habitual.", "2024-01-01");
+    const imaging = events.find((e) => e.type === "imaging");
+    expect(imaging).toBeDefined();
+    if (imaging?.type === "imaging") {
+      expect(imaging.text).toContain("progresión leve de bronquiectasias en língula");
+      expect(imaging.text).not.toContain("Se mantiene tratamiento habitual");
+    }
+  });
+
+  it("detecta una analítica y la etiqueta como tal", () => {
+    const events = runExtractionEngine("Analítica con PCR 45 mg/L y leucocitos elevados. Resto sin hallazgos.", "2024-01-01");
+    const lab = events.find((e) => e.type === "lab_results");
+    expect(lab).toBeDefined();
+    if (lab?.type === "lab_results") {
+      expect(lab.label).toBe("Analítica");
+      expect(lab.text).toContain("PCR 45 mg/L");
+    }
+  });
+
+  it("detecta un procedimiento explícito (broncoscopia) aunque no se mencione la palabra 'ingreso'", () => {
+    const events = runExtractionEngine("Se realiza broncoscopia ambulatoria por hemoptisis leve, sin complicaciones.", "2024-01-01");
+    const proc = events.find((e) => e.type === "hospitalization");
+    expect(proc).toBeDefined();
+    if (proc?.type === "hospitalization") {
+      expect(proc.procedureLabel).toMatch(/broncoscopia/i);
+    }
+  });
+
+  it("una hospitalización sin procedimiento identificado no rellena procedureLabel", () => {
+    const events = runExtractionEngine("Ingreso programado para estudio.", "2024-01-01");
+    const hosp = events.find((e) => e.type === "hospitalization");
+    expect(hosp).toBeDefined();
+    if (hosp?.type === "hospitalization") {
+      expect(hosp.procedureLabel).toBeUndefined();
+    }
+  });
 });

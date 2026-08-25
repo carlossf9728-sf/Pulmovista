@@ -23,17 +23,34 @@
  * interpretación clínica, solo la extracción sintáctica del texto.
  */
 import { mkEvent, CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
-import { ORGANISM_PATTERNS, RESPIRATORY_SUPPORT_KEYWORDS, TREATMENT_KEYWORDS } from "./keywords";
+import { IMAGING_TRIGGER, LAB_TRIGGER, ORGANISM_PATTERNS, PROCEDURE_TRIGGER, RESPIRATORY_SUPPORT_KEYWORDS, TREATMENT_KEYWORDS } from "./keywords";
 import type {
   ClinicalEvent,
   ExacerbationEvent,
   HospitalizationEvent,
+  ImagingEvent,
+  LabResultsEvent,
   MicrobiologyEvent,
   PulmonaryFunctionEvent,
   RespiratorySupportEvent,
   TreatmentStartedEvent,
   TreatmentStoppedEvent,
 } from "@/types/clinicalEvent";
+
+/**
+ * Captura la frase (hasta el siguiente punto, o el resto del texto si no
+ * hay ninguno) que contiene la primera aparición de `trigger` — usada
+ * para separar un informe de imagen o de laboratorio embebido en un
+ * texto más largo, sin inventar contenido que el texto no tenga.
+ */
+function captureSentence(text: string, trigger: RegExp): { label: string; sentence: string } | null {
+  const m = text.match(trigger);
+  if (m == null || m.index == null) return null;
+  const rest = text.slice(m.index);
+  const end = rest.indexOf(".");
+  const sentence = (end === -1 ? rest : rest.slice(0, end + 1)).trim();
+  return { label: m[0].trim(), sentence };
+}
 
 export function runExtractionEngine(text: string, date: string): ClinicalEvent[] {
   const events: ClinicalEvent[] = [];
@@ -57,6 +74,27 @@ export function runExtractionEngine(text: string, date: string): ClinicalEvent[]
         },
         { ...common, confidence: "confirmado" },
       ),
+    );
+  }
+
+  const imaging = captureSentence(text, IMAGING_TRIGGER);
+  if (imaging) {
+    events.push(
+      mkEvent<ImagingEvent>(null, CLINICAL_EVENT_TYPES.IMAGING, date, { label: imaging.label, text: imaging.sentence }, { ...common, confidence: "confirmado" }),
+    );
+  }
+
+  const lab = captureSentence(text, LAB_TRIGGER);
+  if (lab) {
+    events.push(
+      mkEvent<LabResultsEvent>(null, CLINICAL_EVENT_TYPES.LAB_RESULTS, date, { label: "Analítica", text: lab.sentence }, { ...common, confidence: "confirmado" }),
+    );
+  }
+
+  const procedure = text.match(PROCEDURE_TRIGGER);
+  if (procedure) {
+    events.push(
+      mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, date, { procedureLabel: procedure[0] }, { ...common, confidence: "confirmado" }),
     );
   }
 

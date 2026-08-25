@@ -30,6 +30,7 @@ export const CLINICAL_EVENT_TYPES = {
   TREATMENT_STOPPED: "treatment_stopped",
   RESPIRATORY_SUPPORT: "respiratory_support",
   IMAGING: "imaging",
+  LAB_RESULTS: "lab_results",
   DIAGNOSIS: "diagnosis",
 } as const;
 
@@ -75,6 +76,8 @@ export interface ExacerbationEvent extends ClinicalEventBase {
 
 export interface HospitalizationEvent extends ClinicalEventBase {
   type: "hospitalization";
+  /** Procedimiento asociado (p. ej. "broncoscopia", "toracocentesis"), cuando el texto lo menciona explícitamente. null en un ingreso sin procedimiento identificado. */
+  procedureLabel?: string | null;
 }
 
 export interface TreatmentStartedEvent extends ClinicalEventBase {
@@ -102,6 +105,13 @@ export interface ImagingEvent extends ClinicalEventBase {
   text: string;
 }
 
+/** Resultado de laboratorio (analítica) — mismo formato libre que ImagingEvent: un rótulo de la prueba y el fragmento de texto que la describe, sin inventar una estructura de panel analítico que el texto no da. */
+export interface LabResultsEvent extends ClinicalEventBase {
+  type: "lab_results";
+  label: string;
+  text: string;
+}
+
 /**
  * Declarado en el prototipo original pero nunca instanciado (ni por el
  * motor de extracción ni por los datos demo). Se conserva por paridad;
@@ -121,6 +131,7 @@ export type ClinicalEvent =
   | RespiratorySupportEvent
   | TreatmentStoppedEvent
   | ImagingEvent
+  | LabResultsEvent
   | DiagnosisEvent;
 
 export type ClinicalEventType = ClinicalEvent["type"];

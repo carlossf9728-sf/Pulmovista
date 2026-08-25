@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { LucideIcon } from "lucide-react";
-import { Activity, AlertTriangle, ChevronDown, ClipboardList, Filter, Microscope, Pill, ScanLine } from "lucide-react";
+import { ChevronDown, Filter } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { formatDate, sortByDate } from "@/utils/date";
+import { GROUP_COLOR, GROUP_ICON, TIMELINE_GROUPS } from "@/utils/eventGroupStyle";
 import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import { selectConsultations } from "@/domain/selectors";
 import { displayForEvent } from "@/domain/timeline";
@@ -12,27 +12,6 @@ import { DataConfidenceBadge } from "@/components/ui";
 import type { ClinicalEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 import type { TimelineEntry, TimelineGroup } from "@/types/timeline";
-
-const GROUPS: TimelineGroup[] = ["Consulta", "Función pulmonar", "Microbiología", "Exacerbación", "Hospitalización", "Tratamiento", "Radiología"];
-
-const GROUP_COLOR: Record<TimelineGroup, string> = {
-  Consulta: COLORS.navy,
-  "Función pulmonar": COLORS.slate,
-  Microbiología: COLORS.orange,
-  Exacerbación: COLORS.red,
-  Hospitalización: COLORS.red,
-  Tratamiento: COLORS.green,
-  Radiología: COLORS.teal,
-};
-const GROUP_ICON: Record<TimelineGroup, LucideIcon> = {
-  Consulta: ClipboardList,
-  "Función pulmonar": Activity,
-  Microbiología: Microscope,
-  Exacerbación: AlertTriangle,
-  Hospitalización: AlertTriangle,
-  Tratamiento: Pill,
-  Radiología: ScanLine,
-};
 
 type TimelineRow = ClinicalEvent & { display: TimelineEntry };
 
@@ -46,7 +25,7 @@ export function TimelineTab({ patient }: { patient: Patient }) {
   }));
   const all = sortByDate([...events, ...consultEvents]).reverse();
 
-  const [active, setActive] = useState<Set<TimelineGroup>>(new Set(GROUPS));
+  const [active, setActive] = useState<Set<TimelineGroup>>(new Set(TIMELINE_GROUPS));
   const toggle = (g: TimelineGroup) =>
     setActive((prev) => {
       const n = new Set(prev);
@@ -63,7 +42,7 @@ export function TimelineTab({ patient }: { patient: Patient }) {
         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: COLORS.slateLight, marginRight: 4 }}>
           <Filter size={12} /> Filtrar:
         </span>
-        {GROUPS.map((g) => (
+        {TIMELINE_GROUPS.map((g) => (
           <button
             key={g}
             onClick={() => toggle(g)}

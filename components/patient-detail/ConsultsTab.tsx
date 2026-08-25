@@ -7,15 +7,15 @@ import { selectConsultations } from "@/domain/selectors";
 import { Card } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 
-export function ConsultsTab({ patient, onAddConsultation }: { patient: Patient; onAddConsultation: () => void }) {
+export function ConsultsTab({ patient, onAddClinicalInfo }: { patient: Patient; onAddClinicalInfo: () => void }) {
   const rows = [...selectConsultations(patient.events)].reverse();
   return (
     <div className="pv-fade-in">
       <button
-        onClick={onAddConsultation}
+        onClick={onAddClinicalInfo}
         style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.teal, color: "white", border: "none", borderRadius: 9, padding: "10px 16px", fontWeight: 700, fontSize: 13, marginBottom: 16 }}
       >
-        <Plus size={15} /> Añadir nueva consulta
+        <Plus size={15} /> Añadir información clínica
       </button>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {rows.map((v) => (

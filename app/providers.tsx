@@ -20,7 +20,14 @@ import type { NewPatientInput, Patient } from "@/types/patient";
 interface PatientsContextValue {
   patients: Patient[];
   createPatient(input: NewPatientInput): Patient;
-  addConsultation(patientId: string, text: string): void;
+  /**
+   * Añade los ClinicalEvent que el médico ya confirmó/corrigió en la
+   * vista de revisión de "Añadir información clínica" (ver
+   * AddClinicalInfoModal) — a diferencia del antiguo addConsultation(),
+   * no vuelve a ejecutar el motor de extracción aquí: eso ya se hizo (y
+   * se revisó) antes de llegar a esta función.
+   */
+  addClinicalEvents(patientId: string, events: ClinicalEvent[]): void;
 }
 
 const PatientsContext = createContext<PatientsContextValue | null>(null);
@@ -55,20 +62,17 @@ export function PatientsProvider({ children }: { children: ReactNode }) {
     return newPatient;
   }
 
-  function addConsultation(patientId: string, text: string) {
-    const date = todayISO();
-    const extracted = runExtractionEngine(text, date);
+  function addClinicalEvents(patientId: string, events: ClinicalEvent[]) {
     setPatients((prev) =>
       prev.map((p) => {
         if (p.id !== patientId) return p;
-        const consultEvent = mkEvent<ConsultationEvent>(patientId, CLINICAL_EVENT_TYPES.CONSULTATION, date, {}, { rawText: text, source: "manual" });
-        return { ...p, events: [...p.events, consultEvent, ...extracted.map((e) => ({ ...e, patientId }))] };
+        return { ...p, events: [...p.events, ...events.map((e) => ({ ...e, patientId }))] };
       }),
     );
   }
 
   const value = useMemo<PatientsContextValue>(
-    () => ({ patients, createPatient, addConsultation }),
+    () => ({ patients, createPatient, addClinicalEvents }),
     [patients],
   );
 

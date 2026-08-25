@@ -6,6 +6,8 @@ import type { TimelineEntry } from "@/types/timeline";
 /** Traduce un ClinicalEvent a su representación en la línea de tiempo. Réplica exacta de `displayForEvent()`. */
 export function displayForEvent(e: ClinicalEvent): TimelineEntry {
   switch (e.type) {
+    case CLINICAL_EVENT_TYPES.CONSULTATION:
+      return { group: "Consulta", title: "Consulta / evolución", detail: e.rawText || "" };
     case CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION:
       return {
         group: "Función pulmonar",
@@ -30,11 +32,13 @@ export function displayForEvent(e: ClinicalEvent): TimelineEntry {
     case CLINICAL_EVENT_TYPES.HOSPITALIZATION:
       return {
         group: "Hospitalización",
-        title: "Hospitalización registrada",
+        title: e.procedureLabel ? `Ingreso/procedimiento: ${e.procedureLabel}` : "Hospitalización registrada",
         detail: e.confidenceReason || "Sin detalle adicional.",
       };
     case CLINICAL_EVENT_TYPES.IMAGING:
       return { group: "Radiología", title: e.label, detail: e.text };
+    case CLINICAL_EVENT_TYPES.LAB_RESULTS:
+      return { group: "Analítica", title: e.label, detail: e.text };
     case CLINICAL_EVENT_TYPES.TREATMENT_STARTED:
     case CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT:
       return {

@@ -12,7 +12,7 @@ import { computeTurningPoints } from "@/engines/turningPoints";
 import { detectContradictions } from "@/engines/longitudinal";
 import { usePatients } from "@/app/providers";
 import { StatusPill, WhyModal } from "@/components/ui";
-import { AddConsultationModal } from "@/components/patients/AddConsultationModal";
+import { AddClinicalInfoModal } from "@/components/patients/AddClinicalInfoModal";
 import { SummaryTab } from "./SummaryTab";
 import { TimelineTab } from "./TimelineTab";
 import { PFTTab } from "./PFTTab";
@@ -44,12 +44,12 @@ function isTabKey(v: string | null): v is TabKey {
 }
 
 export function PatientDetailView({ patient }: { patient: Patient }) {
-  const { addConsultation } = usePatients();
+  const { addClinicalEvents } = usePatients();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
   const [tab, setTab] = useState<TabKey>(isTabKey(initialTab) ? initialTab : "resumen");
   const [why, setWhy] = useState<ClinicalExplanation | null>(null);
-  const [showAddConsult, setShowAddConsult] = useState(false);
+  const [showAddClinicalInfo, setShowAddClinicalInfo] = useState(false);
 
   const status = patientStatus(patient);
   const alertCount = computeSentinelFindings(patient).length + computeTurningPoints(patient).length + detectContradictions(patient).length;
@@ -109,27 +109,28 @@ export function PatientDetailView({ patient }: { patient: Patient }) {
       {tab === "micro" && <MicrobiologyTab patient={patient} />}
       {tab === "tratamientos" && <TreatmentsTab patient={patient} />}
       {tab === "radiologia" && <ImagingTab patient={patient} />}
-      {tab === "consultas" && <ConsultsTab patient={patient} onAddConsultation={() => setShowAddConsult(true)} />}
+      {tab === "consultas" && <ConsultsTab patient={patient} onAddClinicalInfo={() => setShowAddClinicalInfo(true)} />}
       {tab === "alertas" && <AlertsTab patient={patient} onWhy={setWhy} />}
       {/*
         A diferencia de las demás pestañas, esta se mantiene siempre montada
         (solo oculta con CSS) en vez de montar/desmontar con la pestaña
         activa: así su detección de "cambios recientes" (ver
         useGuidelineMatches en GuidelinesReviewTab, memoria de sesión vía
-        useRef) sobrevive a cambiar de pestaña — p. ej. añadir una consulta
-        nueva desde "Consultas" y volver — en vez de reiniciarse cada vez
-        que se vuelve a "Revisión según guías".
+        estado ajustado durante el renderizado) sobrevive a cambiar de
+        pestaña — p. ej. añadir información clínica nueva desde
+        "Consultas" y volver — en vez de reiniciarse cada vez que se
+        vuelve a "Revisión según guías".
       */}
       <div style={{ display: tab === "guias" ? "block" : "none" }}>
         <GuidelinesReviewTab patient={patient} onWhy={setWhy} />
       </div>
       <WhyModal data={why} onClose={() => setWhy(null)} />
-      {showAddConsult && (
-        <AddConsultationModal
-          onClose={() => setShowAddConsult(false)}
-          onAdd={(text) => {
-            addConsultation(patient.id, text);
-            setShowAddConsult(false);
+      {showAddClinicalInfo && (
+        <AddClinicalInfoModal
+          onClose={() => setShowAddClinicalInfo(false)}
+          onAdd={(events) => {
+            addClinicalEvents(patient.id, events);
+            setShowAddClinicalInfo(false);
             setTab("resumen");
           }}
         />
