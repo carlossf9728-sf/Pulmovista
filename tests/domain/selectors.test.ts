@@ -114,6 +114,12 @@ describe("selectores derivados", () => {
     expect(treatments[0].name).toBe("Azitromicina 250 mg");
   });
 
+  it("selectTreatments muestra schedule entre paréntesis aunque no haya dose, en vez de descartarlo en silencio", () => {
+    const ev = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-01-01", { drug: "prednisona oral", schedule: "pauta descendente, 5 días" });
+    const [treatment] = selectTreatments([ev]);
+    expect(treatment.name).toBe("Prednisona oral (pauta descendente, 5 días)");
+  });
+
   it("exacerbationsByYear agrupa por año", () => {
     expect(exacerbationsByYear(patient)).toEqual([
       { year: 2023, count: 1 },

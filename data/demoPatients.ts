@@ -329,11 +329,13 @@ export function buildDemoPatients(): Patient[] {
     // Antibiótico IV durante el ingreso del 19/01/2026 (vinculado por episodeId, ver EpisodeSections#treatmentsDuring en domain/episode.ts).
     mkEvent<TreatmentStartedEvent>(p2, CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-01-19", { drug: "piperacilina-tazobactam IV" }, { episodeId: "ep-p2-2026-01" }),
     // Tratamiento pautado al alta del mismo episodio (misma fecha que dischargeDate → EpisodeSections#treatmentsAtDischarge).
+    // La pauta va en `schedule` (campo ya existente en TreatmentStartedEvent), no incrustada en `drug` — para que
+    // domain/episode.ts#treatmentEpisodeLine pueda mostrarla sin fecha de fin, sin volver a parsear texto libre.
     mkEvent<TreatmentStartedEvent>(
       p2,
       CLINICAL_EVENT_TYPES.TREATMENT_STARTED,
       "2026-01-26",
-      { drug: "prednisona oral (pauta descendente 5 días)" },
+      { drug: "prednisona oral", schedule: "pauta descendente, 5 días" },
       { episodeId: "ep-p2-2026-01" },
     ),
     mkEvent<TreatmentStoppedEvent>(p2, CLINICAL_EVENT_TYPES.TREATMENT_STOPPED, "2025-02-01", {

@@ -13,10 +13,10 @@
  * (Microbiología, Radiología...) es el que se referencia aquí.
  */
 import { cap } from "@/utils/text";
-import { daysBetween } from "@/utils/date";
+import { daysBetween, formatDate } from "@/utils/date";
 import { CLINICAL_EVENT_TYPES } from "./clinicalEvent";
 import { microbiologyObjectiveChange } from "./microbiologyTrend";
-import { selectMicrobiology } from "./selectors";
+import { selectMicrobiology, selectTreatments } from "./selectors";
 import type {
   ClinicalEvent,
   DiagnosisEvent,
@@ -123,6 +123,42 @@ export function groupLinkedEventsBySection(container: ExacerbationEvent, linked:
     }
   }
   return sections;
+}
+
+/**
+ * Fecha de fin de cada tratamiento iniciado, cuando existe un
+ * TreatmentStoppedEvent emparejado — reutiliza el mismo criterio de
+ * emparejamiento (fármaco + cronología) que ya usa
+ * selectTreatments/TreatmentsTab (domain/selectors.ts), nunca uno nuevo.
+ * `allEvents` es la lista completa del paciente, no solo los vinculados
+ * al episodio: el tratamiento puede haberse detenido en una consulta
+ * posterior no ligada a este episodeId.
+ */
+export function treatmentEndDates(started: TreatmentStartedEvent[], allEvents: ClinicalEvent[]): Map<string, string | null> {
+  const byId = new Map(selectTreatments(allEvents).map((t) => [t.id, t.end]));
+  return new Map(started.map((s) => [s.id, byId.get(s.id) ?? null]));
+}
+
+/**
+ * Línea de presentación de un tratamiento del episodio, con duración
+ * derivada de datos reales — nunca inventada:
+ *  - con fecha de fin emparejada (ver `treatmentEndDates`): "Fármaco ·
+ *    inicio–fin · N días".
+ *  - sin fin, pero con dose/schedule ya documentados: se muestran tal
+ *    cual constan, sin interpretarlos ni darles forma.
+ *  - sin fin y sin dose/schedule: "Fármaco · Inicio {fecha} · Continúa"
+ *    — para tratamientos crónicos o que continúan al alta: nunca se
+ *    sugiere una duración cerrada que el dato no respalda.
+ */
+export function treatmentEpisodeLine(e: TreatmentStartedEvent, endDate: string | null): string {
+  const name = cap(e.drug) ?? e.drug;
+  if (endDate) {
+    const days = daysBetween(e.date, endDate);
+    if (days >= 0) return `${name} · ${formatDate(e.date)}–${formatDate(endDate)} · ${days} día${days === 1 ? "" : "s"}`;
+  }
+  const documented = [e.dose, e.schedule].filter((x): x is string => Boolean(x)).join(" · ");
+  if (documented) return `${name} · ${documented}`;
+  return `${name} · Inicio ${formatDate(e.date)} · Continúa`;
 }
 
 export interface EpisodeChange {

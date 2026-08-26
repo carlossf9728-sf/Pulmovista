@@ -113,7 +113,10 @@ export function selectTreatments(events: ClinicalEvent[]): TreatmentSummary[] {
         new Date(e2.date) >= new Date(s.date),
     );
     if (stop) usedStops.add(stop.id);
-    const label = s.dose ? `${cap(s.drug)} ${s.dose}${s.schedule ? " (" + s.schedule + ")" : ""}` : (cap(s.drug) ?? s.drug);
+    const base = cap(s.drug) ?? s.drug;
+    // Con dose, el formato ya existente no cambia ("Fármaco dosis (pauta)"). Sin dose pero con schedule (antes se
+    // perdía en silencio), se muestra igual entre paréntesis en vez de descartarlo.
+    const label = s.dose ? `${base} ${s.dose}${s.schedule ? " (" + s.schedule + ")" : ""}` : s.schedule ? `${base} (${s.schedule})` : base;
     return {
       id: s.id,
       name: label,

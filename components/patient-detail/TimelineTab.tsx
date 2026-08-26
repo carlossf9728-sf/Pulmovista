@@ -10,7 +10,15 @@ import { selectConsultations, selectMicrobiology, selectPFT } from "@/domain/sel
 import { comparePft } from "@/domain/pft";
 import { microbiologyObjectiveChange } from "@/domain/microbiologyTrend";
 import { displayForEvent, episodeSummary, exacerbationOwnTrend, groupTimelineRows, isNotableEvent, trendForRow } from "@/domain/timeline";
-import { changesAfterEpisode, episodeHeadline, episodeHighlightLine, groupLinkedEventsBySection, isHospitalizationEpisode, selectLinkedEpisodeEvents } from "@/domain/episode";
+import {
+  changesAfterEpisode,
+  episodeHeadline,
+  episodeHighlightLine,
+  groupLinkedEventsBySection,
+  isHospitalizationEpisode,
+  selectLinkedEpisodeEvents,
+  treatmentEndDates,
+} from "@/domain/episode";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { DataConfidenceBadge, TrendBadge } from "@/components/ui";
 import { EpisodeDetailModal } from "./EpisodeDetailModal";
@@ -203,6 +211,10 @@ function EpisodeClusterCard({
   const linked = useMemo(() => selectLinkedEpisodeEvents(container, allEvents), [container, allEvents]);
   const sections = useMemo(() => groupLinkedEventsBySection(container, linked), [container, linked]);
   const changes = useMemo(() => changesAfterEpisode(container, allEvents, restrictiveDeclineDates), [container, allEvents, restrictiveDeclineDates]);
+  const endDates = useMemo(
+    () => treatmentEndDates([...sections.treatmentsDuring, ...sections.treatmentsAtDischarge], allEvents),
+    [sections, allEvents],
+  );
   const highlight = episodeHighlightLine(container, linked);
 
   return (
@@ -234,7 +246,7 @@ function EpisodeClusterCard({
           Ver episodio
         </button>
       </div>
-      {open && <EpisodeDetailModal container={container} sections={sections} changes={changes} onClose={() => setOpen(false)} />}
+      {open && <EpisodeDetailModal container={container} sections={sections} changes={changes} endDates={endDates} onClose={() => setOpen(false)} />}
     </div>
   );
 }

@@ -8,6 +8,8 @@ import {
   groupLinkedEventsBySection,
   isHospitalizationEpisode,
   selectLinkedEpisodeEvents,
+  treatmentEndDates,
+  treatmentEpisodeLine,
 } from "@/domain/episode";
 import type {
   DiagnosisEvent,
@@ -168,5 +170,49 @@ describe("changesAfterEpisode", () => {
     const c = container({ dischargeDate: "2026-01-26" });
     const ownDiagnosis = mkEvent<DiagnosisEvent>("p1", CLINICAL_EVENT_TYPES.DIAGNOSIS, "2026-01-19", { label: "Agudización grave de EPOC" }, { episodeId: EP });
     expect(changesAfterEpisode(c, [c, ownDiagnosis], new Set())).toEqual([]);
+  });
+});
+
+describe("treatmentEndDates", () => {
+  it("empareja por fármaco + cronología, igual que selectTreatments/TreatmentsTab (mismo criterio, no uno nuevo)", () => {
+    const started = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-01-19", { drug: "piperacilina-tazobactam IV" }, { episodeId: EP });
+    const stopped = mkEvent<TreatmentStoppedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STOPPED, "2026-01-25", { drug: "piperacilina-tazobactam IV" }, { episodeId: EP });
+    const map = treatmentEndDates([started], [started, stopped]);
+    expect(map.get(started.id)).toBe("2026-01-25");
+  });
+
+  it("null cuando no hay TreatmentStoppedEvent emparejado, en vez de inventar una fecha", () => {
+    const started = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-01-26", { drug: "prednisona oral" });
+    const map = treatmentEndDates([started], [started]);
+    expect(map.get(started.id)).toBeNull();
+  });
+
+  it("busca el fin en TODOS los eventos del paciente, no solo los vinculados al episodio (puede detenerse en una consulta posterior sin episodeId)", () => {
+    const started = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-01-19", { drug: "piperacilina-tazobactam IV" }, { episodeId: EP });
+    const stoppedElsewhere = mkEvent<TreatmentStoppedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STOPPED, "2026-01-25", { drug: "piperacilina-tazobactam IV" });
+    const map = treatmentEndDates([started], [started, stoppedElsewhere]);
+    expect(map.get(started.id)).toBe("2026-01-25");
+  });
+});
+
+describe("treatmentEpisodeLine", () => {
+  it("con fecha de fin real: 'Fármaco · inicio–fin · N días'", () => {
+    const e = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-01-19", { drug: "piperacilina-tazobactam IV" });
+    expect(treatmentEpisodeLine(e, "2026-01-25")).toBe("Piperacilina-tazobactam IV · 19/01/2026–25/01/2026 · 6 días");
+  });
+
+  it("singular 'día' cuando la duración calculada es 1", () => {
+    const e = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-01-19", { drug: "X" });
+    expect(treatmentEpisodeLine(e, "2026-01-20")).toBe("X · 19/01/2026–20/01/2026 · 1 día");
+  });
+
+  it("sin fin, pero con dose/schedule ya documentados: se muestran tal cual, sin inventar una duración por fechas", () => {
+    const e = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-01-26", { drug: "prednisona oral", schedule: "pauta descendente, 5 días" });
+    expect(treatmentEpisodeLine(e, null)).toBe("Prednisona oral · pauta descendente, 5 días");
+  });
+
+  it("sin fin y sin dose/schedule: 'Fármaco · Inicio {fecha} · Continúa' — nunca sugiere una duración cerrada que el dato no respalda", () => {
+    const e = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2023-01-15", { drug: "triple terapia inhalada (LABA/LAMA/ICS)" });
+    expect(treatmentEpisodeLine(e, null)).toBe("Triple terapia inhalada (LABA/LAMA/ICS) · Inicio 15/01/2023 · Continúa");
   });
 });

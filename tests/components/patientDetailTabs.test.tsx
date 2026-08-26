@@ -283,6 +283,18 @@ describe("TimelineTab", () => {
     expect(screen.queryByText("Diagnósticos del episodio")).not.toBeInTheDocument();
   });
 
+  it("tratamiento vinculado sin fecha de fin ni dose/schedule documentados: 'Inicio {fecha} · Continúa', nunca una duración inventada", async () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Grave", hospitalization: true }, { episodeId: "ep-a" }),
+        mkEvent<TreatmentStartedEvent>("p-timeline", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-01-01", { drug: "azitromicina" }, { episodeId: "ep-a" }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    await userEvent.click(screen.getByRole("button", { name: "Ver episodio" }));
+    expect(screen.getByText("Azitromicina · Inicio 01/01/2024 · Continúa")).toBeInTheDocument();
+  });
+
   it("episodio de ingreso con datos completos (p2, 19/01/2026): titular con duración, línea de aviso, y detalle completo tras 'Ver episodio'", async () => {
     render(<TimelineTab patient={p2} />);
     const headline = screen.getByText("Exacerbación grave · ingreso 7 días");
@@ -298,8 +310,12 @@ describe("TimelineTab", () => {
     expect(screen.getByText("Analítica y gasometría de ingreso")).toBeInTheDocument();
     expect(screen.getByText("Rx tórax (ingreso)")).toBeInTheDocument();
     expect(screen.getByText("Tratamiento durante el ingreso")).toBeInTheDocument();
+    // Duración cerrada calculada por fechas (inicio 19/01, fin 25/01 vinculados) — no una fila de inicio y otra de fin por separado.
+    expect(screen.getByText("Piperacilina-tazobactam IV · 19/01/2026–25/01/2026 · 6 días")).toBeInTheDocument();
+    expect(screen.queryByText(/Finalizado: Piperacilina/)).not.toBeInTheDocument();
     expect(screen.getByText("Tratamiento al alta")).toBeInTheDocument();
-    expect(screen.getByText(/prednisona oral/i)).toBeInTheDocument();
+    // Sin fecha de fin (tratamiento al alta): se muestra la pauta ya documentada, no una duración inventada.
+    expect(screen.getByText("Prednisona oral · pauta descendente, 5 días")).toBeInTheDocument();
     expect(screen.getByText("Situación al alta")).toBeInTheDocument();
     expect(screen.getByText("Recomendaciones / plan de seguimiento")).toBeInTheDocument();
     // Único cambio defendible tras este episodio con criterios ya existentes (ver domain/episode.ts#changesAfterEpisode).
