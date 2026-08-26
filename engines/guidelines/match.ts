@@ -58,10 +58,9 @@
  * nunca se inventa un campo ni un umbral que la guía no declare.
  */
 import { activeProblemCategories } from "@/domain/diagnosis";
-import { selectExacerbations, selectMicrobiology } from "@/domain/selectors";
+import { isSevereExacerbation, selectExacerbations, selectMicrobiology } from "@/domain/selectors";
 import { KNOWLEDGE_BASE_RECOMMENDATIONS, findCriterionById } from "./knowledge";
 import type { DiagnosisCategory } from "@/domain/diagnosis";
-import type { ExacerbationEvent } from "@/types/clinicalEvent";
 import type { EvidenceItem } from "@/types/evidence";
 import type { GuidelineMatch, GuidelineMatchStatus, GuidelineRecommendation } from "@/types/guideline";
 import type { Patient } from "@/types/patient";
@@ -93,17 +92,6 @@ function withinPriorYear(dateStr: string, asOfDate: string): boolean {
 function upTo(asOfDate: string) {
   const asOf = new Date(asOfDate);
   return (dateStr: string) => new Date(dateStr) <= asOf;
-}
-
-/**
- * ERS define "severe exacerbation" (ers-def-severe-exacerbation) como la
- * que requiere hospitalización o antibiótico intravenoso. `hospitalization`
- * es el campo directo; el texto de `severity` conteniendo "grave" se usa
- * como señal de apoyo cuando no hay ingreso registrado (no es un campo
- * booleano de "requirió antibiótico IV" — ese dato no existe en el modelo).
- */
-function isSevereExacerbation(e: ExacerbationEvent): boolean {
-  return e.hospitalization === true || /grave/i.test(e.severity);
 }
 
 function diagnosisText(patient: Patient): string {

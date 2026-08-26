@@ -2,6 +2,7 @@ export * from "./Eyebrow";
 export * from "./Val";
 export * from "./StatusPill";
 export * from "./DataConfidenceBadge";
+export * from "./TrendBadge";
 export * from "./KindTag";
 export * from "./Card";
 export * from "./WhyButton";

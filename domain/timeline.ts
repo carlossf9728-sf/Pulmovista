@@ -1,8 +1,12 @@
 import { cap } from "@/utils/text";
 import { formatZScore } from "./pft";
+import { classifyRadiologyTrend } from "./radiologyTrend";
+import { isSevereExacerbation } from "./selectors";
 import { CLINICAL_EVENT_TYPES } from "./clinicalEvent";
-import type { ClinicalEvent } from "@/types/clinicalEvent";
+import type { ClinicalEvent, ExacerbationEvent } from "@/types/clinicalEvent";
+import type { ClinicalTrend } from "@/types/clinicalTrend";
 import type { TimelineEntry } from "@/types/timeline";
+import type { TurningPointCriterion } from "@/types/turningPoints";
 
 /** Traduce un ClinicalEvent a su representación en la línea de tiempo. Réplica exacta de `displayForEvent()`. */
 export function displayForEvent(e: ClinicalEvent): TimelineEntry {
@@ -118,6 +122,92 @@ export function isNotableEvent(e: ClinicalEvent, turningPointDates: ReadonlySet<
   if (e.type === CLINICAL_EVENT_TYPES.HOSPITALIZATION) return true;
   if (e.type === CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT) return true;
   return false;
+}
+
+/**
+ * Interpretación clínica (capa 2) asociada a un criterio de Turning
+ * Point YA EXISTENTE — no crea ningún criterio nuevo, solo traduce 3 de
+ * los 5 ya establecidos (ver engines/turningPoints/objectiveDetectors.ts)
+ * al vocabulario compartido Empeoramiento/Mejoría/sin etiqueta, en los
+ * dominios donde el usuario lo ha autorizado explícitamente:
+ *
+ * - "restrictive-decline" (función pulmonar: caída de FVC ≥10% en ≤14
+ *   meses) → Empeoramiento. Deliberadamente NO se generaliza a "3
+ *   valores consecutivos" ni a ningún otro patrón de FEV1/FVC — ver
+ *   nota de fidelidad en TimelineTab.tsx.
+ * - "exacerbation-rate-jump" (salto ≥2 exacerbaciones/año) → Empeoramiento.
+ * - "first-hospitalization" (primera exacerbación con ingreso) →
+ *   Empeoramiento.
+ *
+ * "first-persistent-organism" (microbiología) y
+ * "respiratory-support-start" (tratamiento) se dejan sin interpretar a
+ * propósito — el usuario ha pedido explícitamente NO convertir
+ * automáticamente un nuevo microorganismo ni un cambio de tratamiento
+ * en una etiqueta de mejoría/empeoramiento. Esos dos criterios se
+ * siguen mostrando como "Momento clave" genérico, sin esta etiqueta.
+ *
+ * Ningún criterio de Turning Points tiene hoy una contrapartida de
+ * "mejoría" (el motor solo detecta empeoramientos objetivos) — por eso
+ * esta función nunca devuelve "Mejoría".
+ */
+export function turningPointTrend(criterion: TurningPointCriterion): ClinicalTrend {
+  switch (criterion) {
+    case "restrictive-decline":
+    case "exacerbation-rate-jump":
+    case "first-hospitalization":
+      return "Empeoramiento";
+    case "first-persistent-organism":
+    case "respiratory-support-start":
+      return null;
+  }
+}
+
+/**
+ * Interpretación clínica (capa 2) de UNA exacerbación por sí sola, sin
+ * necesidad de que coincida con un Turning Point — a diferencia de
+ * "first-hospitalization" (que solo marca la PRIMERA vez), toda
+ * exacerbación grave u hospitalizada es, por definición ya usada en el
+ * resto de la app (ver domain/selectors.ts#isSevereExacerbation, misma
+ * fuente que engines/guidelines/match.ts), un acontecimiento
+ * desfavorable — se muestra siempre que ocurra, no solo la primera vez.
+ * No hay contrapartida de "Mejoría": no existe en la app ningún
+ * criterio ya establecido para "reducción clara" de exacerbaciones.
+ */
+export function exacerbationOwnTrend(e: ExacerbationEvent): ClinicalTrend {
+  return isSevereExacerbation(e) ? "Empeoramiento" : null;
+}
+
+/**
+ * Interpretación clínica (capa 2) de UN evento de la Cronología —
+ * combina, según el dominio, la señal propia del evento
+ * (`exacerbationOwnTrend`), el texto del propio informe (radiología,
+ * ver domain/radiologyTrend.ts) o un Turning Point ya existente cuyo
+ * criterio pertenezca a ESE dominio concreto (nunca un Turning Point de
+ * otro dominio que coincida en fecha por casualidad — de ahí el filtro
+ * por tipo de evento antes de aplicar `turningPointTrend`).
+ *
+ * Todo lo demás (microbiología, tratamientos, analítica,
+ * ingresos/procedimientos sueltos, diagnósticos) devuelve siempre
+ * `null` en esta fase — el usuario ha pedido explícitamente no
+ * clasificarlos todavía sin información explícita y fiable.
+ */
+export function trendForRow(e: ClinicalEvent, matchingTurningPointCriterion: TurningPointCriterion | null): ClinicalTrend {
+  switch (e.type) {
+    case CLINICAL_EVENT_TYPES.IMAGING:
+      return classifyRadiologyTrend(e.text).trend;
+    case CLINICAL_EVENT_TYPES.EXACERBATION: {
+      const own = exacerbationOwnTrend(e);
+      if (own) return own;
+      if (matchingTurningPointCriterion === "exacerbation-rate-jump" || matchingTurningPointCriterion === "first-hospitalization") {
+        return turningPointTrend(matchingTurningPointCriterion);
+      }
+      return null;
+    }
+    case CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION:
+      return matchingTurningPointCriterion === "restrictive-decline" ? turningPointTrend(matchingTurningPointCriterion) : null;
+    default:
+      return null;
+  }
 }
 
 /** Fragmento breve de UN evento para la cabecera resumida de un episodio — nunca el detalle completo, solo "qué fue". */

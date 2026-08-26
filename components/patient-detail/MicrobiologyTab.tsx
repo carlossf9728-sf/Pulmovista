@@ -3,13 +3,15 @@
 import { COLORS } from "@/utils/theme";
 import { formatDate } from "@/utils/date";
 import { selectMicrobiology } from "@/domain/selectors";
+import { microbiologyObjectiveChange } from "@/domain/microbiologyTrend";
 import { Card, Val } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 
-const HEADERS = ["Fecha", "Muestra", "Microorganismo", "Sensible a", "Resistente a"];
+const HEADERS = ["Fecha", "Muestra", "Microorganismo", "Sensible a", "Resistente a", "Cambio"];
 
 export function MicrobiologyTab({ patient }: { patient: Patient }) {
-  const rows = [...selectMicrobiology(patient.events)].reverse();
+  const sorted = selectMicrobiology(patient.events);
+  const rows = [...sorted].reverse();
   if (!rows.length) {
     return <div style={{ color: COLORS.slateLight, fontSize: 13.5 }}>No disponible: sin muestras microbiológicas registradas.</div>;
   }
@@ -43,6 +45,9 @@ export function MicrobiologyTab({ patient }: { patient: Patient }) {
               </td>
               <td style={{ padding: "10px 14px", color: COLORS.slate }}>
                 <Val value={m.resistance?.length ? m.resistance.join(", ") : null} />
+              </td>
+              <td style={{ padding: "10px 14px" }}>
+                <Val value={microbiologyObjectiveChange(m, sorted)} />
               </td>
             </tr>
           ))}

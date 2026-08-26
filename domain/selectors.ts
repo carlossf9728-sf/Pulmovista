@@ -42,6 +42,20 @@ function isTreatmentStart(e: ClinicalEvent): e is TreatmentStartedEvent | Respir
   return e.type === CLINICAL_EVENT_TYPES.TREATMENT_STARTED || e.type === CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT;
 }
 
+/**
+ * ERS define "severe exacerbation" (ers-def-severe-exacerbation) como la
+ * que requiere hospitalización o antibiótico intravenoso. `hospitalization`
+ * es el campo directo; el texto de `severity` conteniendo "grave" se usa
+ * como señal de apoyo cuando no hay ingreso registrado (no es un campo
+ * booleano de "requirió antibiótico IV" — ese dato no existe en el modelo).
+ * Fuente única de verdad — reutilizada por engines/guidelines/match.ts y
+ * por domain/timeline.ts (cambio longitudinal de exacerbaciones), para no
+ * duplicar ni desalinear el mismo criterio en dos sitios.
+ */
+export function isSevereExacerbation(e: ExacerbationEvent): boolean {
+  return e.hospitalization === true || /grave/i.test(e.severity);
+}
+
 export function selectConsultations(events: ClinicalEvent[]): ConsultationEvent[] {
   return sortByDate(events.filter(isConsultation));
 }

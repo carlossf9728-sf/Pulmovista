@@ -11,7 +11,7 @@ import { AlertsTab } from "@/components/patient-detail/AlertsTab";
 import { GuidelinesReviewTab } from "@/components/patient-detail/GuidelinesReviewTab";
 import { buildDemoPatients } from "@/data/demoPatients";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
-import type { ExacerbationEvent, MicrobiologyEvent, PulmonaryFunctionEvent } from "@/types/clinicalEvent";
+import type { ExacerbationEvent, ImagingEvent, MicrobiologyEvent, PulmonaryFunctionEvent, TreatmentStartedEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 function basePatient(overrides: Partial<Patient> = {}): Patient {
@@ -177,6 +177,87 @@ describe("TimelineTab", () => {
     expect(screen.getByText(/68% predicho \(−1 puntos\)/)).toBeInTheDocument();
     expect(screen.getByText(/z −2\.0 \(−0\.1\)/)).toBeInTheDocument();
   });
+
+  it("radiología: Empeoramiento se deduce del propio texto del informe (domain/radiologyTrend), no de un Turning Point", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ImagingEvent>("p-timeline", CLINICAL_EVENT_TYPES.IMAGING, "2024-01-01", {
+          label: "TC tórax",
+          text: "Progresión de bronquiectasias con nueva impactación mucosa.",
+        }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.getByText("Empeoramiento")).toBeInTheDocument();
+  });
+
+  it("radiología: un informe sin lenguaje de cambio claro no se etiqueta", () => {
+    const patient = basePatient({
+      events: [mkEvent<ImagingEvent>("p-timeline", CLINICAL_EVENT_TYPES.IMAGING, "2024-01-01", { label: "TC tórax", text: "Sin cambios significativos." })],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.queryByText("Empeoramiento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mejoría")).not.toBeInTheDocument();
+  });
+
+  it("exacerbación grave/hospitalizada: Empeoramiento en cada ocurrencia, no solo la primera (isSevereExacerbation, reutilizada de engines/guidelines)", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Grave", hospitalization: true }),
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-06-01", { severity: "Grave", hospitalization: true }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.getAllByText("Empeoramiento")).toHaveLength(2);
+  });
+
+  it("exacerbación leve sin criterio de Turning Point ya existente: sin etiqueta", () => {
+    const patient = basePatient({
+      events: [mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false })],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.queryByText("Empeoramiento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mejoría")).not.toBeInTheDocument();
+  });
+
+  it("función pulmonar: variabilidad de 3 valores consecutivos que no cumple el criterio restrictive-decline no se etiqueta (no se reutiliza la regla de 3 lecturas de Sentinel)", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<PulmonaryFunctionEvent>("p-timeline", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-01-01", { FEV1Percent: 80, FVCPercent: 90 }),
+        mkEvent<PulmonaryFunctionEvent>("p-timeline", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-04-01", { FEV1Percent: 78, FVCPercent: 89 }),
+        mkEvent<PulmonaryFunctionEvent>("p-timeline", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-07-01", { FEV1Percent: 76, FVCPercent: 88 }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.queryByText("Empeoramiento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mejoría")).not.toBeInTheDocument();
+  });
+
+  it("microbiología: nunca muestra una etiqueta de interpretación (Empeoramiento/Mejoría), solo el cambio objetivo ('Nuevo aislamiento')", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<MicrobiologyEvent>("p-timeline", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2024-01-01", {
+          sampleType: "Esputo",
+          organism: "Pseudomonas aeruginosa",
+          sensitivity: [],
+          resistance: [],
+        }),
+      ],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.getByText("Nuevo aislamiento")).toBeInTheDocument();
+    expect(screen.queryByText("Empeoramiento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mejoría")).not.toBeInTheDocument();
+  });
+
+  it("tratamientos: un cambio de tratamiento nunca se etiqueta automáticamente como Empeoramiento/Mejoría", () => {
+    const patient = basePatient({
+      events: [mkEvent<TreatmentStartedEvent>("p-timeline", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-01-01", { drug: "azitromicina" })],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.queryByText("Empeoramiento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mejoría")).not.toBeInTheDocument();
+  });
 });
 
 describe("MicrobiologyTab", () => {
@@ -188,6 +269,11 @@ describe("MicrobiologyTab", () => {
     render(<MicrobiologyTab patient={p3} />);
     expect(screen.getByText("No disponible: sin muestras microbiológicas registradas.")).toBeInTheDocument();
   });
+  it("muestra el cambio objetivo (capa 1) de cada aislamiento: 'Nuevo aislamiento' en el primero, 'Persistencia' en los repetidos", () => {
+    render(<MicrobiologyTab patient={p1} />);
+    expect(screen.getAllByText("Nuevo aislamiento").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Persistencia").length).toBeGreaterThan(0);
+  });
 });
 
 describe("TreatmentsTab", () => {
@@ -198,9 +284,14 @@ describe("TreatmentsTab", () => {
 });
 
 describe("ImagingTab", () => {
-  it("señala un cambio respecto al informe anterior cuando el texto difiere", () => {
+  it("clasifica Empeoramiento cuando el propio informe indica progresión/aumento, reutilizando domain/radiologyTrend", () => {
     render(<ImagingTab patient={p1} />);
-    expect(screen.getAllByText("Cambio respecto al informe anterior").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Empeoramiento").length).toBeGreaterThan(0);
+  });
+
+  it("no etiqueta un informe sin lenguaje de cambio claro ('sin cambios significativos')", () => {
+    render(<ImagingTab patient={p1} />);
+    expect(screen.queryByText("Mejoría")).not.toBeInTheDocument();
   });
 });
 

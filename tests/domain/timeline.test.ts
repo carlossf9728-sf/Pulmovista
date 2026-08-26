@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
-import { displayForEvent, episodeKeyForEvent, episodeSummary, groupTimelineRows, isNotableEvent } from "@/domain/timeline";
-import type { ExacerbationEvent, HospitalizationEvent, MicrobiologyEvent, PulmonaryFunctionEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
+import { displayForEvent, episodeKeyForEvent, episodeSummary, exacerbationOwnTrend, groupTimelineRows, isNotableEvent, trendForRow, turningPointTrend } from "@/domain/timeline";
+import type { ExacerbationEvent, HospitalizationEvent, ImagingEvent, MicrobiologyEvent, PulmonaryFunctionEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
 
 describe("displayForEvent", () => {
   it("representa un evento de función pulmonar", () => {
@@ -149,5 +149,95 @@ describe("episodeSummary", () => {
     const procedimiento = mkEvent<HospitalizationEvent>("p1", CLINICAL_EVENT_TYPES.HOSPITALIZATION, "2024-01-01", { procedureLabel: "broncoscopia" });
     const consulta = mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-01-01", {}, { rawText: "..." });
     expect(episodeSummary([consulta, procedimiento])).toBe("Consulta + broncoscopia");
+  });
+});
+
+describe("turningPointTrend", () => {
+  it("traduce restrictive-decline, exacerbation-rate-jump y first-hospitalization a Empeoramiento", () => {
+    expect(turningPointTrend("restrictive-decline")).toBe("Empeoramiento");
+    expect(turningPointTrend("exacerbation-rate-jump")).toBe("Empeoramiento");
+    expect(turningPointTrend("first-hospitalization")).toBe("Empeoramiento");
+  });
+
+  it("deja first-persistent-organism y respiratory-support-start sin etiqueta — el usuario pidió no auto-clasificar microbiología ni tratamiento", () => {
+    expect(turningPointTrend("first-persistent-organism")).toBeNull();
+    expect(turningPointTrend("respiratory-support-start")).toBeNull();
+  });
+
+  it("ningún criterio produce 'Mejoría': Turning Points solo detecta empeoramientos objetivos", () => {
+    const criteria: Array<Parameters<typeof turningPointTrend>[0]> = [
+      "restrictive-decline",
+      "exacerbation-rate-jump",
+      "first-persistent-organism",
+      "first-hospitalization",
+      "respiratory-support-start",
+    ];
+    expect(criteria.map(turningPointTrend)).not.toContain("Mejoría");
+  });
+});
+
+describe("exacerbationOwnTrend", () => {
+  it("una exacerbación grave u hospitalizada es Empeoramiento por sí sola, cada vez que ocurre (no solo la primera)", () => {
+    const grave = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Grave", hospitalization: false });
+    const hospitalizada = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-06-01", { severity: "Moderada", hospitalization: true });
+    expect(exacerbationOwnTrend(grave)).toBe("Empeoramiento");
+    expect(exacerbationOwnTrend(hospitalizada)).toBe("Empeoramiento");
+  });
+
+  it("una exacerbación leve o moderada sin ingreso no se etiqueta", () => {
+    const leve = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false });
+    expect(exacerbationOwnTrend(leve)).toBeNull();
+  });
+
+  it("nunca devuelve 'Mejoría': no hay ningún criterio ya establecido para 'reducción clara' de exacerbaciones", () => {
+    const leve = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false });
+    expect(exacerbationOwnTrend(leve)).not.toBe("Mejoría");
+  });
+});
+
+describe("trendForRow", () => {
+  it("radiología: clasifica a partir del propio texto del informe, con o sin Turning Point asociado", () => {
+    const progresa = mkEvent<ImagingEvent>("p1", CLINICAL_EVENT_TYPES.IMAGING, "2024-01-01", { label: "TC tórax", text: "Progresión de las bronquiectasias." });
+    const sinCambios = mkEvent<ImagingEvent>("p1", CLINICAL_EVENT_TYPES.IMAGING, "2024-01-01", { label: "TC tórax", text: "Sin cambios significativos." });
+    expect(trendForRow(progresa, null)).toBe("Empeoramiento");
+    expect(trendForRow(sinCambios, null)).toBeNull();
+  });
+
+  it("exacerbación grave/hospitalizada es Empeoramiento aunque no coincida con ningún Turning Point", () => {
+    const grave = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Grave", hospitalization: true });
+    expect(trendForRow(grave, null)).toBe("Empeoramiento");
+  });
+
+  it("exacerbación leve sin Turning Point asociado no se etiqueta", () => {
+    const leve = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false });
+    expect(trendForRow(leve, null)).toBeNull();
+  });
+
+  it("exacerbación leve SÍ se etiqueta si coincide con exacerbation-rate-jump o first-hospitalization", () => {
+    const leve = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false });
+    expect(trendForRow(leve, "exacerbation-rate-jump")).toBe("Empeoramiento");
+    expect(trendForRow(leve, "first-hospitalization")).toBe("Empeoramiento");
+  });
+
+  it("una exacerbación NUNCA hereda un Turning Point de otro dominio (p. ej. restrictive-decline, de función pulmonar)", () => {
+    const leve = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false });
+    expect(trendForRow(leve, "restrictive-decline")).toBeNull();
+    expect(trendForRow(leve, "first-persistent-organism")).toBeNull();
+  });
+
+  it("función pulmonar: solo se etiqueta si el Turning Point que coincide en fecha es restrictive-decline, nunca otro criterio", () => {
+    const pft = mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-01-01", { FEV1Percent: 68 });
+    expect(trendForRow(pft, "restrictive-decline")).toBe("Empeoramiento");
+    expect(trendForRow(pft, "exacerbation-rate-jump")).toBeNull();
+    expect(trendForRow(pft, null)).toBeNull();
+  });
+
+  it("microbiología, tratamientos, ingresos y el resto de dominios no clasificados devuelven siempre null en esta fase", () => {
+    const cultivo = mkEvent<MicrobiologyEvent>("p1", CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2024-01-01", { sampleType: "Esputo", organism: "Pseudomonas aeruginosa", sensitivity: [], resistance: [] });
+    const soporte = mkEvent<RespiratorySupportEvent>("p1", CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT, "2024-01-01", { drug: "oxígeno" });
+    const ingreso = mkEvent<HospitalizationEvent>("p1", CLINICAL_EVENT_TYPES.HOSPITALIZATION, "2024-01-01", {});
+    expect(trendForRow(cultivo, "first-persistent-organism")).toBeNull();
+    expect(trendForRow(soporte, "respiratory-support-start")).toBeNull();
+    expect(trendForRow(ingreso, "first-hospitalization")).toBeNull();
   });
 });

@@ -6,14 +6,16 @@ import { COLORS } from "@/utils/theme";
 import { formatDate, sortByDate } from "@/utils/date";
 import { GROUP_COLOR, GROUP_ICON, TIMELINE_GROUPS } from "@/utils/eventGroupStyle";
 import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
-import { selectConsultations, selectPFT } from "@/domain/selectors";
+import { selectConsultations, selectMicrobiology, selectPFT } from "@/domain/selectors";
 import { comparePft } from "@/domain/pft";
-import { displayForEvent, episodeSummary, groupTimelineRows, isNotableEvent } from "@/domain/timeline";
+import { microbiologyObjectiveChange } from "@/domain/microbiologyTrend";
+import { displayForEvent, episodeSummary, groupTimelineRows, isNotableEvent, trendForRow } from "@/domain/timeline";
 import { computeTurningPoints } from "@/engines/turningPoints";
-import { DataConfidenceBadge } from "@/components/ui";
-import type { ClinicalEvent, PulmonaryFunctionEvent } from "@/types/clinicalEvent";
+import { DataConfidenceBadge, TrendBadge } from "@/components/ui";
+import type { ClinicalEvent, MicrobiologyEvent, PulmonaryFunctionEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 import type { TimelineCluster } from "@/domain/timeline";
+import type { ClinicalTrend } from "@/types/clinicalTrend";
 import type { TimelineEntry, TimelineGroup } from "@/types/timeline";
 import type { TurningPoint } from "@/types/turningPoints";
 
@@ -30,6 +32,10 @@ type TimelineRow = ClinicalEvent & { display: TimelineEntry };
 
 function isPft(e: ClinicalEvent): e is PulmonaryFunctionEvent {
   return e.type === CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION;
+}
+
+function isMicrobiology(e: ClinicalEvent): e is MicrobiologyEvent {
+  return e.type === CLINICAL_EVENT_TYPES.MICROBIOLOGY;
 }
 
 const TRUNCATE_AT = 220;
@@ -101,7 +107,9 @@ function groupClustersByYear<T extends ClinicalEvent>(clusters: TimelineCluster<
 function EventLine({
   row,
   notable,
+  trend,
   momentoClaveNote,
+  objectiveNote,
   showDate,
   open,
   onToggle,
@@ -109,7 +117,9 @@ function EventLine({
 }: {
   row: TimelineRow;
   notable: boolean;
+  trend: ClinicalTrend;
   momentoClaveNote: string | null;
+  objectiveNote: string | null;
   showDate: boolean;
   open: boolean;
   onToggle: () => void;
@@ -124,12 +134,21 @@ function EventLine({
           <Icon size={13} color={c} style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 10.5, fontWeight: 700, color: c, textTransform: "uppercase", letterSpacing: "0.03em" }}>{row.display.group}</span>
           {showDate && <span style={{ fontSize: 12, color: COLORS.slateLight }}>{formatDate(row.date)}</span>}
-          {momentoClaveNote && (
-            <span
-              title={momentoClaveNote}
-              style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, background: COLORS.redTint, padding: "1px 7px", borderRadius: 20, whiteSpace: "nowrap" }}
-            >
-              Momento clave
+          {trend ? (
+            <TrendBadge trend={trend} title={momentoClaveNote ?? undefined} />
+          ) : (
+            momentoClaveNote && (
+              <span
+                title={momentoClaveNote}
+                style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, background: COLORS.redTint, padding: "1px 7px", borderRadius: 20, whiteSpace: "nowrap" }}
+              >
+                Momento clave
+              </span>
+            )
+          )}
+          {objectiveNote && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.slate, background: COLORS.paper, padding: "1px 7px", borderRadius: 20, whiteSpace: "nowrap" }}>
+              {objectiveNote}
             </span>
           )}
           {row.confidence !== "confirmado" && <DataConfidenceBadge reason={row.confidenceReason} />}
@@ -158,6 +177,8 @@ function ClusterCard({
   openId,
   onToggle,
   extraDetailLinesFor,
+  trendFor,
+  objectiveNoteFor,
 }: {
   cluster: TimelineCluster<TimelineRow>;
   notable: boolean;
@@ -165,9 +186,12 @@ function ClusterCard({
   openId: string | null;
   onToggle: (id: string) => void;
   extraDetailLinesFor: (row: TimelineRow) => string[];
+  trendFor: (row: TimelineRow) => ClinicalTrend;
+  objectiveNoteFor: (row: TimelineRow) => string | null;
 }) {
   const accent = notable ? COLORS.red : cluster.rows.length === 1 ? GROUP_COLOR[cluster.rows[0].display.group] : COLORS.line;
   const dotColor = notable ? COLORS.red : cluster.rows.length === 1 ? GROUP_COLOR[cluster.rows[0].display.group] : COLORS.slateLight;
+  const clusterTrend = cluster.rows.length > 1 ? (cluster.rows.map(trendFor).find((t) => t) ?? null) : null;
 
   return (
     <div style={{ position: "relative", marginBottom: 12 }}>
@@ -189,13 +213,17 @@ function ClusterCard({
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.slate }}>{formatDate(cluster.date)}</span>
             <span style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.ink }}>{episodeSummary(cluster.rows)}</span>
-            {momentoClaveNote && (
-              <span
-                title={momentoClaveNote}
-                style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, background: COLORS.redTint, padding: "1px 7px", borderRadius: 20 }}
-              >
-                Momento clave
-              </span>
+            {clusterTrend ? (
+              <TrendBadge trend={clusterTrend} title={momentoClaveNote ?? undefined} />
+            ) : (
+              momentoClaveNote && (
+                <span
+                  title={momentoClaveNote}
+                  style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, background: COLORS.redTint, padding: "1px 7px", borderRadius: 20 }}
+                >
+                  Momento clave
+                </span>
+              )
             )}
           </div>
         )}
@@ -205,7 +233,9 @@ function ClusterCard({
               <EventLine
                 row={row}
                 notable={notable}
+                trend={trendFor(row)}
                 momentoClaveNote={cluster.rows.length === 1 ? momentoClaveNote : null}
+                objectiveNote={objectiveNoteFor(row)}
                 showDate={cluster.rows.length === 1}
                 open={openId === row.id}
                 onToggle={() => onToggle(row.id)}
@@ -244,6 +274,8 @@ function ClusterList({
   openId,
   onToggle,
   extraDetailLinesFor,
+  trendFor,
+  objectiveNoteFor,
 }: {
   clusters: TimelineCluster<TimelineRow>[];
   turningPointByDate: Map<string, TurningPoint>;
@@ -251,6 +283,8 @@ function ClusterList({
   openId: string | null;
   onToggle: (id: string) => void;
   extraDetailLinesFor: (row: TimelineRow) => string[];
+  trendFor: (row: TimelineRow) => ClinicalTrend;
+  objectiveNoteFor: (row: TimelineRow) => string | null;
 }) {
   return (
     <div style={{ position: "relative", paddingLeft: 22 }}>
@@ -267,6 +301,8 @@ function ClusterList({
             openId={openId}
             onToggle={onToggle}
             extraDetailLinesFor={extraDetailLinesFor}
+            trendFor={trendFor}
+            objectiveNoteFor={objectiveNoteFor}
           />
         );
       })}
@@ -302,6 +338,12 @@ export function TimelineTab({ patient }: { patient: Patient }) {
     if (!isPft(row)) return [];
     return comparePft(row, previousPftById.get(row.id) ?? null);
   };
+
+  const trendFor = (row: TimelineRow): ClinicalTrend => trendForRow(row, turningPointByDate.get(row.date)?.criterion ?? null);
+
+  // Para el descriptor objetivo de microbiología (capa 1 — nunca una etiqueta de interpretación, ver domain/microbiologyTrend.ts).
+  const sortedMicrobiology = useMemo(() => selectMicrobiology(patient.events), [patient]);
+  const objectiveNoteFor = (row: TimelineRow): string | null => (isMicrobiology(row) ? microbiologyObjectiveChange(row, sortedMicrobiology) : null);
 
   const [active, setActive] = useState<Set<TimelineGroup>>(new Set(TIMELINE_GROUPS));
   const toggle = (g: TimelineGroup) =>
@@ -356,6 +398,8 @@ export function TimelineTab({ patient }: { patient: Patient }) {
               openId={openId}
               onToggle={onToggleOpen}
               extraDetailLinesFor={extraDetailLinesFor}
+              trendFor={trendFor}
+              objectiveNoteFor={objectiveNoteFor}
             />
           ))
         : yearGroups.map((yg, i) => (
@@ -367,6 +411,8 @@ export function TimelineTab({ patient }: { patient: Patient }) {
                 openId={openId}
                 onToggle={onToggleOpen}
                 extraDetailLinesFor={extraDetailLinesFor}
+                trendFor={trendFor}
+                objectiveNoteFor={objectiveNoteFor}
               />
             </YearSection>
           ))}
