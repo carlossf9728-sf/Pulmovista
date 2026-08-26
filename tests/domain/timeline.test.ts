@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
 import { displayForEvent, episodeKeyForEvent, episodeSummary, exacerbationOwnTrend, groupTimelineRows, isNotableEvent, trendForRow, turningPointTrend } from "@/domain/timeline";
-import type { ExacerbationEvent, HospitalizationEvent, ImagingEvent, MicrobiologyEvent, PulmonaryFunctionEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
+import type { DiagnosisEvent, ExacerbationEvent, HospitalizationEvent, ImagingEvent, MicrobiologyEvent, PulmonaryFunctionEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
 
 describe("displayForEvent", () => {
   it("representa un evento de función pulmonar", () => {
@@ -51,6 +51,13 @@ describe("displayForEvent", () => {
     expect(display.group).toBe("Consulta");
     expect(display.detail).toBe("Texto libre");
   });
+
+  it("representa un diagnóstico con su propio label, sin grupo dedicado (usa Consulta)", () => {
+    const ev = mkEvent<DiagnosisEvent>("p1", CLINICAL_EVENT_TYPES.DIAGNOSIS, "2026-01-19", { label: "Agudización grave de EPOC con insuficiencia respiratoria hipercápnica" });
+    const display = displayForEvent(ev);
+    expect(display.group).toBe("Consulta");
+    expect(display.title).toBe("Agudización grave de EPOC con insuficiencia respiratoria hipercápnica");
+  });
 });
 
 describe("episodeKeyForEvent", () => {
@@ -88,6 +95,17 @@ describe("groupTimelineRows", () => {
   it("un único evento produce un cluster de un solo elemento, sin overhead", () => {
     const a = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false });
     expect(groupTimelineRows([a])).toEqual([{ key: "2024-01-01", date: "2024-01-01", rows: [a] }]);
+  });
+
+  it("un episodio con episodeId compartido entre eventos de fechas distintas usa la fecha MÍNIMA como cluster.date, no la del primero encontrado", () => {
+    // Lista descendente (como la produce TimelineTab): el primer evento con esta clave que se encuentra es el del alta (26/01), no el del ingreso (19/01).
+    const discharge = { ...mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2026-01-19", { severity: "Grave", hospitalization: true }), episodeId: "ep-1" };
+    const support = { ...mkEvent<RespiratorySupportEvent>("p1", CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT, "2026-01-20", { drug: "VMNI" }), episodeId: "ep-1" };
+    // Se procesan en orden descendente: 20/01 antes que 19/01.
+    const clusters = groupTimelineRows([support, discharge]);
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0].date).toBe("2026-01-19");
+    expect(clusters[0].rows).toHaveLength(2);
   });
 });
 

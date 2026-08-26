@@ -258,6 +258,53 @@ describe("TimelineTab", () => {
     expect(screen.queryByText("Empeoramiento")).not.toBeInTheDocument();
     expect(screen.queryByText("Mejoría")).not.toBeInTheDocument();
   });
+
+  it("una exacerbación sin hospitalización nunca muestra 'Ver episodio'", () => {
+    const patient = basePatient({
+      events: [mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Leve", hospitalization: false })],
+    });
+    render(<TimelineTab patient={patient} />);
+    expect(screen.queryByRole("button", { name: "Ver episodio" })).not.toBeInTheDocument();
+  });
+
+  it("una exacerbación hospitalizada SIN datos de episodio (sin episodeId ni fecha de alta) igualmente se representa como episodio, sin inventar lo que falta", async () => {
+    const patient = basePatient({
+      events: [mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-01-01", { severity: "Grave", hospitalization: true })],
+    });
+    render(<TimelineTab patient={patient} />);
+    // Sin dischargeDate: el titular omite la duración.
+    expect(screen.getByText("Exacerbación grave")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ver episodio" }));
+    expect(screen.getByText(/Sin fecha de alta registrada/)).toBeInTheDocument();
+    expect(screen.getByText("Ningún cambio posterior cumple los criterios ya establecidos en la app para señalarlo aquí.")).toBeInTheDocument();
+    // Sin datos vinculados: ninguna de estas secciones opcionales aparece.
+    expect(screen.queryByText("Motivo de ingreso")).not.toBeInTheDocument();
+    expect(screen.queryByText("Soporte respiratorio")).not.toBeInTheDocument();
+    expect(screen.queryByText("Diagnósticos del episodio")).not.toBeInTheDocument();
+  });
+
+  it("episodio de ingreso con datos completos (p2, 19/01/2026): titular con duración, línea de aviso, y detalle completo tras 'Ver episodio'", async () => {
+    render(<TimelineTab patient={p2} />);
+    const headline = screen.getByText("Exacerbación grave · ingreso 7 días");
+    expect(screen.getByText("Precisó VMNI · alta a domicilio")).toBeInTheDocument();
+
+    const card = headline.closest("div")!.parentElement!;
+    await userEvent.click(within(card).getByRole("button", { name: "Ver episodio" }));
+
+    expect(screen.getByText("Diagnósticos del episodio")).toBeInTheDocument();
+    expect(screen.getByText("Agudización grave de EPOC con insuficiencia respiratoria hipercápnica")).toBeInTheDocument();
+    expect(screen.getByText("Soporte respiratorio")).toBeInTheDocument();
+    expect(screen.getByText("Pruebas complementarias")).toBeInTheDocument();
+    expect(screen.getByText("Analítica y gasometría de ingreso")).toBeInTheDocument();
+    expect(screen.getByText("Rx tórax (ingreso)")).toBeInTheDocument();
+    expect(screen.getByText("Tratamiento durante el ingreso")).toBeInTheDocument();
+    expect(screen.getByText("Tratamiento al alta")).toBeInTheDocument();
+    expect(screen.getByText(/prednisona oral/i)).toBeInTheDocument();
+    expect(screen.getByText("Situación al alta")).toBeInTheDocument();
+    expect(screen.getByText("Recomendaciones / plan de seguimiento")).toBeInTheDocument();
+    // Único cambio defendible tras este episodio con criterios ya existentes (ver domain/episode.ts#changesAfterEpisode).
+    expect(screen.getByText("Nuevo aislamiento microbiológico: Haemophilus influenzae")).toBeInTheDocument();
+  });
 });
 
 describe("MicrobiologyTab", () => {

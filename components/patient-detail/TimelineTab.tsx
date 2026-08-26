@@ -9,10 +9,12 @@ import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import { selectConsultations, selectMicrobiology, selectPFT } from "@/domain/selectors";
 import { comparePft } from "@/domain/pft";
 import { microbiologyObjectiveChange } from "@/domain/microbiologyTrend";
-import { displayForEvent, episodeSummary, groupTimelineRows, isNotableEvent, trendForRow } from "@/domain/timeline";
+import { displayForEvent, episodeSummary, exacerbationOwnTrend, groupTimelineRows, isNotableEvent, trendForRow } from "@/domain/timeline";
+import { changesAfterEpisode, episodeHeadline, episodeHighlightLine, groupLinkedEventsBySection, isHospitalizationEpisode, selectLinkedEpisodeEvents } from "@/domain/episode";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { DataConfidenceBadge, TrendBadge } from "@/components/ui";
-import type { ClinicalEvent, MicrobiologyEvent, PulmonaryFunctionEvent } from "@/types/clinicalEvent";
+import { EpisodeDetailModal } from "./EpisodeDetailModal";
+import type { ClinicalEvent, ExacerbationEvent, MicrobiologyEvent, PulmonaryFunctionEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 import type { TimelineCluster } from "@/domain/timeline";
 import type { ClinicalTrend } from "@/types/clinicalTrend";
@@ -36,6 +38,11 @@ function isPft(e: ClinicalEvent): e is PulmonaryFunctionEvent {
 
 function isMicrobiology(e: ClinicalEvent): e is MicrobiologyEvent {
   return e.type === CLINICAL_EVENT_TYPES.MICROBIOLOGY;
+}
+
+/** Igual que isHospitalizationEpisode (domain/episode.ts), pero tipada sobre TimelineRow para que .find() narrowe sin perder `display`. */
+function isHospitalizationEpisodeRow(e: TimelineRow): e is TimelineRow & ExacerbationEvent {
+  return isHospitalizationEpisode(e);
 }
 
 const TRUNCATE_AT = 220;
@@ -170,6 +177,68 @@ function EventLine({
   );
 }
 
+/**
+ * Tarjeta colapsada de un episodio de ingreso — "19/01/2026 —
+ * Exacerbación grave · ingreso 7 días / Precisó VMNI · alta a
+ * domicilio / Ver episodio", en vez del titular genérico de exacerbación.
+ * Sustituye por completo el cuerpo normal de ClusterCard (no se listan
+ * los eventos vinculados aquí debajo: el detalle completo vive en
+ * EpisodeDetailModal, para no duplicar la misma información dos veces
+ * en la misma vista). Se aplica a CUALQUIER exacerbación con
+ * hospitalization=true, tenga o no episodeId — sin datos vinculados el
+ * modal simplemente muestra menos secciones, nunca inventa las que faltan.
+ */
+function EpisodeClusterCard({
+  container,
+  date,
+  allEvents,
+  restrictiveDeclineDates,
+}: {
+  container: ExacerbationEvent;
+  date: string;
+  allEvents: ClinicalEvent[];
+  restrictiveDeclineDates: ReadonlySet<string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const linked = useMemo(() => selectLinkedEpisodeEvents(container, allEvents), [container, allEvents]);
+  const sections = useMemo(() => groupLinkedEventsBySection(container, linked), [container, linked]);
+  const changes = useMemo(() => changesAfterEpisode(container, allEvents, restrictiveDeclineDates), [container, allEvents, restrictiveDeclineDates]);
+  const highlight = episodeHighlightLine(container, linked);
+
+  return (
+    <div style={{ position: "relative", marginBottom: 12 }}>
+      <div
+        style={{
+          position: "absolute",
+          left: -23,
+          top: 3,
+          width: 12,
+          height: 12,
+          borderRadius: 99,
+          background: COLORS.red,
+          border: "2px solid white",
+          boxShadow: `0 0 0 2px ${COLORS.red}33`,
+        }}
+      />
+      <div style={{ background: COLORS.white, border: `1px solid ${COLORS.line}`, borderLeft: `4px solid ${COLORS.red}`, borderRadius: 10, padding: "10px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: COLORS.slateLight }}>{formatDate(date)}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.ink }}>{episodeHeadline(container)}</span>
+          <TrendBadge trend={exacerbationOwnTrend(container)} />
+        </div>
+        {highlight && <div style={{ fontSize: 13, color: COLORS.slate, marginTop: 4 }}>{highlight}</div>}
+        <button
+          onClick={() => setOpen(true)}
+          style={{ marginTop: 8, background: "none", border: "none", padding: 0, color: COLORS.tealDeep, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+        >
+          Ver episodio
+        </button>
+      </div>
+      {open && <EpisodeDetailModal container={container} sections={sections} changes={changes} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
 function ClusterCard({
   cluster,
   notable,
@@ -179,6 +248,8 @@ function ClusterCard({
   extraDetailLinesFor,
   trendFor,
   objectiveNoteFor,
+  allEvents,
+  restrictiveDeclineDates,
 }: {
   cluster: TimelineCluster<TimelineRow>;
   notable: boolean;
@@ -188,7 +259,14 @@ function ClusterCard({
   extraDetailLinesFor: (row: TimelineRow) => string[];
   trendFor: (row: TimelineRow) => ClinicalTrend;
   objectiveNoteFor: (row: TimelineRow) => string | null;
+  allEvents: ClinicalEvent[];
+  restrictiveDeclineDates: ReadonlySet<string>;
 }) {
+  const episodeContainer = cluster.rows.find(isHospitalizationEpisodeRow);
+  if (episodeContainer) {
+    return <EpisodeClusterCard container={episodeContainer} date={cluster.date} allEvents={allEvents} restrictiveDeclineDates={restrictiveDeclineDates} />;
+  }
+
   const accent = notable ? COLORS.red : cluster.rows.length === 1 ? GROUP_COLOR[cluster.rows[0].display.group] : COLORS.line;
   const dotColor = notable ? COLORS.red : cluster.rows.length === 1 ? GROUP_COLOR[cluster.rows[0].display.group] : COLORS.slateLight;
   const clusterTrend = cluster.rows.length > 1 ? (cluster.rows.map(trendFor).find((t) => t) ?? null) : null;
@@ -276,6 +354,8 @@ function ClusterList({
   extraDetailLinesFor,
   trendFor,
   objectiveNoteFor,
+  allEvents,
+  restrictiveDeclineDates,
 }: {
   clusters: TimelineCluster<TimelineRow>[];
   turningPointByDate: Map<string, TurningPoint>;
@@ -285,6 +365,8 @@ function ClusterList({
   extraDetailLinesFor: (row: TimelineRow) => string[];
   trendFor: (row: TimelineRow) => ClinicalTrend;
   objectiveNoteFor: (row: TimelineRow) => string | null;
+  allEvents: ClinicalEvent[];
+  restrictiveDeclineDates: ReadonlySet<string>;
 }) {
   return (
     <div style={{ position: "relative", paddingLeft: 22 }}>
@@ -303,6 +385,8 @@ function ClusterList({
             extraDetailLinesFor={extraDetailLinesFor}
             trendFor={trendFor}
             objectiveNoteFor={objectiveNoteFor}
+            allEvents={allEvents}
+            restrictiveDeclineDates={restrictiveDeclineDates}
           />
         );
       })}
@@ -325,6 +409,13 @@ export function TimelineTab({ patient }: { patient: Patient }) {
     return map;
   }, [patient]);
   const turningPointDates = useMemo(() => new Set(turningPointByDate.keys()), [turningPointByDate]);
+
+  // Fechas con criterio restrictive-decline ya detectado por Turning Points — para "Qué cambió tras este episodio" (domain/episode.ts#changesAfterEpisode), sin volver a calcular el criterio.
+  const restrictiveDeclineDates = useMemo(() => {
+    const s = new Set<string>();
+    for (const tp of computeTurningPoints(patient)) if (tp.criterion === "restrictive-decline") s.add(tp.date);
+    return s;
+  }, [patient]);
 
   // Prueba de función pulmonar inmediatamente anterior a cada una — para la comparación FEV1/FVC/FEV1-FVC (ver domain/pft.ts).
   const previousPftById = useMemo(() => {
@@ -400,6 +491,8 @@ export function TimelineTab({ patient }: { patient: Patient }) {
               extraDetailLinesFor={extraDetailLinesFor}
               trendFor={trendFor}
               objectiveNoteFor={objectiveNoteFor}
+              allEvents={patient.events}
+              restrictiveDeclineDates={restrictiveDeclineDates}
             />
           ))
         : yearGroups.map((yg, i) => (
@@ -413,6 +506,8 @@ export function TimelineTab({ patient }: { patient: Patient }) {
                 extraDetailLinesFor={extraDetailLinesFor}
                 trendFor={trendFor}
                 objectiveNoteFor={objectiveNoteFor}
+                allEvents={patient.events}
+                restrictiveDeclineDates={restrictiveDeclineDates}
               />
             </YearSection>
           ))}

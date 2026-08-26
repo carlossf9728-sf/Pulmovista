@@ -46,12 +46,14 @@ export interface ClinicalEventBase {
   confidenceReason: string | null;
   /**
    * Identificador de episodio/visita, para agrupar en la Cronología
-   * varios ClinicalEvent que pertenecen al mismo encuentro clínico.
-   * Ningún motor lo asigna todavía — es una preparación estructural
-   * (ver domain/timeline.ts#episodeKeyForEvent, que hoy cae a `date`
-   * cuando falta) para cuando exista una forma real de determinar el
-   * episodio, en vez de asumir que "mismo día" siempre significa "misma
-   * visita".
+   * varios ClinicalEvent que pertenecen al mismo encuentro clínico —
+   * ver domain/timeline.ts#episodeKeyForEvent, que cae a `date` cuando
+   * falta, en vez de asumir que "mismo día" siempre significa "misma
+   * visita". Ningún motor de extracción lo asigna todavía; el único uso
+   * real hoy es manual, en datos demo, para vincular los subeventos de
+   * un episodio de ingreso a su ExacerbationEvent contenedor (ver
+   * domain/episode.ts) — un evento vinculado sigue siendo independiente
+   * en su propio dominio (Microbiología, Radiología...), nunca una copia.
    */
   episodeId?: string | null;
 }
@@ -90,6 +92,30 @@ export interface ExacerbationEvent extends ClinicalEventBase {
   severity: string;
   hospitalization: boolean;
   treatment?: string;
+  /**
+   * Campos de episodio de ingreso — solo tienen sentido cuando
+   * `hospitalization` es true. Esta misma ExacerbationEvent actúa como
+   * el episodio clínico contenedor (ver domain/episode.ts); se decidió
+   * no usar el tipo `HospitalizationEvent` independiente para este rol
+   * mientras no exista una estrategia de reconciliación con el conteo
+   * potencialmente duplicado ya documentado en domain/selectors.ts.
+   * Los subeventos del episodio (soporte respiratorio, pruebas,
+   * tratamientos, diagnósticos) NO se guardan aquí — siguen siendo
+   * ClinicalEvent independientes en su propio dominio, asociados solo
+   * mediante el `episodeId` compartido (ClinicalEventBase), nunca
+   * duplicados.
+   */
+  dischargeDate?: string | null;
+  /** Destino al alta (domicilio, traslado, media estancia…), en texto libre y solo si consta explícitamente. */
+  dischargeDisposition?: string | null;
+  /** Motivo de ingreso, en texto libre. */
+  admissionReason?: string | null;
+  /** Evolución clínica durante el ingreso, en texto libre — no se categoriza (favorable/tórpida...) para no inventar un juicio clínico que el dato no autoriza. */
+  clinicalCourse?: string | null;
+  /** Situación clínica en el momento del alta, en texto libre. */
+  dischargeStatus?: string | null;
+  /** Recomendaciones / plan de seguimiento acordado al alta, en texto libre. */
+  followUpPlan?: string | null;
 }
 
 export interface HospitalizationEvent extends ClinicalEventBase {
@@ -131,12 +157,15 @@ export interface LabResultsEvent extends ClinicalEventBase {
 }
 
 /**
- * Declarado en el prototipo original pero nunca instanciado (ni por el
- * motor de extracción ni por los datos demo). Se conserva por paridad;
- * queda como tipo "vacío" hasta que se defina un uso real.
+ * Diagnóstico asociado a un momento/episodio concreto del historial —
+ * distinto de `Patient.primaryDiagnosis`/`secondaryDiagnoses`, que son
+ * el diagnóstico de base del paciente, no de un episodio. Mismo shape
+ * mínimo que ImagingEvent/LabResultsEvent: un rótulo corto, sin inventar
+ * una codificación (CIE-10 o similar) que el dato no trae.
  */
 export interface DiagnosisEvent extends ClinicalEventBase {
   type: "diagnosis";
+  label: string;
 }
 
 export type ClinicalEvent =

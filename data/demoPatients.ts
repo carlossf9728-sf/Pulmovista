@@ -6,8 +6,10 @@
 import { mkEvent, CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import type {
   ConsultationEvent,
+  DiagnosisEvent,
   ExacerbationEvent,
   ImagingEvent,
+  LabResultsEvent,
   MicrobiologyEvent,
   PulmonaryFunctionEvent,
   RespiratorySupportEvent,
@@ -288,28 +290,71 @@ export function buildDemoPatients(): Patient[] {
       hospitalization: true,
       treatment: "Ingreso",
     }),
-    mkEvent<ExacerbationEvent>(p2, CLINICAL_EVENT_TYPES.EXACERBATION, "2026-01-19", {
-      severity: "Grave",
-      hospitalization: true,
-      treatment: "Ingreso, VMNI",
-    }),
+    mkEvent<ExacerbationEvent>(
+      p2,
+      CLINICAL_EVENT_TYPES.EXACERBATION,
+      "2026-01-19",
+      {
+        severity: "Grave",
+        hospitalization: true,
+        treatment: "Ingreso, VMNI",
+        dischargeDate: "2026-01-26",
+        dischargeDisposition: "domicilio",
+        admissionReason: "Agudización grave de EPOC con disnea progresiva y desaturación en domicilio, derivada a urgencias.",
+        clinicalCourse: "Buena respuesta a VMNI intermitente y antibioterapia intravenosa, con mejoría gasométrica progresiva. No precisó ingreso en UCI ni intubación.",
+        dischargeStatus: "Disnea basal similar a la previa al ingreso (mMRC 3), sin nuevos requerimientos de oxígeno suplementario. Saturación basal 92% al alta.",
+        followUpPlan: "Revisión en consulta de neumología en 4-6 semanas. Refuerzo de técnica inhalatoria y plan de acción escrito para agudizaciones entregado al alta.",
+      },
+      { episodeId: "ep-p2-2026-01" },
+    ),
     mkEvent<ExacerbationEvent>(p2, CLINICAL_EVENT_TYPES.EXACERBATION, "2026-05-30", {
       severity: "Moderada",
       hospitalization: false,
       treatment: "Antibiótico + corticoide oral",
     }),
+    // Diagnóstico del episodio de ingreso del 19/01/2026 (ver ExacerbationEvent contenedor arriba) — vinculado por episodeId, no un diagnóstico de base del paciente.
+    mkEvent<DiagnosisEvent>(
+      p2,
+      CLINICAL_EVENT_TYPES.DIAGNOSIS,
+      "2026-01-19",
+      { label: "Agudización grave de EPOC con insuficiencia respiratoria hipercápnica" },
+      { episodeId: "ep-p2-2026-01" },
+    ),
     mkEvent<TreatmentStartedEvent>(p2, CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2023-01-15", {
       drug: "triple terapia inhalada (LABA/LAMA/ICS)",
     }),
     mkEvent<TreatmentStartedEvent>(p2, CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-09-01", {
       drug: "rehabilitación respiratoria",
     }),
+    // Antibiótico IV durante el ingreso del 19/01/2026 (vinculado por episodeId, ver EpisodeSections#treatmentsDuring en domain/episode.ts).
+    mkEvent<TreatmentStartedEvent>(p2, CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-01-19", { drug: "piperacilina-tazobactam IV" }, { episodeId: "ep-p2-2026-01" }),
+    // Tratamiento pautado al alta del mismo episodio (misma fecha que dischargeDate → EpisodeSections#treatmentsAtDischarge).
+    mkEvent<TreatmentStartedEvent>(
+      p2,
+      CLINICAL_EVENT_TYPES.TREATMENT_STARTED,
+      "2026-01-26",
+      { drug: "prednisona oral (pauta descendente 5 días)" },
+      { episodeId: "ep-p2-2026-01" },
+    ),
     mkEvent<TreatmentStoppedEvent>(p2, CLINICAL_EVENT_TYPES.TREATMENT_STOPPED, "2025-02-01", {
       drug: "rehabilitación respiratoria",
     }),
+    mkEvent<TreatmentStoppedEvent>(p2, CLINICAL_EVENT_TYPES.TREATMENT_STOPPED, "2026-01-25", { drug: "piperacilina-tazobactam IV" }, { episodeId: "ep-p2-2026-01" }),
     mkEvent<RespiratorySupportEvent>(p2, CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT, "2025-09-05", {
       drug: "oxígeno domiciliario",
     }),
+    // Soporte respiratorio agudo durante el ingreso del 19/01/2026 — distinto del oxígeno domiciliario crónico de arriba.
+    mkEvent<RespiratorySupportEvent>(p2, CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT, "2026-01-19", { drug: "VMNI" }, { episodeId: "ep-p2-2026-01" }),
+    mkEvent<LabResultsEvent>(
+      p2,
+      CLINICAL_EVENT_TYPES.LAB_RESULTS,
+      "2026-01-19",
+      {
+        label: "Analítica y gasometría de ingreso",
+        text: "Gasometría arterial (aire ambiente): pH 7.32, pCO2 58 mmHg, pO2 56 mmHg, HCO3 27 mmol/L. Analítica: leucocitos 13.200/µL con neutrofilia, PCR 118 mg/L.",
+      },
+      { episodeId: "ep-p2-2026-01" },
+    ),
     mkEvent<ImagingEvent>(p2, CLINICAL_EVENT_TYPES.IMAGING, "2023-02-01", {
       label: "TC tórax",
       text: "Enfisema centrolobulillar de predominio en campos superiores. Sin condensaciones.",
@@ -318,6 +363,14 @@ export function buildDemoPatients(): Patient[] {
       label: "TC tórax",
       text: "Progresión del patrón enfisematoso. Signos de atrapamiento aéreo más marcados.",
     }),
+    // Rx tórax de ingreso del episodio del 19/01/2026, vinculada por episodeId.
+    mkEvent<ImagingEvent>(
+      p2,
+      CLINICAL_EVENT_TYPES.IMAGING,
+      "2026-01-19",
+      { label: "Rx tórax (ingreso)", text: "Sin condensación radiológica aguda. Patrón de atrapamiento aéreo conocido, sin cambios agudos." },
+      { episodeId: "ep-p2-2026-01" },
+    ),
   ];
 
   const events3 = [

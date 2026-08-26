@@ -16,6 +16,11 @@ export function monthsBetween(a: string, b: string): number {
   return Math.abs(new Date(b).getTime() - new Date(a).getTime()) / (1000 * 60 * 60 * 24 * 30.44);
 }
 
+/** Diferencia exacta en días naturales entre dos fechas ISO (b − a). Negativa si b es anterior a a. */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / (1000 * 60 * 60 * 24));
+}
+
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }

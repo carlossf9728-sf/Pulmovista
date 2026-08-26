@@ -27,6 +27,8 @@ export interface MkEventOptions {
   rawText?: string | null;
   confidence?: ConfidenceLevel;
   confidenceReason?: string | null;
+  /** Vincula el evento a un episodio compartido — ver ClinicalEventBase#episodeId y domain/episode.ts. */
+  episodeId?: string | null;
 }
 
 /**
@@ -52,6 +54,7 @@ export function mkEvent<T extends ClinicalEvent>(
     rawText: opts.rawText || null,
     confidence: opts.confidence || "confirmado",
     confidenceReason: opts.confidenceReason || null,
+    episodeId: opts.episodeId ?? null,
     ...payload,
   } as unknown as T;
 }

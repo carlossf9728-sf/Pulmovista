@@ -57,19 +57,19 @@ export function displayForEvent(e: ClinicalEvent): TimelineEntry {
       };
     case CLINICAL_EVENT_TYPES.TREATMENT_STOPPED:
       return { group: "Tratamiento", title: `Finalizado: ${cap(e.drug)}`, detail: "Tratamiento retirado" };
+    case CLINICAL_EVENT_TYPES.DIAGNOSIS:
+      return { group: "Consulta", title: e.label, detail: e.rawText || "Diagnóstico registrado en el historial." };
     default:
-      return { group: "Consulta", title: "Evento clínico", detail: e.rawText || "" };
+      // Los 11 tipos de ClinicalEvent están cubiertos arriba; esta rama es inalcanzable en tiempo de ejecución, pero se conserva como red de seguridad si se añade un tipo nuevo sin actualizar este switch.
+      return { group: "Consulta", title: "Evento clínico", detail: "" };
   }
 }
 
 /**
- * Clave de agrupación por "episodio" para la Cronología. Hoy siempre
- * cae a la fecha (agrupa lo del mismo día), pero ya respeta
- * `episodeId` si algún evento lo trae informado — ningún motor lo
- * asigna todavía (ver nota de fidelidad en ClinicalEventBase), así que
- * en la práctica esto sigue agrupando por día. El punto es no tener que
- * volver a tocar la lógica de agrupación el día que exista una fuente
- * real de episodios: bastará con que esa fuente rellene `episodeId`.
+ * Clave de agrupación por "episodio" para la Cronología. Cae a la fecha
+ * (agrupa lo del mismo día) salvo que el evento traiga `episodeId`
+ * informado — hoy es el caso de un episodio de ingreso (ver
+ * domain/episode.ts), que puede abarcar varios días reales.
  */
 export function episodeKeyForEvent(e: ClinicalEvent): string {
   return e.episodeId ?? e.date;
@@ -77,7 +77,7 @@ export function episodeKeyForEvent(e: ClinicalEvent): string {
 
 export interface TimelineCluster<T> {
   key: string;
-  /** Fecha representativa del cluster (la del primer evento agrupado). */
+  /** Fecha representativa del cluster: la más antigua entre sus eventos (no necesariamente la del primero agrupado). */
   date: string;
   rows: T[];
 }
@@ -87,8 +87,15 @@ export interface TimelineCluster<T> {
  * sea) por `episodeKeyForEvent`. Preserva el orden de aparición: si la
  * lista de entrada ya viene ordenada por fecha, los clusters resultantes
  * también lo están (los eventos de una misma clave quedan siempre
- * contiguos tras un `sort` estable). No decide nada clínico: es
- * agrupación pura por clave.
+ * contiguos tras un `sort` estable) — salvo su posición en el array de
+ * salida, que queda fijada por el primer evento con esa clave que se
+ * encuentre, no por `date` (que sí se mantiene siempre como la fecha
+ * mínima). Para episodios de un único día esto es irrelevante (mismo
+ * dato); para un episodio de ingreso multi-día en principio también,
+ * salvo que otro evento no vinculado caiga justo entre la fecha mínima
+ * del episodio y la del primer evento vinculado encontrado — caso
+ * patológico no resuelto aquí. No decide nada clínico: es agrupación
+ * pura por clave.
  */
 export function groupTimelineRows<T extends ClinicalEvent>(rows: T[]): TimelineCluster<T>[] {
   const clusters: TimelineCluster<T>[] = [];
@@ -100,7 +107,9 @@ export function groupTimelineRows<T extends ClinicalEvent>(rows: T[]): TimelineC
       indexByKey.set(key, clusters.length);
       clusters.push({ key, date: row.date, rows: [row] });
     } else {
-      clusters[existingIdx].rows.push(row);
+      const cluster = clusters[existingIdx];
+      cluster.rows.push(row);
+      if (row.date < cluster.date) cluster.date = row.date;
     }
   }
   return clusters;
@@ -232,6 +241,8 @@ function episodeFragment(e: ClinicalEvent): string {
       return `inicio de ${e.drug}`;
     case CLINICAL_EVENT_TYPES.TREATMENT_STOPPED:
       return `fin de ${e.drug}`;
+    case CLINICAL_EVENT_TYPES.DIAGNOSIS:
+      return e.label;
     default:
       return "evento clínico";
   }
