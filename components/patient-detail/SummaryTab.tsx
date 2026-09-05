@@ -5,43 +5,139 @@ import type { ReactNode } from "react";
 import { COLORS } from "@/utils/theme";
 import { formatDate, todayISO } from "@/utils/date";
 import { selectHospitalizationCount, selectMicrobiology, selectPFT, selectTreatments, exacerbationsByYear } from "@/domain/selectors";
+import { changeTrend } from "@/domain/changeTrend";
 import { computeChangesSinceLastVisit } from "@/engines/longitudinal";
-import { Card, Eyebrow, Val } from "@/components/ui";
+import { computeTurningPoints } from "@/engines/turningPoints";
+import { computeSentinelFindings } from "@/engines/sentinel";
+import { computeMissingInfo } from "@/engines/missingInfo";
+import { matchPatientToGuidelines } from "@/engines/guidelines/match";
+import { findRecommendationById } from "@/engines/guidelines/knowledge";
+import { buildGuidelineMatchExplanation } from "@/engines/guidelines/explain";
+import { Card, Eyebrow, TrendBadge, Val, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 import type { ChangeKind } from "@/types/longitudinal";
+import type { ClinicalExplanation } from "@/types/evidence";
+import type { TurningPoint } from "@/types/turningPoints";
 
-const KIND_STYLE: Record<ChangeKind, { c: string; icon: ReactNode }> = {
-  nuevo: { c: COLORS.teal, icon: <Plus size={13} /> },
-  aumentado: { c: COLORS.red, icon: <ArrowUpRight size={13} /> },
-  disminuido: { c: COLORS.green, icon: <ArrowDownRight size={13} /> },
-  desaparecido: { c: COLORS.slate, icon: <Minus size={13} /> },
+/**
+ * Resumen clínico — síntesis priorizada, no un listado exhaustivo. El
+ * detalle completo de cada bloque sigue viviendo en su pestaña propia
+ * ("Alertas", "Revisión según guías", Cronología): aquí solo se muestran
+ * las 2-3 prioridades de cada uno, con "¿Por qué?" para el razonamiento
+ * completo. No se evalúa nada nuevo: todo se deriva de motores ya
+ * existentes (Sentinel, Turning Points, GuidelineMatch, MissingInfo,
+ * LongitudinalEngine).
+ */
+
+const CHANGE_KIND_LABEL: Record<ChangeKind, { label: string; icon: ReactNode }> = {
+  nuevo: { label: "Nuevo", icon: <Plus size={12} /> },
+  aumentado: { label: "Aumentado", icon: <ArrowUpRight size={12} /> },
+  disminuido: { label: "Disminuido", icon: <ArrowDownRight size={12} /> },
+  desaparecido: { label: "Retirado", icon: <Minus size={12} /> },
 };
 
-export function SummaryTab({ patient }: { patient: Patient }) {
+interface TodayPriority {
+  key: string;
+  text: string;
+  statusLabel: string;
+  explanation: ClinicalExplanation;
+}
+
+/**
+ * Hasta 3 prioridades clínicas de hoy, combinando dos motores ya
+ * existentes — nunca una regla nueva, solo selección/orden para no
+ * repetir el listado completo:
+ *  1. Hallazgos de Sentinel con una interpretación de guía que "Cumple"
+ *     (dato objetivo de deterioro + guía que ya confirma una recomendación).
+ *  2. Recomendaciones de matchPatientToGuidelines con estado "applies"
+ *     no cubiertas ya por el punto 1, hasta completar 3.
+ */
+function computeTodayPriorities(patient: Patient): TodayPriority[] {
+  const priorities: TodayPriority[] = [];
+  const seen = new Set<string>();
+
+  for (const finding of computeSentinelFindings(patient)) {
+    for (const gi of finding.guidelineInterpretations) {
+      if (gi.statusLabel === "Cumple" && !seen.has(gi.recommendationId)) {
+        seen.add(gi.recommendationId);
+        priorities.push({ key: gi.recommendationId, text: gi.recommendationText, statusLabel: gi.statusLabel, explanation: gi.explanation });
+      }
+    }
+  }
+
+  if (priorities.length < 3) {
+    for (const match of matchPatientToGuidelines(patient, todayISO())) {
+      if (priorities.length >= 3) break;
+      if (match.status !== "applies" || seen.has(match.recommendationId)) continue;
+      const recommendation = findRecommendationById(match.recommendationId);
+      if (!recommendation) continue;
+      seen.add(match.recommendationId);
+      priorities.push({ key: match.recommendationId, text: recommendation.recommendationText, statusLabel: "Aplica", explanation: buildGuidelineMatchExplanation(patient, match) });
+    }
+  }
+
+  return priorities.slice(0, 3);
+}
+
+function sortTurningPointsByDateDesc(points: TurningPoint[]): TurningPoint[] {
+  return [...points].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function SectionCard({ title, color, children }: { title: string; color?: string; children: ReactNode }) {
+  return (
+    <Card accent={color}>
+      <Eyebrow color={color}>{title}</Eyebrow>
+      <div style={{ marginTop: 12 }}>{children}</div>
+    </Card>
+  );
+}
+
+function EmptyNote({ text }: { text: string }) {
+  return <div style={{ fontSize: 13, color: COLORS.slateLight }}>{text}</div>;
+}
+
+export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (explanation: ClinicalExplanation) => void }) {
   const pft = selectPFT(patient.events).slice(-1)[0];
   const years = exacerbationsByYear(patient);
   const lastYearCount = years.length ? years[years.length - 1].count : null;
   const hospTotal = selectHospitalizationCount(patient.events, null) || selectHospitalizationCount(patient.events, todayISO());
   const lastMicro = selectMicrobiology(patient.events).slice(-1)[0];
   const activeTreatments = selectTreatments(patient.events).filter((t) => t.status === "Activo");
+  const activeProblems = [patient.primaryDiagnosis, ...patient.secondaryDiagnoses.split(/[,;]/).map((s) => s.trim())].filter(Boolean);
+
   const changes = computeChangesSinceLastVisit(patient);
+  const turningPoints = computeTurningPoints(patient);
+  const recentTurningPoints = sortTurningPointsByDateDesc(turningPoints).slice(0, 2);
+  const missing = computeMissingInfo(patient);
+  const topMissing = missing.items.slice(0, 3);
+  const priorities = computeTodayPriorities(patient);
 
   const fields: [string, string | null][] = [
-    ["Diagnóstico principal", patient.primaryDiagnosis],
     ["FEV1 más reciente", pft ? `${pft.FEV1Percent ?? "—"}%${pft.FEV1Liters ? ` (${pft.FEV1Liters} L)` : ""}` : null],
     ["FVC", pft && pft.FVCPercent != null ? `${pft.FVCPercent}%${pft.FVCLiters ? ` (${pft.FVCLiters} L)` : ""}` : null],
     ["DLCO", pft && pft.DLCOPercent != null ? `${pft.DLCOPercent}%` : null],
     ["Exacerbaciones último año", lastYearCount != null ? `${lastYearCount}/año` : null],
     ["Hospitalizaciones (acumuladas)", hospTotal != null ? `${hospTotal}` : null],
     ["Microbiología relevante", lastMicro ? `${lastMicro.organism} (${formatDate(lastMicro.date)})` : null],
-    ["Tratamiento actual", activeTreatments.length ? activeTreatments.map((t) => t.name).join(", ") : null],
+    ["Tratamiento y soporte actual", activeTreatments.length ? activeTreatments.map((t) => t.name).join(", ") : null],
   ];
 
   return (
-    <div className="pv-fade-in" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <Card>
-        <Eyebrow>Situación actual</Eyebrow>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16, marginTop: 12 }}>
+    <div className="pv-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionCard title="Estado actual">
+        {!!activeProblems.length && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {activeProblems.map((p, i) => (
+              <span
+                key={i}
+                style={{ fontSize: 12, fontWeight: 700, color: COLORS.navy, background: COLORS.paper, border: `1px solid ${COLORS.line}`, borderRadius: 20, padding: "3px 10px" }}
+              >
+                {p}
+              </span>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
           {fields.map(([label, value]) => (
             <div key={label}>
               <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginBottom: 3 }}>{label}</div>
@@ -51,49 +147,104 @@ export function SummaryTab({ patient }: { patient: Patient }) {
             </div>
           ))}
         </div>
-      </Card>
-      <Card accent={COLORS.teal}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Eyebrow>Qué ha cambiado desde la última consulta</Eyebrow>
-          {changes && (
-            <span style={{ fontSize: 11.5, color: COLORS.slateLight }}>
+      </SectionCard>
+
+      <SectionCard title="Qué ha cambiado desde la última consulta" color={COLORS.teal}>
+        {!changes && <EmptyNote text="Aún no hay suficientes consultas para comparar." />}
+        {changes && (
+          <>
+            <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginBottom: 10 }}>
               {formatDate(changes.fromDate)} → {formatDate(changes.toDate)}
-            </span>
-          )}
-        </div>
-        {!changes && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 10 }}>Aún no hay suficientes consultas para comparar.</div>}
-        {changes && !changes.changes.length && (
-          <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 10 }}>Sin cambios relevantes detectados entre ambas consultas.</div>
+            </div>
+            {!changes.changes.length && <EmptyNote text="Sin cambios relevantes detectados entre ambas consultas." />}
+            {!!changes.changes.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {changes.changes.map((c, i) => {
+                  const kindInfo = CHANGE_KIND_LABEL[c.kind];
+                  const trend = changeTrend(c, { fromDate: changes.fromDate, toDate: changes.toDate, turningPoints });
+                  return (
+                    <div
+                      key={i}
+                      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13.5, padding: "8px 0", borderBottom: i < changes.changes.length - 1 ? `1px solid ${COLORS.line}` : "none" }}
+                    >
+                      <span style={{ fontWeight: 700, minWidth: 190 }}>{c.label}</span>
+                      <span className="pv-mono" style={{ color: COLORS.slate }}>
+                        {c.from}
+                      </span>
+                      <ArrowRight size={12} color={COLORS.slateLight} />
+                      <span className="pv-mono" style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 3, color: COLORS.ink }}>
+                        {kindInfo.icon} {c.to}
+                      </span>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slate, background: COLORS.paper, padding: "2px 8px", borderRadius: 20 }}>{kindInfo.label}</span>
+                      <span style={{ marginLeft: trend ? 0 : "auto" }}>
+                        <TrendBadge trend={trend} />
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
-        {changes && !!changes.changes.length && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-            {changes.changes.map((c, i) => {
-              const ks = KIND_STYLE[c.kind];
-              return (
-                <div
-                  key={i}
-                  style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, padding: "8px 0", borderBottom: i < changes.changes.length - 1 ? `1px solid ${COLORS.line}` : "none" }}
-                >
-                  <span style={{ fontWeight: 700, minWidth: 190 }}>{c.label}</span>
-                  <span className="pv-mono" style={{ color: COLORS.slate }}>
-                    {c.from}
+      </SectionCard>
+
+      <SectionCard title="Qué revisar hoy" color={COLORS.orange}>
+        {!priorities.length && <EmptyNote text="Sin prioridades clínicas identificadas con los datos y guías actuales." />}
+        {!!priorities.length && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {priorities.map((p) => (
+              <div key={p.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, fontSize: 13.5 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.green, background: COLORS.greenTint, padding: "2px 8px", borderRadius: 20, width: "fit-content" }}>
+                    {p.statusLabel}
                   </span>
-                  <ArrowRight size={12} color={COLORS.slateLight} />
-                  <span className="pv-mono" style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 3, color: ks.c }}>
-                    {ks.icon} {c.to}
-                  </span>
-                  <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, color: ks.c, background: `${ks.c}14`, padding: "2px 8px", borderRadius: 20, textTransform: "capitalize" }}>
-                    {c.kind}
-                  </span>
+                  <span style={{ color: COLORS.ink, lineHeight: 1.4 }}>{p.text}</span>
                 </div>
-              );
-            })}
+                <WhyButton onClick={() => onWhy(p.explanation)} />
+              </div>
+            ))}
           </div>
         )}
-        {changes && !!changes.unchanged.length && (
-          <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 12 }}>Sin cambios en: {changes.unchanged.join(", ")}.</div>
+        <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 12 }}>Ver todas las recomendaciones en “Revisión según guías”.</div>
+      </SectionCard>
+
+      <SectionCard title="Qué información falta" color={COLORS.slate}>
+        {!topMissing.length && <EmptyNote text="No se han identificado ausencias relevantes para este diagnóstico." />}
+        {!!topMissing.length && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {topMissing.map((m, i) => (
+              <div key={i} style={{ fontSize: 13, color: COLORS.ink }}>
+                {m}
+              </div>
+            ))}
+          </div>
         )}
-      </Card>
+        {missing.items.length > topMissing.length && (
+          <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 10 }}>
+            +{missing.items.length - topMissing.length} más en “Alertas”.
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Momentos clave" color={COLORS.orange}>
+        {!recentTurningPoints.length && <EmptyNote text="No se han identificado puntos de inflexión relevantes." />}
+        {!!recentTurningPoints.length && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {recentTurningPoints.map((tp) => (
+              <div key={tp.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, fontSize: 13.5 }}>
+                <div>
+                  <span style={{ fontSize: 11.5, color: COLORS.slateLight, marginRight: 8 }}>{formatDate(tp.date)}</span>
+                  <span style={{ color: COLORS.ink }}>{tp.interpretation}</span>
+                </div>
+                <WhyButton onClick={() => onWhy(tp.explanation)} />
+              </div>
+            ))}
+          </div>
+        )}
+        {turningPoints.length > recentTurningPoints.length && (
+          <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 10 }}>Ver la evolución completa en “Alertas”.</div>
+        )}
+      </SectionCard>
     </div>
   );
 }

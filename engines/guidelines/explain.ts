@@ -6,9 +6,10 @@
  * fechas/etiquetas. No modifican ni reinterpretan nada de match.ts.
  */
 import { formatDate } from "@/utils/date";
-import { findCriterionById } from "./knowledge";
+import { EVIDENCE_QUALITY_LABEL, STRENGTH_LABEL } from "@/utils/guidelineLabels";
+import { findCriterionById, findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "./knowledge";
 import type { GuidelineDocument, GuidelineMatch, RecommendationApplicability } from "@/types/guideline";
-import type { ClinicalExplanationCitation, EvidenceItem } from "@/types/evidence";
+import type { ClinicalExplanation, ClinicalExplanationCitation, EvidenceItem } from "@/types/evidence";
 import type { Patient } from "@/types/patient";
 
 /** Descripción legible de un criterio; si no se encuentra, el propio id (no debería ocurrir — GuidelineMatch solo referencia criterionId reales). */
@@ -161,5 +162,41 @@ export function buildCitation(match: GuidelineMatch, document: GuidelineDocument
     section: match.guidelineCitation.section,
     page: match.guidelineCitation.page,
     sourceText: match.guidelineCitation.sourceText,
+  };
+}
+
+/**
+ * ClinicalExplanation completa ("¿Por qué?") para una GuidelineMatch —
+ * usada por "Revisión según guías" y por el bloque "Qué revisar hoy" del
+ * Resumen, para que ambas vistas expliquen la misma recomendación con
+ * exactamente el mismo razonamiento, nunca dos versiones distintas.
+ */
+export function buildGuidelineMatchExplanation(patient: Patient, match: GuidelineMatch): ClinicalExplanation {
+  const recommendation = findRecommendationById(match.recommendationId);
+  const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
+  const applicability = recommendation?.applicability ?? "conditional";
+  const narrativeBlockNote = "No especificada por la guía para esta actuación: forma parte de un bloque narrativo evaluado en conjunto.";
+
+  return {
+    kindLabel: "guideline",
+    source: {
+      kind: "guideline",
+      guidelineId: match.guidelineCitation.guidelineId,
+      recommendationId: match.recommendationId,
+      society: document?.source.society ?? match.guidelineCitation.guidelineId,
+      year: document?.source.year ?? 0,
+      section: match.guidelineCitation.section,
+      page: match.guidelineCitation.page,
+    },
+    sections: [
+      { label: "Dato del paciente", emphasis: true, text: patientDatumLines(patient, match, applicability).join(" · ") },
+      { label: "Criterio clínico de la guía", text: criteriaSummaryText(match, applicability) },
+      { label: "Interpretación de PulmoVista", text: interpretationSentence(match, applicability) },
+      { label: "Recomendación", text: recommendation?.recommendationText ?? "Texto no disponible." },
+      { label: "Fuerza de la recomendación", text: recommendation?.strength ? STRENGTH_LABEL[recommendation.strength] : narrativeBlockNote },
+      { label: "Calidad de la evidencia", text: recommendation?.evidenceQuality ? EVIDENCE_QUALITY_LABEL[recommendation.evidenceQuality] : narrativeBlockNote },
+    ],
+    evidence: match.patientEvidence,
+    citation: buildCitation(match, document),
   };
 }

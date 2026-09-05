@@ -103,7 +103,7 @@ export function PatientDetailView({ patient }: { patient: Patient }) {
           </button>
         ))}
       </div>
-      {tab === "resumen" && <SummaryTab patient={patient} />}
+      {tab === "resumen" && <SummaryTab patient={patient} onWhy={setWhy} />}
       {tab === "timeline" && <TimelineTab patient={patient} />}
       {tab === "funcion" && <PFTTab patient={patient} />}
       {tab === "micro" && <MicrobiologyTab patient={patient} />}

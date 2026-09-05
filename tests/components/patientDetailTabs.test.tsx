@@ -11,7 +11,7 @@ import { AlertsTab } from "@/components/patient-detail/AlertsTab";
 import { GuidelinesReviewTab } from "@/components/patient-detail/GuidelinesReviewTab";
 import { buildDemoPatients } from "@/data/demoPatients";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
-import type { ExacerbationEvent, ImagingEvent, MicrobiologyEvent, PulmonaryFunctionEvent, TreatmentStartedEvent } from "@/types/clinicalEvent";
+import type { ConsultationEvent, ExacerbationEvent, ImagingEvent, MicrobiologyEvent, PulmonaryFunctionEvent, TreatmentStartedEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 function basePatient(overrides: Partial<Patient> = {}): Patient {
@@ -31,12 +31,72 @@ function basePatient(overrides: Partial<Patient> = {}): Patient {
 const [p1, p2, p3] = buildDemoPatients();
 
 describe("SummaryTab", () => {
-  it("muestra la situación actual y los cambios desde la última consulta", () => {
-    render(<SummaryTab patient={p1} />);
-    expect(screen.getByText("Situación actual")).toBeInTheDocument();
+  it("muestra el estado actual y los cambios desde la última consulta", () => {
+    render(<SummaryTab patient={p1} onWhy={() => {}} />);
+    expect(screen.getByText("Estado actual")).toBeInTheDocument();
     expect(screen.getByText("Qué ha cambiado desde la última consulta")).toBeInTheDocument();
     // p1 tiene 4 consultas: debe haber comparación, no el mensaje de "aún no hay suficientes".
     expect(screen.queryByText("Aún no hay suficientes consultas para comparar.")).not.toBeInTheDocument();
+  });
+
+  it("muestra los problemas activos (diagnóstico principal + secundarios) como chips", () => {
+    render(<SummaryTab patient={p3} onWhy={() => {}} />);
+    expect(screen.getByText("Fibrosis pulmonar idiopática")).toBeInTheDocument();
+    expect(screen.getByText("Reflujo gastroesofágico")).toBeInTheDocument();
+  });
+
+  it("una caída de FVC nunca se muestra en verde ni se etiqueta Empeoramiento sin un Turning Point restrictive-decline real (p2 no tiene ninguno)", () => {
+    render(<SummaryTab patient={p2} onWhy={() => {}} />);
+    const changesCard = screen.getByText("Qué ha cambiado desde la última consulta").parentElement!;
+    const fvcRow = within(changesCard).getByText("FVC").parentElement!;
+    expect(within(fvcRow).getByText("Disminuido")).toBeInTheDocument();
+    expect(within(fvcRow).queryByText("Empeoramiento")).not.toBeInTheDocument();
+    expect(within(fvcRow).queryByText("Mejoría")).not.toBeInTheDocument();
+  });
+
+  it("una nueva exacerbación grave/hospitalización eleva 'Hospitalizaciones (acumuladas)' y se etiqueta Empeoramiento, sin depender de un Turning Point", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ConsultationEvent>("p-timeline", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-01-01"),
+        mkEvent<ConsultationEvent>("p-timeline", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-06-01"),
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-03-01", { severity: "Grave", hospitalization: true }),
+      ],
+    });
+    render(<SummaryTab patient={patient} onWhy={() => {}} />);
+    const changesCard = screen.getByText("Qué ha cambiado desde la última consulta").parentElement!;
+    expect(within(changesCard).getByText("Hospitalizaciones (acumuladas)")).toBeInTheDocument();
+    expect(within(changesCard).getByText("Empeoramiento")).toBeInTheDocument();
+  });
+
+  it("un salto en la tasa de exacerbaciones (Turning Point ya existente dentro de la ventana) etiqueta 'Exacerbaciones (12 meses)' como Empeoramiento", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ConsultationEvent>("p-timeline", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-06-01"),
+        mkEvent<ConsultationEvent>("p-timeline", CLINICAL_EVENT_TYPES.CONSULTATION, "2025-06-01"),
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-02-01", { severity: "Leve", hospitalization: false }),
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2025-02-01", { severity: "Leve", hospitalization: false }),
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2025-03-01", { severity: "Leve", hospitalization: false }),
+        mkEvent<ExacerbationEvent>("p-timeline", CLINICAL_EVENT_TYPES.EXACERBATION, "2025-04-01", { severity: "Leve", hospitalization: false }),
+      ],
+    });
+    render(<SummaryTab patient={patient} onWhy={() => {}} />);
+    const changesCard = screen.getByText("Qué ha cambiado desde la última consulta").parentElement!;
+    expect(within(changesCard).getByText("Exacerbaciones (12 meses)")).toBeInTheDocument();
+    expect(within(changesCard).getByText("Empeoramiento")).toBeInTheDocument();
+  });
+
+  it("'Qué información falta' muestra como mucho 3 ítems y remite a Alertas para el resto", () => {
+    // Paciente Bronquiectasias sin eventos: las 5 reglas legacy fallan todas.
+    render(<SummaryTab patient={basePatient()} onWhy={() => {}} />);
+    expect(screen.getAllByText(/No consta/).length).toBe(3);
+    expect(screen.getByText(/\+2 más en/)).toBeInTheDocument();
+  });
+
+  it("'Qué revisar hoy' y 'Momentos clave' muestran un estado vacío cuando no hay datos ni recomendaciones generales aplicables (diagnóstico sin guía compatible)", () => {
+    // A diferencia de Bronquiectasias/EPOC/Fibrosis pulmonar, un diagnóstico no soportado no dispara ni siquiera una recomendación GENERAL.
+    render(<SummaryTab patient={basePatient({ primaryDiagnosis: "Asma", secondaryDiagnoses: "" })} onWhy={() => {}} />);
+    expect(screen.getByText("Sin prioridades clínicas identificadas con los datos y guías actuales.")).toBeInTheDocument();
+    expect(screen.getByText("No se han identificado puntos de inflexión relevantes.")).toBeInTheDocument();
   });
 });
 

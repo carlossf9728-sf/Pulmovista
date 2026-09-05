@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
-import { EVIDENCE_QUALITY_LABEL, guidelineShortLabel, STRENGTH_LABEL } from "@/utils/guidelineLabels";
-import { buildCitation, criteriaSummaryText, interpretationSentence, patientDatumLines } from "@/engines/guidelines/explain";
+import { guidelineShortLabel } from "@/utils/guidelineLabels";
+import { buildGuidelineMatchExplanation, interpretationSentence } from "@/engines/guidelines/explain";
 import { diffChangedRecommendations, snapshotStatuses } from "@/engines/guidelines/changeTracking";
 import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
@@ -97,36 +97,6 @@ function categoryLabel(cat: DiagnosisCategory): string {
     case "General":
       return "otros problemas no clasificados";
   }
-}
-
-function buildExplanation(patient: Patient, match: GuidelineMatch): ClinicalExplanation {
-  const recommendation = findRecommendationById(match.recommendationId);
-  const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === match.guidelineCitation.guidelineId);
-  const applicability = recommendation?.applicability ?? "conditional";
-  const narrativeBlockNote = "No especificada por la guía para esta actuación: forma parte de un bloque narrativo evaluado en conjunto.";
-
-  return {
-    kindLabel: "guideline",
-    source: {
-      kind: "guideline",
-      guidelineId: match.guidelineCitation.guidelineId,
-      recommendationId: match.recommendationId,
-      society: document?.source.society ?? match.guidelineCitation.guidelineId,
-      year: document?.source.year ?? 0,
-      section: match.guidelineCitation.section,
-      page: match.guidelineCitation.page,
-    },
-    sections: [
-      { label: "Dato del paciente", emphasis: true, text: patientDatumLines(patient, match, applicability).join(" · ") },
-      { label: "Criterio clínico de la guía", text: criteriaSummaryText(match, applicability) },
-      { label: "Interpretación de PulmoVista", text: interpretationSentence(match, applicability) },
-      { label: "Recomendación", text: recommendation?.recommendationText ?? "Texto no disponible." },
-      { label: "Fuerza de la recomendación", text: recommendation?.strength ? STRENGTH_LABEL[recommendation.strength] : narrativeBlockNote },
-      { label: "Calidad de la evidencia", text: recommendation?.evidenceQuality ? EVIDENCE_QUALITY_LABEL[recommendation.evidenceQuality] : narrativeBlockNote },
-    ],
-    evidence: match.patientEvidence,
-    citation: buildCitation(match, document),
-  };
 }
 
 /**
@@ -307,7 +277,7 @@ export function GuidelinesReviewTab({ patient, onWhy }: { patient: Patient; onWh
                   key={m.recommendationId}
                   match={m}
                   isUpdated={changedRecommendationIds.has(m.recommendationId)}
-                  onWhy={() => onWhy(buildExplanation(patient, m))}
+                  onWhy={() => onWhy(buildGuidelineMatchExplanation(patient, m))}
                 />
               ))}
             </div>
@@ -325,7 +295,7 @@ export function GuidelinesReviewTab({ patient, onWhy }: { patient: Patient; onWh
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
             {recentChanges.map((m) => (
-              <MatchCard key={m.recommendationId} match={m} isUpdated onWhy={() => onWhy(buildExplanation(patient, m))} />
+              <MatchCard key={m.recommendationId} match={m} isUpdated onWhy={() => onWhy(buildGuidelineMatchExplanation(patient, m))} />
             ))}
           </div>
         </div>
