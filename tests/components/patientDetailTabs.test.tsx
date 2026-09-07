@@ -54,17 +54,45 @@ describe("SummaryTab", () => {
     expect(within(changesCard).getByText("Ver todo en “Cronología”.")).toBeInTheDocument();
   });
 
+  it("'Qué revisar hoy' muestra título corto + estado + motivo en una línea, nunca el texto verbatim completo de la guía", () => {
+    render(<SummaryTab patient={p1} onWhy={() => {}} />);
+    const card = screen.getByText("Qué revisar hoy").parentElement!;
+    // Título clínico corto (topic ya clasificado), no el recommendationText verbatim.
+    expect(within(card).getByText(/Antibióticos inhalados/)).toBeInTheDocument();
+    expect(within(card).getByText(/Aclaramiento mucociliar/)).toBeInTheDocument();
+    expect(within(card).getByText("Cumple")).toBeInTheDocument();
+    expect(within(card).getByText("Aplica")).toBeInTheDocument();
+    // Motivo resumido en una línea (mismo resumen que patientDatumLines ya usa en el modal).
+    expect(within(card).getByText(/4 exacerbaciones en el último año, incluida 1 grave con ingreso hospitalario\./)).toBeInTheDocument();
+    // El texto verbatim de la guía queda fuera de la vista principal — solo en el modal "¿Por qué?".
+    expect(within(card).queryByText(/patients with bronchiectasis should be taught airway clearance techniques/i)).not.toBeInTheDocument();
+    expect(within(card).queryByText("Texto original de la guía")).not.toBeInTheDocument();
+  });
+
+  it("'Momentos clave' usa una formulación corta y directa, sin la cláusula explicativa larga", () => {
+    render(<SummaryTab patient={p1} onWhy={() => {}} />);
+    const card = screen.getByText("Momentos clave").parentElement!;
+    expect(within(card).getByText("Primera hospitalización por exacerbación")).toBeInTheDocument();
+    expect(within(card).getByText("Primer aislamiento persistente de Pseudomonas aeruginosa")).toBeInTheDocument();
+    // Ninguna de las dos incluye la cláusula explicativa larga de la interpretación completa (esa sigue en Alertas).
+    expect(within(card).queryByText(/hito relevante en la trayectoria/)).not.toBeInTheDocument();
+    expect(within(card).queryByText(/posible colonización crónica/)).not.toBeInTheDocument();
+  });
+
   it("muestra los problemas activos (diagnóstico principal + secundarios) como chips", () => {
     render(<SummaryTab patient={p3} onWhy={() => {}} />);
     expect(screen.getByText("Fibrosis pulmonar idiopática")).toBeInTheDocument();
     expect(screen.getByText("Reflujo gastroesofágico")).toBeInTheDocument();
   });
 
-  it("una caída de FVC nunca se muestra en verde ni se etiqueta Empeoramiento sin un Turning Point restrictive-decline real (p2 no tiene ninguno)", () => {
+  it("'Qué ha cambiado' muestra el cambio numérico directo (sin badges genéricos de dirección) y ninguna etiqueta clínica sin un Turning Point real (FVC de p2, que no tiene restrictive-decline)", () => {
     render(<SummaryTab patient={p2} onWhy={() => {}} />);
     const changesCard = screen.getByText("Qué ha cambiado desde la última consulta").parentElement!;
     const fvcRow = within(changesCard).getByText("FVC").parentElement!;
-    expect(within(fvcRow).getByText("Disminuido")).toBeInTheDocument();
+    expect(within(fvcRow).getByText("57%")).toBeInTheDocument();
+    expect(within(fvcRow).getByText("53%")).toBeInTheDocument();
+    expect(within(fvcRow).queryByText("Disminuido")).not.toBeInTheDocument();
+    expect(within(fvcRow).queryByText("Aumentado")).not.toBeInTheDocument();
     expect(within(fvcRow).queryByText("Empeoramiento")).not.toBeInTheDocument();
     expect(within(fvcRow).queryByText("Mejoría")).not.toBeInTheDocument();
   });

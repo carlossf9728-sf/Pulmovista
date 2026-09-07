@@ -8,12 +8,12 @@
  * detector objetivo y el tipo `TurningPoint` no cambian.
  */
 import { detectObjectiveTurningPoints } from "./objectiveDetectors";
-import { interpretTurningPointLegacy, turningPointCriterionLabel } from "./legacyInterpretations";
+import { interpretTurningPointLegacy, shortTurningPointLabel, turningPointCriterionLabel } from "./legacyInterpretations";
 import type { Patient } from "@/types/patient";
 import type { ClinicalExplanation, ClinicalSource } from "@/types/evidence";
 import type { TurningPoint } from "@/types/turningPoints";
 
-export { detectObjectiveTurningPoints };
+export { detectObjectiveTurningPoints, shortTurningPointLabel };
 
 export function computeTurningPoints(patient: Patient): TurningPoint[] {
   return detectObjectiveTurningPoints(patient).map((tp) => {

@@ -1,24 +1,26 @@
 "use client";
 
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Minus, Plus } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { COLORS } from "@/utils/theme";
+import { cap } from "@/utils/text";
 import { formatDate, todayISO } from "@/utils/date";
 import { selectHospitalizationCount, selectMicrobiology, selectPFT, selectTreatments, exacerbationsByYear } from "@/domain/selectors";
 import { changeTrend } from "@/domain/changeTrend";
 import { activeProblemCategories } from "@/domain/diagnosis";
 import { computeChangesSinceLastVisit } from "@/engines/longitudinal";
-import { computeTurningPoints } from "@/engines/turningPoints";
+import { computeTurningPoints, shortTurningPointLabel } from "@/engines/turningPoints";
 import { computeSentinelFindings } from "@/engines/sentinel";
 import { computeMissingInfo } from "@/engines/missingInfo";
 import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
 import { findRecommendationById } from "@/engines/guidelines/knowledge";
-import { buildGuidelineMatchExplanation, interpretationSentence } from "@/engines/guidelines/explain";
-import { Card, Eyebrow, GuidelineRecommendationText, TrendBadge, Val, WhyButton } from "@/components/ui";
+import { buildGuidelineMatchExplanation, patientDatumLines } from "@/engines/guidelines/explain";
+import { Card, Eyebrow, TrendBadge, Val, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
-import type { ChangeKind, ClinicalChange } from "@/types/longitudinal";
+import type { ClinicalChange } from "@/types/longitudinal";
 import type { ClinicalExplanation } from "@/types/evidence";
 import type { ClinicalTrend } from "@/types/clinicalTrend";
+import type { GuidelineMatch } from "@/types/guideline";
 import type { TurningPoint } from "@/types/turningPoints";
 
 /**
@@ -26,17 +28,11 @@ import type { TurningPoint } from "@/types/turningPoints";
  * detalle completo de cada bloque sigue viviendo en su pestaña propia
  * ("Alertas", "Revisión según guías", Cronología): aquí solo se muestran
  * las 2-3 prioridades de cada uno, con "¿Por qué?" para el razonamiento
- * completo. No se evalúa nada nuevo: todo se deriva de motores ya
+ * completo (incluido el texto verbatim de la guía, que nunca se muestra
+ * aquí). No se evalúa nada nuevo: todo se deriva de motores ya
  * existentes (Sentinel, Turning Points, GuidelineMatch, MissingInfo,
  * LongitudinalEngine).
  */
-
-const CHANGE_KIND_LABEL: Record<ChangeKind, { label: string; icon: ReactNode }> = {
-  nuevo: { label: "Nuevo", icon: <Plus size={12} /> },
-  aumentado: { label: "Aumentado", icon: <ArrowUpRight size={12} /> },
-  disminuido: { label: "Disminuido", icon: <ArrowDownRight size={12} /> },
-  desaparecido: { label: "Retirado", icon: <Minus size={12} /> },
-};
 
 const MAX_VISIBLE_CHANGES = 3;
 
@@ -53,12 +49,24 @@ function rankedChanges(changes: ClinicalChange[], window: { fromDate: string; to
 
 interface TodayPriority {
   key: string;
-  /** Frase en español de PulmoVista — texto principal en la tarjeta. */
-  interpretation: string;
-  /** Cita verbatim de la guía (ver GuidelineRecommendationText) — nunca modificada. */
-  verbatim: string;
+  /** Título clínico corto — el `topic` ya clasificado de la recomendación (p. ej. "Antibióticos inhalados"), nunca el texto verbatim de la guía. */
+  title: string;
   statusLabel: string;
+  /** Motivo clínico resumido en una línea — mismo resumen del dato del paciente que ya usa el modal "¿Por qué?" (patientDatumLines), no un texto nuevo. */
+  motivo: string;
   explanation: ClinicalExplanation;
+}
+
+function buildTodayPriority(patient: Patient, match: GuidelineMatch, statusLabel: string, explanation: ClinicalExplanation): TodayPriority | null {
+  const recommendation = findRecommendationById(match.recommendationId);
+  if (!recommendation) return null;
+  return {
+    key: match.recommendationId,
+    title: cap(recommendation.topic) ?? recommendation.topic,
+    statusLabel,
+    motivo: patientDatumLines(patient, match, recommendation.applicability).join(" · "),
+    explanation,
+  };
 }
 
 /**
@@ -73,30 +81,31 @@ interface TodayPriority {
 function computeTodayPriorities(patient: Patient): TodayPriority[] {
   const priorities: TodayPriority[] = [];
   const seen = new Set<string>();
+  const matches = matchPatientToGuidelines(patient, todayISO());
+  const matchById = new Map(matches.map((m) => [m.recommendationId, m]));
 
   for (const finding of computeSentinelFindings(patient)) {
     for (const gi of finding.guidelineInterpretations) {
-      if (gi.statusLabel === "Cumple" && !seen.has(gi.recommendationId)) {
+      if (gi.statusLabel !== "Cumple" || seen.has(gi.recommendationId)) continue;
+      const match = matchById.get(gi.recommendationId);
+      if (!match) continue;
+      const priority = buildTodayPriority(patient, match, gi.statusLabel, gi.explanation);
+      if (priority) {
         seen.add(gi.recommendationId);
-        priorities.push({ key: gi.recommendationId, interpretation: gi.interpretationSentence, verbatim: gi.recommendationText, statusLabel: gi.statusLabel, explanation: gi.explanation });
+        priorities.push(priority);
       }
     }
   }
 
   if (priorities.length < 3) {
-    for (const match of matchPatientToGuidelines(patient, todayISO())) {
+    for (const match of matches) {
       if (priorities.length >= 3) break;
       if (match.status !== "applies" || seen.has(match.recommendationId)) continue;
-      const recommendation = findRecommendationById(match.recommendationId);
-      if (!recommendation) continue;
-      seen.add(match.recommendationId);
-      priorities.push({
-        key: match.recommendationId,
-        interpretation: interpretationSentence(match, recommendation.applicability),
-        verbatim: recommendation.recommendationText,
-        statusLabel: "Aplica",
-        explanation: buildGuidelineMatchExplanation(patient, match),
-      });
+      const priority = buildTodayPriority(patient, match, "Aplica", buildGuidelineMatchExplanation(patient, match));
+      if (priority) {
+        seen.add(match.recommendationId);
+        priorities.push(priority);
+      }
     }
   }
 
@@ -186,28 +195,26 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
             {!changes.changes.length && <EmptyNote text="Sin cambios relevantes detectados entre ambas consultas." />}
             {!!changes.changes.length && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {topChanges.map(({ change: c, trend }, i) => {
-                  const kindInfo = CHANGE_KIND_LABEL[c.kind];
-                  return (
-                    <div
-                      key={i}
-                      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13.5, padding: "8px 0", borderBottom: i < topChanges.length - 1 ? `1px solid ${COLORS.line}` : "none" }}
-                    >
-                      <span style={{ fontWeight: 700, minWidth: 190 }}>{c.label}</span>
-                      <span className="pv-mono" style={{ color: COLORS.slate }}>
-                        {c.from}
-                      </span>
-                      <ArrowRight size={12} color={COLORS.slateLight} />
-                      <span className="pv-mono" style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 3, color: COLORS.ink }}>
-                        {kindInfo.icon} {c.to}
-                      </span>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.slate, background: COLORS.paper, padding: "2px 8px", borderRadius: 20 }}>{kindInfo.label}</span>
-                      <span style={{ marginLeft: trend ? 0 : "auto" }}>
+                {topChanges.map(({ change: c, trend }, i) => (
+                  <div
+                    key={i}
+                    style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13.5, padding: "8px 0", borderBottom: i < topChanges.length - 1 ? `1px solid ${COLORS.line}` : "none" }}
+                  >
+                    <span style={{ fontWeight: 700 }}>{c.label}</span>
+                    <span className="pv-mono" style={{ color: COLORS.slate }}>
+                      {c.from}
+                    </span>
+                    <ArrowRight size={12} color={COLORS.slateLight} />
+                    <span className="pv-mono" style={{ fontWeight: 700, color: COLORS.ink }}>
+                      {c.to}
+                    </span>
+                    {trend && (
+                      <span style={{ marginLeft: "auto" }}>
                         <TrendBadge trend={trend} />
                       </span>
-                    </div>
-                  );
-                })}
+                    )}
+                  </div>
+                ))}
               </div>
             )}
             {changes.changes.length > topChanges.length && <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 10 }}>Ver todo en “Cronología”.</div>}
@@ -229,11 +236,11 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {priorities.map((p) => (
               <div key={p.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.green, background: COLORS.greenTint, padding: "2px 8px", borderRadius: 20, width: "fit-content" }}>
-                    {p.statusLabel}
-                  </span>
-                  <GuidelineRecommendationText interpretation={p.interpretation} verbatim={p.verbatim} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.ink }}>
+                    {p.title} — <span style={{ color: COLORS.green }}>{p.statusLabel}</span>
+                  </div>
+                  {p.motivo && <div style={{ fontSize: 12.5, color: COLORS.slate, marginTop: 3 }}>Motivo: {p.motivo}</div>}
                 </div>
                 <WhyButton onClick={() => onWhy(p.explanation)} />
               </div>
@@ -266,10 +273,10 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
         {!!recentTurningPoints.length && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {recentTurningPoints.map((tp) => (
-              <div key={tp.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, fontSize: 13.5 }}>
+              <div key={tp.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, fontSize: 13.5 }}>
                 <div>
                   <span style={{ fontSize: 11.5, color: COLORS.slateLight, marginRight: 8 }}>{formatDate(tp.date)}</span>
-                  <span style={{ color: COLORS.ink }}>{tp.interpretation}</span>
+                  <span style={{ color: COLORS.ink }}>{shortTurningPointLabel(tp)}</span>
                 </div>
                 <WhyButton onClick={() => onWhy(tp.explanation)} />
               </div>
