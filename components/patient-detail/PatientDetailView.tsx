@@ -35,7 +35,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "tratamientos", label: "Tratamientos" },
   { key: "radiologia", label: "Radiología" },
   { key: "consultas", label: "Consultas" },
-  { key: "alertas", label: "Alertas" },
+  { key: "alertas", label: "Argos" },
   { key: "guias", label: "Revisión según guías" },
 ];
 

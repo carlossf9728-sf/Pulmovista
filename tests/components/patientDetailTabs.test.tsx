@@ -502,9 +502,10 @@ describe("ConsultsTab", () => {
 });
 
 describe("AlertsTab", () => {
-  it("usa 'Aspectos a revisar' como rótulo visible — nunca el nombre interno del motor ('Sentinel')", () => {
+  it("usa 'Argos · Aspectos a revisar' como rótulo visible — nunca el nombre interno del motor ('Sentinel')", () => {
     render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
-    expect(screen.getByText("Aspectos a revisar")).toBeInTheDocument();
+    expect(screen.getByText("Argos · Aspectos a revisar")).toBeInTheDocument();
+    expect(screen.queryByText("Sentinel")).not.toBeInTheDocument();
     expect(screen.queryByText("PulmoVista Sentinel")).not.toBeInTheDocument();
   });
 

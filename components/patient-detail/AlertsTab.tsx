@@ -8,7 +8,7 @@ import { computeTurningPoints } from "@/engines/turningPoints";
 import { computeMissingInfo, computeReviewOpportunities } from "@/engines/missingInfo";
 import { detectContradictions } from "@/engines/longitudinal";
 import { findGuidelinesForDiagnosis } from "@/engines/guidelines";
-import { Card, Eyebrow, GuidelineRecommendationText, KindTag, Val, WhyButton } from "@/components/ui";
+import { ArgosMark, Card, Eyebrow, GuidelineRecommendationText, KindTag, Val, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 import type { ClinicalExplanation } from "@/types/evidence";
 import type { SentinelFinding, SentinelStatusLabel } from "@/types/sentinel";
@@ -38,8 +38,9 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
   return (
     <div className="pv-fade-in" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Eyebrow>Aspectos a revisar</Eyebrow>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <ArgosMark size={13} color={COLORS.teal} />
+          <Eyebrow>Argos · Aspectos a revisar</Eyebrow>
         </div>
         {!findings.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>No se ha detectado un patrón de deterioro con los datos actuales.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>

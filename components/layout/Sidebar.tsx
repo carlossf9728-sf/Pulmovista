@@ -2,20 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, LayoutDashboard, Radar, Settings, Users, Wind } from "lucide-react";
+import { BookOpen, LayoutDashboard, Settings, Users, Wind } from "lucide-react";
 import { COLORS } from "@/utils/theme";
+import { ArgosMark } from "@/components/ui";
 
 /**
  * Navegación principal. En el prototipo original cada entrada cambiaba
  * un `view` en estado de React; aquí cada una es una ruta real de Next.js
  * (mismo contenido, misma disposición visual) — el resto del
  * comportamiento (resaltado del enlace activo, badge de alertas en
- * Sentinel) es idéntico.
+ * Argos, la marca visible del motor Sentinel) es idéntico.
  */
 const NAV_ITEMS = [
   { href: "/", label: "Inicio", icon: LayoutDashboard },
   { href: "/pacientes", label: "Pacientes", icon: Users },
-  { href: "/sentinel", label: "Alertas", icon: Radar },
+  { href: "/sentinel", label: "Argos", icon: ArgosMark },
   { href: "/guias", label: "Guías", icon: BookOpen },
   { href: "/configuracion", label: "Configuración", icon: Settings },
 ] as const;
