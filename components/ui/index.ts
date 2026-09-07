@@ -3,6 +3,7 @@ export * from "./Val";
 export * from "./StatusPill";
 export * from "./DataConfidenceBadge";
 export * from "./TrendBadge";
+export * from "./GuidelineRecommendationText";
 export * from "./KindTag";
 export * from "./Card";
 export * from "./WhyButton";

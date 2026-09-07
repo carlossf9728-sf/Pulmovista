@@ -54,6 +54,8 @@ export interface SentinelGuidelineInterpretation {
   year: number;
   recommendationId: string;
   recommendationText: string;
+  /** Frase en español de PulmoVista (misma función que engines/guidelines/explain.ts#interpretationSentence) — texto principal en la UI; `recommendationText` es la cita verbatim, siempre secundaria. */
+  interpretationSentence: string;
   statusLabel: SentinelStatusLabel;
   strength: RecommendationStrength | null;
   evidenceQuality: EvidenceQuality | null;

@@ -19,7 +19,7 @@
  * persistente que no sea Pseudomonas aeruginosa), no hay interpretación
  * posible dentro del alcance actual de las guías cargadas.
  */
-import { criteriaSummaryText } from "@/engines/guidelines/explain";
+import { criteriaSummaryText, interpretationSentence } from "@/engines/guidelines/explain";
 import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { matchPatientToGuidelines } from "@/engines/guidelines/match";
 import { todayISO } from "@/utils/date";
@@ -108,6 +108,7 @@ export function buildGuidelineInterpretations(patient: Patient, signal: Objectiv
         year: document.source.year,
         recommendationId: match.recommendationId,
         recommendationText: recommendation.recommendationText,
+        interpretationSentence: interpretationSentence(match, recommendation.applicability),
         statusLabel,
         strength: recommendation.strength,
         evidenceQuality: recommendation.evidenceQuality,

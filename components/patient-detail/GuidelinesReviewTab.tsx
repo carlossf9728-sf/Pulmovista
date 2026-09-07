@@ -11,7 +11,7 @@ import { diffChangedRecommendations, snapshotStatuses } from "@/engines/guidelin
 import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
 import { activeProblemCategories } from "@/domain/diagnosis";
-import { Card, Eyebrow, WhyButton } from "@/components/ui";
+import { Card, Eyebrow, GuidelineRecommendationText, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 import type { DiagnosisCategory } from "@/domain/diagnosis";
 import type { GuidelineMatch, GuidelineMatchStatus } from "@/types/guideline";
@@ -170,9 +170,9 @@ function MatchCard({ match, isUpdated, onWhy }: { match: GuidelineMatch; isUpdat
         {isUpdated && <UpdatedBadge />}
       </div>
 
-      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 700, lineHeight: 1.45, color: COLORS.ink }}>{recommendation.recommendationText}</div>
-
-      <div style={{ marginTop: 6, fontSize: 13, fontStyle: "italic", color: COLORS.navy }}>{interpretationSentence(match, recommendation.applicability)}</div>
+      <div style={{ marginTop: 10 }}>
+        <GuidelineRecommendationText interpretation={interpretationSentence(match, recommendation.applicability)} verbatim={recommendation.recommendationText} />
+      </div>
 
       <div style={{ marginTop: 12 }}>
         <WhyButton onClick={onWhy} />

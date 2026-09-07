@@ -6,17 +6,19 @@ import { COLORS } from "@/utils/theme";
 import { formatDate, todayISO } from "@/utils/date";
 import { selectHospitalizationCount, selectMicrobiology, selectPFT, selectTreatments, exacerbationsByYear } from "@/domain/selectors";
 import { changeTrend } from "@/domain/changeTrend";
+import { activeProblemCategories } from "@/domain/diagnosis";
 import { computeChangesSinceLastVisit } from "@/engines/longitudinal";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { computeSentinelFindings } from "@/engines/sentinel";
 import { computeMissingInfo } from "@/engines/missingInfo";
-import { matchPatientToGuidelines } from "@/engines/guidelines/match";
+import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
 import { findRecommendationById } from "@/engines/guidelines/knowledge";
-import { buildGuidelineMatchExplanation } from "@/engines/guidelines/explain";
-import { Card, Eyebrow, TrendBadge, Val, WhyButton } from "@/components/ui";
+import { buildGuidelineMatchExplanation, interpretationSentence } from "@/engines/guidelines/explain";
+import { Card, Eyebrow, GuidelineRecommendationText, TrendBadge, Val, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
-import type { ChangeKind } from "@/types/longitudinal";
+import type { ChangeKind, ClinicalChange } from "@/types/longitudinal";
 import type { ClinicalExplanation } from "@/types/evidence";
+import type { ClinicalTrend } from "@/types/clinicalTrend";
 import type { TurningPoint } from "@/types/turningPoints";
 
 /**
@@ -36,9 +38,25 @@ const CHANGE_KIND_LABEL: Record<ChangeKind, { label: string; icon: ReactNode }> 
   desaparecido: { label: "Retirado", icon: <Minus size={12} /> },
 };
 
+const MAX_VISIBLE_CHANGES = 3;
+
+/** Empeoramiento primero, luego Mejoría, luego el resto — nunca al azar, para que las 3 filas visibles sean siempre las más relevantes. */
+function changeTrendRank(trend: ClinicalTrend): number {
+  if (trend === "Empeoramiento") return 0;
+  if (trend === "Mejoría") return 1;
+  return 2;
+}
+
+function rankedChanges(changes: ClinicalChange[], window: { fromDate: string; toDate: string; turningPoints: TurningPoint[] }): { change: ClinicalChange; trend: ClinicalTrend }[] {
+  return changes.map((change) => ({ change, trend: changeTrend(change, window) })).sort((a, b) => changeTrendRank(a.trend) - changeTrendRank(b.trend));
+}
+
 interface TodayPriority {
   key: string;
-  text: string;
+  /** Frase en español de PulmoVista — texto principal en la tarjeta. */
+  interpretation: string;
+  /** Cita verbatim de la guía (ver GuidelineRecommendationText) — nunca modificada. */
+  verbatim: string;
   statusLabel: string;
   explanation: ClinicalExplanation;
 }
@@ -60,7 +78,7 @@ function computeTodayPriorities(patient: Patient): TodayPriority[] {
     for (const gi of finding.guidelineInterpretations) {
       if (gi.statusLabel === "Cumple" && !seen.has(gi.recommendationId)) {
         seen.add(gi.recommendationId);
-        priorities.push({ key: gi.recommendationId, text: gi.recommendationText, statusLabel: gi.statusLabel, explanation: gi.explanation });
+        priorities.push({ key: gi.recommendationId, interpretation: gi.interpretationSentence, verbatim: gi.recommendationText, statusLabel: gi.statusLabel, explanation: gi.explanation });
       }
     }
   }
@@ -72,7 +90,13 @@ function computeTodayPriorities(patient: Patient): TodayPriority[] {
       const recommendation = findRecommendationById(match.recommendationId);
       if (!recommendation) continue;
       seen.add(match.recommendationId);
-      priorities.push({ key: match.recommendationId, text: recommendation.recommendationText, statusLabel: "Aplica", explanation: buildGuidelineMatchExplanation(patient, match) });
+      priorities.push({
+        key: match.recommendationId,
+        interpretation: interpretationSentence(match, recommendation.applicability),
+        verbatim: recommendation.recommendationText,
+        statusLabel: "Aplica",
+        explanation: buildGuidelineMatchExplanation(patient, match),
+      });
     }
   }
 
@@ -111,6 +135,9 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
   const missing = computeMissingInfo(patient);
   const topMissing = missing.items.slice(0, 3);
   const priorities = computeTodayPriorities(patient);
+  const hasGuidelineCoverage = activeProblemCategories(patient).some((c) => SUPPORTED_DIAGNOSIS_CATEGORIES.includes(c));
+
+  const topChanges = changes ? rankedChanges(changes.changes, { fromDate: changes.fromDate, toDate: changes.toDate, turningPoints }).slice(0, MAX_VISIBLE_CHANGES) : [];
 
   const fields: [string, string | null][] = [
     ["FEV1 más reciente", pft ? `${pft.FEV1Percent ?? "—"}%${pft.FEV1Liters ? ` (${pft.FEV1Liters} L)` : ""}` : null],
@@ -159,13 +186,12 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
             {!changes.changes.length && <EmptyNote text="Sin cambios relevantes detectados entre ambas consultas." />}
             {!!changes.changes.length && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {changes.changes.map((c, i) => {
+                {topChanges.map(({ change: c, trend }, i) => {
                   const kindInfo = CHANGE_KIND_LABEL[c.kind];
-                  const trend = changeTrend(c, { fromDate: changes.fromDate, toDate: changes.toDate, turningPoints });
                   return (
                     <div
                       key={i}
-                      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13.5, padding: "8px 0", borderBottom: i < changes.changes.length - 1 ? `1px solid ${COLORS.line}` : "none" }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13.5, padding: "8px 0", borderBottom: i < topChanges.length - 1 ? `1px solid ${COLORS.line}` : "none" }}
                     >
                       <span style={{ fontWeight: 700, minWidth: 190 }}>{c.label}</span>
                       <span className="pv-mono" style={{ color: COLORS.slate }}>
@@ -184,21 +210,30 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
                 })}
               </div>
             )}
+            {changes.changes.length > topChanges.length && <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 10 }}>Ver todo en “Cronología”.</div>}
           </>
         )}
       </SectionCard>
 
       <SectionCard title="Qué revisar hoy" color={COLORS.orange}>
-        {!priorities.length && <EmptyNote text="Sin prioridades clínicas identificadas con los datos y guías actuales." />}
+        {!priorities.length && (
+          <EmptyNote
+            text={
+              hasGuidelineCoverage
+                ? "Sin prioridades clínicas identificadas con los datos y guías actuales."
+                : "PulmoVista todavía no tiene una guía clínica cargada para este diagnóstico. No es un fallo del sistema: es una limitación de cobertura actual, que iremos ampliando."
+            }
+          />
+        )}
         {!!priorities.length && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {priorities.map((p) => (
-              <div key={p.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, fontSize: 13.5 }}>
+              <div key={p.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.green, background: COLORS.greenTint, padding: "2px 8px", borderRadius: 20, width: "fit-content" }}>
                     {p.statusLabel}
                   </span>
-                  <span style={{ color: COLORS.ink, lineHeight: 1.4 }}>{p.text}</span>
+                  <GuidelineRecommendationText interpretation={p.interpretation} verbatim={p.verbatim} />
                 </div>
                 <WhyButton onClick={() => onWhy(p.explanation)} />
               </div>

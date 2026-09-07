@@ -8,7 +8,7 @@ import { computeTurningPoints } from "@/engines/turningPoints";
 import { computeMissingInfo, computeReviewOpportunities } from "@/engines/missingInfo";
 import { detectContradictions } from "@/engines/longitudinal";
 import { findGuidelinesForDiagnosis } from "@/engines/guidelines";
-import { Card, Eyebrow, KindTag, Val, WhyButton } from "@/components/ui";
+import { Card, Eyebrow, GuidelineRecommendationText, KindTag, Val, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 import type { ClinicalExplanation } from "@/types/evidence";
 import type { SentinelFinding, SentinelStatusLabel } from "@/types/sentinel";
@@ -39,7 +39,7 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
     <div className="pv-fade-in" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Eyebrow>PulmoVista Sentinel</Eyebrow>
+          <Eyebrow>Aspectos a revisar</Eyebrow>
         </div>
         {!findings.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>No se ha detectado un patrón de deterioro con los datos actuales.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
@@ -77,7 +77,9 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
                         {gi.statusLabel}
                       </span>
                     </div>
-                    <div style={{ fontSize: 13, margin: "8px 0" }}>{gi.recommendationText}</div>
+                    <div style={{ margin: "8px 0" }}>
+                      <GuidelineRecommendationText interpretation={gi.interpretationSentence} verbatim={gi.recommendationText} />
+                    </div>
                     <div style={{ display: "flex", gap: 16, fontSize: 12, color: COLORS.slate }}>
                       <span>
                         Fuerza: <Val value={gi.strength ? STRENGTH_LABEL[gi.strength] : null} />

@@ -28,8 +28,8 @@ export function SentinelView() {
 
   return (
     <div className="pv-fade-in">
-      <Eyebrow>Sentinel</Eyebrow>
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 4px" }}>PulmoVista Sentinel</h1>
+      <Eyebrow>Alertas</Eyebrow>
+      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 4px" }}>Alertas de PulmoVista</h1>
       <p style={{ color: COLORS.slate, fontSize: 13.5, marginBottom: 22, maxWidth: 640 }}>
         Capa de vigilancia longitudinal. Detecta cambios objetivos en los datos del paciente y, cuando las guías
         cargadas (ERS 2025 / SEPAR 2018) respaldan una interpretación clínica para ese cambio, la muestra con su cita

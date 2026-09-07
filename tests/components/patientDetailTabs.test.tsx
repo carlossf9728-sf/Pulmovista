@@ -39,6 +39,21 @@ describe("SummaryTab", () => {
     expect(screen.queryByText("Aún no hay suficientes consultas para comparar.")).not.toBeInTheDocument();
   });
 
+  it("'Qué ha cambiado' se limita a 3 filas, priorizando Empeoramiento sobre el resto, y remite el resto a Cronología", () => {
+    // p1 tiene 6 cambios entre sus dos últimas consultas: FEV1, FVC, DLCO, Exacerbaciones, Hospitalizaciones (única con Empeoramiento) y Tratamiento.
+    render(<SummaryTab patient={p1} onWhy={() => {}} />);
+    const changesCard = screen.getByText("Qué ha cambiado desde la última consulta").parentElement!;
+    // Empeoramiento (Hospitalizaciones) siempre visible, sea cual sea su posición original.
+    expect(within(changesCard).getByText("Hospitalizaciones (acumuladas)")).toBeInTheDocument();
+    expect(within(changesCard).getByText("FEV1")).toBeInTheDocument();
+    expect(within(changesCard).getByText("FVC")).toBeInTheDocument();
+    // Las 3 restantes quedan fuera de las 3 visibles.
+    expect(within(changesCard).queryByText("DLCO")).not.toBeInTheDocument();
+    expect(within(changesCard).queryByText("Exacerbaciones (12 meses)")).not.toBeInTheDocument();
+    expect(within(changesCard).queryByText("Tratamiento")).not.toBeInTheDocument();
+    expect(within(changesCard).getByText("Ver todo en “Cronología”.")).toBeInTheDocument();
+  });
+
   it("muestra los problemas activos (diagnóstico principal + secundarios) como chips", () => {
     render(<SummaryTab patient={p3} onWhy={() => {}} />);
     expect(screen.getByText("Fibrosis pulmonar idiopática")).toBeInTheDocument();
@@ -92,11 +107,18 @@ describe("SummaryTab", () => {
     expect(screen.getByText(/\+2 más en/)).toBeInTheDocument();
   });
 
-  it("'Qué revisar hoy' y 'Momentos clave' muestran un estado vacío cuando no hay datos ni recomendaciones generales aplicables (diagnóstico sin guía compatible)", () => {
-    // A diferencia de Bronquiectasias/EPOC/Fibrosis pulmonar, un diagnóstico no soportado no dispara ni siquiera una recomendación GENERAL.
+  it("'Qué revisar hoy' distingue 'sin guía cargada' de 'sin prioridades' — un diagnóstico no soportado (Asma) nunca dispara ni una recomendación GENERAL, a diferencia de Bronquiectasias", () => {
     render(<SummaryTab patient={basePatient({ primaryDiagnosis: "Asma", secondaryDiagnoses: "" })} onWhy={() => {}} />);
-    expect(screen.getByText("Sin prioridades clínicas identificadas con los datos y guías actuales.")).toBeInTheDocument();
+    expect(
+      screen.getByText("PulmoVista todavía no tiene una guía clínica cargada para este diagnóstico. No es un fallo del sistema: es una limitación de cobertura actual, que iremos ampliando."),
+    ).toBeInTheDocument();
     expect(screen.getByText("No se han identificado puntos de inflexión relevantes.")).toBeInTheDocument();
+  });
+
+  it("'Qué revisar hoy' muestra el estado 'sin prioridades' (no el de cobertura) para un diagnóstico SÍ soportado, incluso sin eventos", () => {
+    // Bronquiectasias está soportado por matchPatientToGuidelines: dispara al menos la recomendación GENERAL de aclaramiento de vía aérea.
+    render(<SummaryTab patient={basePatient()} onWhy={() => {}} />);
+    expect(screen.queryByText(/todavía no tiene una guía clínica cargada/)).not.toBeInTheDocument();
   });
 });
 
@@ -381,6 +403,30 @@ describe("TimelineTab", () => {
     // Único cambio defendible tras este episodio con criterios ya existentes (ver domain/episode.ts#changesAfterEpisode).
     expect(screen.getByText("Nuevo aislamiento microbiológico: Haemophilus influenzae")).toBeInTheDocument();
   });
+
+  it("episodio de ingreso del paciente demo principal (p1, 05/02/2026): motivo, duración, pruebas y tratamiento durante el ingreso — sin soporte respiratorio ni diagnóstico (no procedían, no se inventan)", async () => {
+    render(<TimelineTab patient={p1} />);
+    const headline = screen.getByText("Exacerbación grave · ingreso 5 días");
+    expect(screen.getByText("Alta a domicilio")).toBeInTheDocument();
+
+    const card = headline.closest("div")!.parentElement!;
+    await userEvent.click(within(card).getByRole("button", { name: "Ver episodio" }));
+
+    expect(screen.getByText(/aumento de expectoración purulenta/)).toBeInTheDocument();
+    const testsSection = screen.getByText("Pruebas complementarias").parentElement!;
+    // El mismo evento sigue apareciendo también como fila independiente en Cronología — no una copia, sino el mismo dato referenciado, por eso puede haber más de una coincidencia fuera de esta sección.
+    expect(within(testsSection).getByText("Cultivo: Pseudomonas aeruginosa")).toBeInTheDocument();
+    expect(within(testsSection).getByText("Analítica de ingreso")).toBeInTheDocument();
+    expect(screen.getByText("Tratamiento durante el ingreso")).toBeInTheDocument();
+    expect(screen.getByText("Ceftazidima IV · 05/02/2026–09/02/2026 · 4 días")).toBeInTheDocument();
+    expect(screen.getByText("Situación al alta")).toBeInTheDocument();
+    expect(screen.getByText("Recomendaciones / plan de seguimiento")).toBeInTheDocument();
+    // No se fuerza ningún dato que el caso no tiene.
+    expect(screen.queryByText("Soporte respiratorio")).not.toBeInTheDocument();
+    expect(screen.queryByText("Diagnósticos del episodio")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tratamiento al alta")).not.toBeInTheDocument();
+    expect(screen.getByText("Ningún cambio posterior cumple los criterios ya establecidos en la app para señalarlo aquí.")).toBeInTheDocument();
+  });
 });
 
 describe("MicrobiologyTab", () => {
@@ -428,6 +474,12 @@ describe("ConsultsTab", () => {
 });
 
 describe("AlertsTab", () => {
+  it("usa 'Aspectos a revisar' como rótulo visible — nunca el nombre interno del motor ('Sentinel')", () => {
+    render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
+    expect(screen.getByText("Aspectos a revisar")).toBeInTheDocument();
+    expect(screen.queryByText("PulmoVista Sentinel")).not.toBeInTheDocument();
+  });
+
   it("Sentinel muestra hallazgos objetivos con interpretación respaldada por guía (ya no heurística legacy) y permite abrir '¿Por qué?'", async () => {
     const onWhy = vi.fn();
     render(<AlertsTab patient={p1} onWhy={onWhy} />);
@@ -437,6 +489,8 @@ describe("AlertsTab", () => {
     // Traducción a lenguaje clínico — nunca el término técnico "GuidelineMatch".
     expect(screen.getByText("Cumple")).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("GuidelineMatch");
+    // La interpretación en español es el texto principal; el verbatim de la guía queda como cita secundaria.
+    expect(screen.getAllByText("Texto original de la guía").length).toBeGreaterThan(0);
 
     const [firstWhyButton] = screen.getAllByRole("button", { name: /por qué/i });
     await userEvent.click(firstWhyButton);
@@ -470,7 +524,9 @@ describe("GuidelinesReviewTab", () => {
     expect(screen.getByText("Pendientes de información")).toBeInTheDocument();
     expect(screen.getByText("No indicadas / desaconsejadas")).toBeInTheDocument();
     // ers-rec-pico1 (sin criterios acotados) siempre aplica a un paciente con bronquiectasias, y en una única tarjeta.
+    // El texto verbatim de la guía (aquí en inglés, ERS 2025) se muestra siempre como cita secundaria, nunca como titular.
     expect(screen.getByText(/patients with bronchiectasis should be taught airway clearance techniques/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Texto original de la guía").length).toBeGreaterThan(0);
 
     // La tarjeta ya no muestra el detalle fino directamente: solo recomendación + motivo resumido + guía + estado + botón.
     expect(screen.queryByText("Dato del paciente")).not.toBeInTheDocument();

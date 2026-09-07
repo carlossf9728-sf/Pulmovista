@@ -15,7 +15,7 @@ import { COLORS } from "@/utils/theme";
 const NAV_ITEMS = [
   { href: "/", label: "Inicio", icon: LayoutDashboard },
   { href: "/pacientes", label: "Pacientes", icon: Users },
-  { href: "/sentinel", label: "Sentinel", icon: Radar },
+  { href: "/sentinel", label: "Alertas", icon: Radar },
   { href: "/guias", label: "Guías", icon: BookOpen },
   { href: "/configuracion", label: "Configuración", icon: Settings },
 ] as const;

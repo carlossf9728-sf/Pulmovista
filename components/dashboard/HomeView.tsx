@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Users, X } from "lucide-react";
 import type { CSSProperties } from "react";
-import { COLORS } from "@/utils/theme";
+import { COLORS, STATUS } from "@/utils/theme";
 import { formatDate } from "@/utils/date";
 import { computeChangesSinceLastVisit } from "@/engines/longitudinal";
 import { patientStatus } from "@/engines/sentinel";
@@ -81,7 +81,7 @@ export function HomeView() {
             ["Pacientes", stats.total, COLORS.navy],
             ["Estables", stats.estables, COLORS.green],
             ["Requieren revisión", stats.revision, COLORS.orange],
-            ["Sentinel (alta confianza)", stats.sentinel, COLORS.red],
+            [STATUS.deterioro.label, stats.sentinel, COLORS.red],
           ] as const
         ).map(([label, val, color]) => (
           <Card key={label} accent={color} hover={false}>

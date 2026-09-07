@@ -116,6 +116,14 @@ export function buildDemoPatients(): Patient[] {
       sensitivity: ["ceftazidima"],
       resistance: ["ciprofloxacino"],
     }),
+    // Cultivo de esputo durante el ingreso del 05/02/2026 (ver ExacerbationEvent contenedor abajo) — misma resistencia que el de 05/11/2025, coherente con la progresión hasta la multirresistencia registrada en 06/2026.
+    mkEvent<MicrobiologyEvent>(
+      p1,
+      CLINICAL_EVENT_TYPES.MICROBIOLOGY,
+      "2026-02-06",
+      { sampleType: "Esputo", organism: "Pseudomonas aeruginosa", sensitivity: ["ceftazidima"], resistance: ["ciprofloxacino"] },
+      { episodeId: "ep-p1-2026-02" },
+    ),
     mkEvent<MicrobiologyEvent>(p1, CLINICAL_EVENT_TYPES.MICROBIOLOGY, "2026-06-02", {
       sampleType: "Esputo",
       organism: "Pseudomonas aeruginosa",
@@ -142,11 +150,23 @@ export function buildDemoPatients(): Patient[] {
       hospitalization: false,
       treatment: "Ciprofloxacino",
     }),
-    mkEvent<ExacerbationEvent>(p1, CLINICAL_EVENT_TYPES.EXACERBATION, "2026-02-05", {
-      severity: "Grave",
-      hospitalization: true,
-      treatment: "Ceftazidima IV",
-    }),
+    mkEvent<ExacerbationEvent>(
+      p1,
+      CLINICAL_EVENT_TYPES.EXACERBATION,
+      "2026-02-05",
+      {
+        severity: "Grave",
+        hospitalization: true,
+        treatment: "Ceftazidima IV",
+        dischargeDate: "2026-02-10",
+        dischargeDisposition: "domicilio",
+        admissionReason: "Agudización grave con aumento de expectoración purulenta y deterioro respiratorio, sin respuesta a antibiótico oral ambulatorio.",
+        clinicalCourse: "Buena respuesta a ceftazidima intravenosa e intensificación de fisioterapia respiratoria, con mejoría progresiva de la expectoración. No precisó soporte respiratorio ni ingreso en UCI.",
+        dischargeStatus: "Expectoración disminuida y sin fiebre, situación clínica similar a la previa a la agudización.",
+        followUpPlan: "Revisión en consulta de bronquiectasias en 4 semanas con nuevo cultivo de esputo de control. Continúa con azitromicina supresora y fisioterapia ya pautadas.",
+      },
+      { episodeId: "ep-p1-2026-02" },
+    ),
     mkEvent<ExacerbationEvent>(p1, CLINICAL_EVENT_TYPES.EXACERBATION, "2026-05-18", {
       severity: "Leve",
       hospitalization: false,
@@ -168,6 +188,16 @@ export function buildDemoPatients(): Patient[] {
     mkEvent<TreatmentStartedEvent>(p1, CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-06-25", {
       drug: "tobramicina inhalada",
     }),
+    // Antibiótico IV durante el ingreso del 05/02/2026 — mismo fármaco ya reflejado en el campo `treatment` de la exacerbación, ahora también como evento estructurado vinculado (ver domain/episode.ts).
+    mkEvent<TreatmentStartedEvent>(p1, CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2026-02-05", { drug: "ceftazidima IV" }, { episodeId: "ep-p1-2026-02" }),
+    mkEvent<TreatmentStoppedEvent>(p1, CLINICAL_EVENT_TYPES.TREATMENT_STOPPED, "2026-02-09", { drug: "ceftazidima IV" }, { episodeId: "ep-p1-2026-02" }),
+    mkEvent<LabResultsEvent>(
+      p1,
+      CLINICAL_EVENT_TYPES.LAB_RESULTS,
+      "2026-02-05",
+      { label: "Analítica de ingreso", text: "Leucocitos 12.800/µL con neutrofilia, PCR 95 mg/L." },
+      { episodeId: "ep-p1-2026-02" },
+    ),
     mkEvent<ImagingEvent>(p1, CLINICAL_EVENT_TYPES.IMAGING, "2023-01-20", {
       label: "TC tórax",
       text: "Bronquiectasias cilíndricas bilaterales de predominio en lóbulos inferiores. Sin impactación mucosa relevante.",

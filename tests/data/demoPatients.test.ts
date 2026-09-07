@@ -22,11 +22,13 @@ describe("buildDemoPatients", () => {
   it("paciente 1 (bronquiectasias): recuentos de eventos esperados", () => {
     expect(selectConsultations(p1.events)).toHaveLength(4);
     expect(selectPFT(p1.events)).toHaveLength(7);
-    expect(selectMicrobiology(p1.events)).toHaveLength(4);
+    expect(selectMicrobiology(p1.events)).toHaveLength(5);
     expect(selectExacerbations(p1.events)).toHaveLength(7);
     const treatments = selectTreatments(p1.events);
-    expect(treatments).toHaveLength(3);
-    expect(treatments.every((t) => t.status === "Activo")).toBe(true);
+    expect(treatments).toHaveLength(4);
+    // La ceftazidima IV del ingreso del 05/02/2026 ya está retirada; el resto sigue activo.
+    expect(treatments.filter((t) => t.status === "Activo")).toHaveLength(3);
+    expect(treatments.find((t) => t.name.toLowerCase().includes("ceftazidima"))?.status).toBe("Finalizado");
   });
 
   it("paciente 2 (EPOC): recuentos de eventos esperados", () => {
