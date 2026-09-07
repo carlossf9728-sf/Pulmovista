@@ -255,11 +255,9 @@ export function GuidelinesReviewTab({ patient, onWhy }: { patient: Patient; onWh
       <div>
         <Eyebrow>Revisión según guías</Eyebrow>
         <p style={{ fontSize: 13, color: COLORS.slate, margin: "6px 0 0", maxWidth: 700, lineHeight: 1.5 }}>
-          Evaluación automática de las recomendaciones soportadas de ERS 2025 y SEPAR 2018 —
-          macrólidos, antibióticos inhalados, erradicación de Pseudomonas, corticoides inhalados y fisioterapia/
-          aclaramiento de vía aérea — contra los datos estructurados de este paciente. ERS y SEPAR se evalúan siempre
-          por separado; nunca se fusionan. Cada recomendación tiene una única tarjeta: cuando llegan datos nuevos,
-          esa misma tarjeta se actualiza en vez de duplicarse.
+          Evaluación automática de las recomendaciones de ERS 2025 y SEPAR 2018 — macrólidos, antibióticos
+          inhalados, erradicación de Pseudomonas, corticoides inhalados y fisioterapia/aclaramiento de vía aérea —
+          contra los datos estructurados de este paciente. ERS y SEPAR se muestran siempre por separado.
         </p>
       </div>
 

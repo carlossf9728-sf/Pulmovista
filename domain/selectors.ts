@@ -98,6 +98,15 @@ export function selectImaging(events: ClinicalEvent[]): ImagingEvent[] {
   return sortByDate(events.filter(isImaging));
 }
 
+/** Terapias no farmacológicas ya presentes en los datos demo — solo para la etiqueta de categoría en pantalla, no afecta a ningún motor clínico. */
+const NON_PHARMACOLOGICAL_KEYWORDS = ["fisioterapia", "rehabilitación", "oxígeno"];
+
+function treatmentCategory(s: TreatmentStartedEvent | RespiratorySupportEvent): TreatmentSummary["category"] {
+  if (s.type === CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT) return "Soporte respiratorio";
+  if (NON_PHARMACOLOGICAL_KEYWORDS.some((k) => s.drug.toLowerCase().includes(k))) return "No farmacológico";
+  return "Farmacológico";
+}
+
 export function selectTreatments(events: ClinicalEvent[]): TreatmentSummary[] {
   const started = sortByDate(events.filter(isTreatmentStart));
   const stopped = sortByDate(events.filter((e) => e.type === CLINICAL_EVENT_TYPES.TREATMENT_STOPPED));
@@ -123,7 +132,7 @@ export function selectTreatments(events: ClinicalEvent[]): TreatmentSummary[] {
       start: s.date,
       end: stop ? stop.date : null,
       status: stop ? "Finalizado" : "Activo",
-      category: s.type === CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT ? "Soporte respiratorio" : "Farmacológico",
+      category: treatmentCategory(s),
       confidence: s.confidence,
     } satisfies TreatmentSummary;
   });

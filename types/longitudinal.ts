@@ -52,6 +52,6 @@ export interface TreatmentSummary {
   start: string;
   end: string | null;
   status: "Activo" | "Finalizado";
-  category: "Soporte respiratorio" | "Farmacológico";
+  category: "Soporte respiratorio" | "Farmacológico" | "No farmacológico";
   confidence: ConfidenceLevel;
 }

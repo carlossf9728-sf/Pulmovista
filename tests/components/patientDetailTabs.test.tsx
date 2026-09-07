@@ -386,7 +386,7 @@ describe("TimelineTab", () => {
     expect(screen.getByText("Exacerbación grave")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Ver episodio" }));
     expect(screen.getByText(/Sin fecha de alta registrada/)).toBeInTheDocument();
-    expect(screen.getByText("Ningún cambio posterior cumple los criterios ya establecidos en la app para señalarlo aquí.")).toBeInTheDocument();
+    expect(screen.getByText("No se han registrado cambios clínicos relevantes después de este episodio.")).toBeInTheDocument();
     // Sin datos vinculados: ninguna de estas secciones opcionales aparece.
     expect(screen.queryByText("Motivo de ingreso")).not.toBeInTheDocument();
     expect(screen.queryByText("Soporte respiratorio")).not.toBeInTheDocument();
@@ -453,7 +453,7 @@ describe("TimelineTab", () => {
     expect(screen.queryByText("Soporte respiratorio")).not.toBeInTheDocument();
     expect(screen.queryByText("Diagnósticos del episodio")).not.toBeInTheDocument();
     expect(screen.queryByText("Tratamiento al alta")).not.toBeInTheDocument();
-    expect(screen.getByText("Ningún cambio posterior cumple los criterios ya establecidos en la app para señalarlo aquí.")).toBeInTheDocument();
+    expect(screen.getByText("No se han registrado cambios clínicos relevantes después de este episodio.")).toBeInTheDocument();
   });
 });
 

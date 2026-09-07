@@ -174,7 +174,7 @@ export function EpisodeDetailModal({
             </div>
           ))
         ) : (
-          <Prose text="Ningún cambio posterior cumple los criterios ya establecidos en la app para señalarlo aquí." />
+          <Prose text="No se han registrado cambios clínicos relevantes después de este episodio." />
         )}
       </Section>
     </Modal>

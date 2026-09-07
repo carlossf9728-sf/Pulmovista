@@ -47,7 +47,7 @@ export function PFTTab({ patient }: { patient: Patient }) {
           <Eyebrow color={c.color}>{c.title}</Eyebrow>
           <div style={{ width: "100%", height: 200, marginTop: 10 }}>
             <ResponsiveContainer>
-              <LineChart data={data} margin={{ top: 6, right: 14, left: -14, bottom: 0 }}>
+              <LineChart data={data} margin={{ top: 6, right: 36, left: -14, bottom: 0 }}>
                 <CartesianGrid stroke={COLORS.line} vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.slateLight }} axisLine={{ stroke: COLORS.line }} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: COLORS.slateLight }} axisLine={false} tickLine={false} unit="%" />

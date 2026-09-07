@@ -132,7 +132,7 @@ function EmptyNote({ text }: { text: string }) {
 export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (explanation: ClinicalExplanation) => void }) {
   const pft = selectPFT(patient.events).slice(-1)[0];
   const years = exacerbationsByYear(patient);
-  const lastYearCount = years.length ? years[years.length - 1].count : null;
+  const lastYear = years.length ? years[years.length - 1] : null;
   const hospTotal = selectHospitalizationCount(patient.events, null) || selectHospitalizationCount(patient.events, todayISO());
   const lastMicro = selectMicrobiology(patient.events).slice(-1)[0];
   const activeTreatments = selectTreatments(patient.events).filter((t) => t.status === "Activo");
@@ -152,7 +152,7 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
     ["FEV1 más reciente", pft ? `${pft.FEV1Percent ?? "—"}%${pft.FEV1Liters ? ` (${pft.FEV1Liters} L)` : ""}` : null],
     ["FVC", pft && pft.FVCPercent != null ? `${pft.FVCPercent}%${pft.FVCLiters ? ` (${pft.FVCLiters} L)` : ""}` : null],
     ["DLCO", pft && pft.DLCOPercent != null ? `${pft.DLCOPercent}%` : null],
-    ["Exacerbaciones último año", lastYearCount != null ? `${lastYearCount}/año` : null],
+    [lastYear ? `Exacerbaciones en ${lastYear.year}` : "Exacerbaciones (año en curso)", lastYear ? `${lastYear.count}` : null],
     ["Hospitalizaciones (acumuladas)", hospTotal != null ? `${hospTotal}` : null],
     ["Microbiología relevante", lastMicro ? `${lastMicro.organism} (${formatDate(lastMicro.date)})` : null],
     ["Tratamiento y soporte actual", activeTreatments.length ? activeTreatments.map((t) => t.name).join(", ") : null],
