@@ -5,7 +5,7 @@ import { COLORS } from "@/utils/theme";
 import { guidelineShortLabel } from "@/utils/guidelineLabels";
 import { usePatients } from "@/app/providers";
 import { computeSentinelFindings } from "@/engines/sentinel";
-import { ArgosMark, Card, Eyebrow } from "@/components/ui";
+import { ArgosMark, Card } from "@/components/ui";
 import type { SentinelFinding, SentinelStatusLabel } from "@/types/sentinel";
 
 /** Color por SentinelStatusLabel — misma paleta que los 4 estados de la pestaña "Revisión según guías". */
@@ -28,11 +28,11 @@ export function SentinelView() {
 
   return (
     <div className="pv-fade-in">
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <ArgosMark size={13} color={COLORS.teal} />
-        <Eyebrow>Argos</Eyebrow>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 2 }}>
+        <ArgosMark size={32} color={COLORS.teal} />
+        <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", color: COLORS.tealDeep }}>Argos</span>
       </div>
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 4px" }}>Alertas clínicas</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "2px 0 4px" }}>Alertas clínicas</h1>
       <p style={{ color: COLORS.slate, fontSize: 13.5, marginBottom: 22, maxWidth: 640 }}>
         Capa de vigilancia longitudinal. Detecta cambios objetivos en los datos del paciente y, cuando las guías
         cargadas (ERS 2025 / SEPAR 2018) respaldan una interpretación clínica para ese cambio, la muestra con su cita
