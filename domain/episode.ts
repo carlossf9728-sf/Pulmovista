@@ -21,6 +21,7 @@ import type {
   ClinicalEvent,
   DiagnosisEvent,
   ExacerbationEvent,
+  ExerciseTestEvent,
   ImagingEvent,
   LabResultsEvent,
   MicrobiologyEvent,
@@ -80,7 +81,7 @@ export function selectLinkedEpisodeEvents(container: ExacerbationEvent, allEvent
 
 export interface EpisodeSections {
   support: RespiratorySupportEvent[];
-  tests: (MicrobiologyEvent | ImagingEvent | LabResultsEvent | PulmonaryFunctionEvent)[];
+  tests: (MicrobiologyEvent | ImagingEvent | LabResultsEvent | PulmonaryFunctionEvent | ExerciseTestEvent)[];
   treatmentsDuring: TreatmentStartedEvent[];
   treatmentsAtDischarge: TreatmentStartedEvent[];
   stopped: TreatmentStoppedEvent[];
@@ -106,6 +107,7 @@ export function groupLinkedEventsBySection(container: ExacerbationEvent, linked:
       case CLINICAL_EVENT_TYPES.IMAGING:
       case CLINICAL_EVENT_TYPES.LAB_RESULTS:
       case CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION:
+      case CLINICAL_EVENT_TYPES.EXERCISE_TEST:
         sections.tests.push(e);
         break;
       case CLINICAL_EVENT_TYPES.TREATMENT_STARTED:

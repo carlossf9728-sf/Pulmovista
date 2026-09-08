@@ -48,6 +48,8 @@ export function displayForEvent(e: ClinicalEvent): TimelineEntry {
       return { group: "Radiología", title: e.label, detail: e.text };
     case CLINICAL_EVENT_TYPES.LAB_RESULTS:
       return { group: "Analítica", title: e.label, detail: e.text };
+    case CLINICAL_EVENT_TYPES.EXERCISE_TEST:
+      return { group: "Prueba funcional", title: e.label, detail: e.text };
     case CLINICAL_EVENT_TYPES.TREATMENT_STARTED:
     case CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT:
       return {
@@ -60,7 +62,7 @@ export function displayForEvent(e: ClinicalEvent): TimelineEntry {
     case CLINICAL_EVENT_TYPES.DIAGNOSIS:
       return { group: "Consulta", title: e.label, detail: e.rawText || "Diagnóstico registrado en el historial." };
     default:
-      // Los 11 tipos de ClinicalEvent están cubiertos arriba; esta rama es inalcanzable en tiempo de ejecución, pero se conserva como red de seguridad si se añade un tipo nuevo sin actualizar este switch.
+      // Los 12 tipos de ClinicalEvent están cubiertos arriba; esta rama es inalcanzable en tiempo de ejecución, pero se conserva como red de seguridad si se añade un tipo nuevo sin actualizar este switch.
       return { group: "Consulta", title: "Evento clínico", detail: "" };
   }
 }

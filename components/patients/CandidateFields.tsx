@@ -123,6 +123,7 @@ export function CandidateFields({ event, onChange }: { event: ClinicalEvent; onC
 
     case "imaging":
     case "lab_results":
+    case "exercise_test":
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <TextField label="Etiqueta" value={event.label} onChange={(v) => onChange({ ...event, label: v })} />

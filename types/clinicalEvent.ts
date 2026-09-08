@@ -31,6 +31,7 @@ export const CLINICAL_EVENT_TYPES = {
   RESPIRATORY_SUPPORT: "respiratory_support",
   IMAGING: "imaging",
   LAB_RESULTS: "lab_results",
+  EXERCISE_TEST: "exercise_test",
   DIAGNOSIS: "diagnosis",
 } as const;
 
@@ -156,6 +157,13 @@ export interface LabResultsEvent extends ClinicalEventBase {
   text: string;
 }
 
+/** Prueba funcional/de esfuerzo (test de la marcha, prueba de esfuerzo con desaturación…) — mismo formato libre que ImagingEvent/LabResultsEvent, categoría propia porque no es ni función pulmonar en reposo (PulmonaryFunctionEvent) ni una analítica. */
+export interface ExerciseTestEvent extends ClinicalEventBase {
+  type: "exercise_test";
+  label: string;
+  text: string;
+}
+
 /**
  * Diagnóstico asociado a un momento/episodio concreto del historial —
  * distinto de `Patient.primaryDiagnosis`/`secondaryDiagnoses`, que son
@@ -179,6 +187,7 @@ export type ClinicalEvent =
   | TreatmentStoppedEvent
   | ImagingEvent
   | LabResultsEvent
+  | ExerciseTestEvent
   | DiagnosisEvent;
 
 export type ClinicalEventType = ClinicalEvent["type"];

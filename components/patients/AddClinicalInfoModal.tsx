@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
-import { runExtractionEngine } from "@/engines/extraction";
+import { hasConsultationNarrative, runExtractionEngine } from "@/engines/extraction";
 import { scanPrivacyShield, redactText } from "@/engines/privacy";
 import { mkEvent, CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import { Modal } from "@/components/ui";
@@ -16,13 +16,16 @@ import type { PrivacyFinding } from "@/types/privacy";
 
 /**
  * "Añadir información clínica" — cuadro único de texto libre desordenado
- * → PulmoVista separa automáticamente consulta/evolución, exacerbación,
- * microbiología, PFR, TAC/radiología, analítica, tratamiento e
- * ingreso/procedimiento (ver engines/extraction) → el médico confirma,
- * corrige o descarta cada elemento antes de que se guarde nada. Sustituye
- * al antiguo flujo de "Añadir nueva consulta", que guardaba lo extraído
- * sin mostrarlo nunca. El texto sigue pasando primero por el Escudo de
- * privacidad, igual que antes.
+ * → PulmoVista separa automáticamente exacerbación, microbiología, PFR,
+ * prueba de esfuerzo, TAC/radiología, analítica, tratamiento e
+ * ingreso/procedimiento (ver engines/extraction), y añade además
+ * consulta/evolución solo cuando el texto realmente narra la visita o la
+ * evolución del paciente — nunca como relleno genérico cuando el texto
+ * es puramente un dato objetivo (un cultivo, una TC, un valor de FEV1...)
+ * → el médico confirma, corrige o descarta cada elemento antes de que se
+ * guarde nada. Sustituye al antiguo flujo de "Añadir nueva consulta", que
+ * guardaba lo extraído sin mostrarlo nunca. El texto sigue pasando primero
+ * por el Escudo de privacidad, igual que antes.
  */
 export function AddClinicalInfoModal({ onClose, onAdd }: { onClose: () => void; onAdd: (events: ClinicalEvent[]) => void }) {
   const [step, setStep] = useState<"text" | "review">("text");
@@ -32,9 +35,16 @@ export function AddClinicalInfoModal({ onClose, onAdd }: { onClose: () => void; 
 
   function buildCandidates(cleanText: string): ReviewCandidate[] {
     const date = todayISO();
-    const consultation = mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, date, {}, { source: "manual", rawText: cleanText });
     const extracted = runExtractionEngine(cleanText, date);
-    return [{ event: consultation, included: true }, ...extracted.map((event) => ({ event, included: true }))];
+    const candidates = extracted.map((event) => ({ event, included: true }));
+    // Consulta/evolución solo se propone cuando el texto narra la visita o la evolución del paciente
+    // (ver hasConsultationNarrative) — no por defecto, para no duplicar en una "consulta" genérica
+    // lo que ya queda recogido en un evento específico (microbiología, radiología, PFR...).
+    if (hasConsultationNarrative(cleanText)) {
+      const consultation = mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, date, {}, { source: "manual", rawText: cleanText });
+      candidates.unshift({ event: consultation, included: true });
+    }
+    return candidates;
   }
 
   function goToReview(cleanText: string) {

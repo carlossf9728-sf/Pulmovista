@@ -36,7 +36,8 @@ describe("AddClinicalInfoModal", () => {
 
     await pasteAndContinue(RICH_TEXT);
 
-    // Un elemento por categoría — nunca un único bloque indiferenciado, y "Consulta" siempre presente aunque no la detecte el motor.
+    // Un elemento por categoría — nunca un único bloque indiferenciado. "Consulta" aparece porque el texto
+    // empieza con "Refiere...", narrativa clínica real — no es un relleno genérico (ver describe de abajo).
     expect(screen.getByText("Consulta")).toBeInTheDocument();
     expect(screen.getByText("Exacerbación")).toBeInTheDocument();
     expect(screen.getByText("Microbiología")).toBeInTheDocument();
@@ -103,5 +104,57 @@ describe("AddClinicalInfoModal", () => {
     await pasteAndContinue(RICH_TEXT);
     await userEvent.click(screen.getByRole("button", { name: "Atrás" }));
     expect(screen.getByPlaceholderText(/desde la última revisión/i)).toHaveValue(RICH_TEXT);
+  });
+});
+
+/**
+ * "Consulta/evolución" solo debe proponerse cuando el texto narra la
+ * visita o la evolución del paciente — nunca como relleno por defecto.
+ * Un texto que solo trae un dato objetivo (cultivo, TC, FEV1...) no debe
+ * producir una tarjeta "Consulta" duplicando ese mismo contenido junto a
+ * su categoría específica.
+ */
+describe("AddClinicalInfoModal — 'Consulta/evolución' solo con narrativa real, nunca por defecto", () => {
+  it.each([
+    ["Cultivo positivo para Pseudomonas aeruginosa.", "Microbiología"],
+    ["TC tórax: sin cambios respecto al previo.", "Radiología"],
+    ["FEV1 1,62 L (61%).", "Función pulmonar"],
+    ["Prueba de esfuerzo con desaturación hasta 86%.", "Prueba funcional"],
+    // "Analítica" aparece dos veces en su propia tarjeta (categoría + etiqueta) — se comprueba con getAllByText.
+    ["PCR 180 mg/L, leucocitos 14.000.", "Analítica"],
+    // El motor clasifica un procedimiento ambulatorio como "Hospitalización" (ver domain/timeline.ts) — el
+    // titular de la tarjeta sí deja claro que es un procedimiento ("Ingreso/procedimiento: Broncoscopia").
+    ["Broncoscopia con BAL.", "Hospitalización"],
+  ])("'%s' se clasifica como %s, sin tarjeta 'Consulta' ni duplicar el contenido", async (text, expectedGroup) => {
+    render(<AddClinicalInfoModal onClose={vi.fn()} onAdd={vi.fn()} />);
+    await pasteAndContinue(text);
+
+    expect(screen.getAllByText(expectedGroup).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Consulta")).not.toBeInTheDocument();
+    // Un único elemento detectado — nada que duplique el mismo texto en una consulta genérica.
+    expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(1);
+  });
+
+  it("un texto puramente narrativo ('Acude por...') sí produce Consulta, aunque el motor no detecte ninguna categoría objetiva", async () => {
+    const onAdd = vi.fn();
+    render(<AddClinicalInfoModal onClose={vi.fn()} onAdd={onAdd} />);
+    await pasteAndContinue("Acude por aumento de disnea y expectoración purulenta en la última semana.");
+
+    expect(screen.getByText("Consulta")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: /^Guardar \d+ elementos?$/ }));
+    const saved: ClinicalEvent[] = onAdd.mock.calls[0][0];
+    expect(saved).toHaveLength(1);
+    expect(saved[0].type).toBe("consultation");
+  });
+
+  it("un texto mixto (narrativa + dato objetivo) produce Consulta Y la categoría específica — nunca solo una de las dos", async () => {
+    render(<AddClinicalInfoModal onClose={vi.fn()} onAdd={vi.fn()} />);
+    await pasteAndContinue("Acude por aumento de disnea y expectoración purulenta. Cultivo positivo para Pseudomonas aeruginosa.");
+
+    expect(screen.getByText("Consulta")).toBeInTheDocument();
+    expect(screen.getByText("Microbiología")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(2);
   });
 });

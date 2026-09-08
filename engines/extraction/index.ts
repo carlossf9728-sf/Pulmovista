@@ -23,10 +23,20 @@
  * interpretación clínica, solo la extracción sintáctica del texto.
  */
 import { mkEvent, CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
-import { IMAGING_TRIGGER, LAB_TRIGGER, ORGANISM_PATTERNS, PROCEDURE_TRIGGER, RESPIRATORY_SUPPORT_KEYWORDS, TREATMENT_KEYWORDS } from "./keywords";
+import {
+  CONSULTATION_NARRATIVE_TRIGGER,
+  EXERCISE_TEST_TRIGGER,
+  IMAGING_TRIGGER,
+  LAB_TRIGGER,
+  ORGANISM_PATTERNS,
+  PROCEDURE_TRIGGER,
+  RESPIRATORY_SUPPORT_KEYWORDS,
+  TREATMENT_KEYWORDS,
+} from "./keywords";
 import type {
   ClinicalEvent,
   ExacerbationEvent,
+  ExerciseTestEvent,
   HospitalizationEvent,
   ImagingEvent,
   LabResultsEvent,
@@ -36,6 +46,19 @@ import type {
   TreatmentStartedEvent,
   TreatmentStoppedEvent,
 } from "@/types/clinicalEvent";
+
+/**
+ * ¿El texto contiene narrativa clínica de consulta/evolución (motivo de
+ * la visita, relato de síntomas, curso clínico)? Un texto que solo trae
+ * datos objetivos (cultivo, TC, FEV1, analítica...) sin ninguna frase de
+ * este tipo NO debe producir un evento de Consulta — ver
+ * CONSULTATION_NARRATIVE_TRIGGER. El llamador (AddClinicalInfoModal)
+ * decide con esto si añade el candidato de Consulta; el motor no lo crea
+ * él mismo, igual que no crea ningún otro tipo por defecto.
+ */
+export function hasConsultationNarrative(text: string): boolean {
+  return CONSULTATION_NARRATIVE_TRIGGER.test(text);
+}
 
 /**
  * Captura la frase (hasta el siguiente punto, o el resto del texto si no
@@ -98,6 +121,19 @@ export function runExtractionEngine(text: string, date: string): ClinicalEvent[]
   if (lab) {
     events.push(
       mkEvent<LabResultsEvent>(null, CLINICAL_EVENT_TYPES.LAB_RESULTS, date, { label: "Analítica", text: lab.sentence }, { ...common, confidence: "confirmado" }),
+    );
+  }
+
+  const exerciseTest = captureSentence(text, EXERCISE_TEST_TRIGGER);
+  if (exerciseTest) {
+    events.push(
+      mkEvent<ExerciseTestEvent>(
+        null,
+        CLINICAL_EVENT_TYPES.EXERCISE_TEST,
+        date,
+        { label: exerciseTest.label, text: exerciseTest.sentence },
+        { ...common, confidence: "confirmado" },
+      ),
     );
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runExtractionEngine } from "@/engines/extraction";
+import { hasConsultationNarrative, runExtractionEngine } from "@/engines/extraction";
 
 describe("runExtractionEngine", () => {
   it("extrae función pulmonar (FEV1/FVC/DLCO)", () => {
@@ -140,5 +140,48 @@ describe("runExtractionEngine", () => {
     if (hosp?.type === "hospitalization") {
       expect(hosp.procedureLabel).toBeUndefined();
     }
+  });
+
+  it("detecta una prueba de esfuerzo y la separa como categoría propia, distinta de función pulmonar en reposo y de analítica", () => {
+    const events = runExtractionEngine("Prueba de esfuerzo con desaturación hasta 86%.", "2024-01-01");
+    const test = events.find((e) => e.type === "exercise_test");
+    expect(test).toBeDefined();
+    if (test?.type === "exercise_test") {
+      expect(test.label).toMatch(/prueba de esfuerzo/i);
+      expect(test.text).toContain("desaturación hasta 86%");
+    }
+    expect(events.some((e) => e.type === "pulmonary_function")).toBe(false);
+    expect(events.some((e) => e.type === "lab_results")).toBe(false);
+  });
+});
+
+/**
+ * hasConsultationNarrative — clasificación por contenido de "¿este texto
+ * narra la visita/evolución del paciente?", no un fallback genérico. Cada
+ * caso de la lista de ejemplos del encargo (un texto por categoría
+ * objetiva, más el ejemplo de consulta/evolución narrativa) se prueba por
+ * separado para dejar fijado qué SÍ y qué NO cuenta como narrativa.
+ */
+describe("hasConsultationNarrative", () => {
+  it.each([
+    ["microbiología", "Cultivo positivo para Pseudomonas aeruginosa."],
+    ["radiología", "TC tórax: sin cambios respecto al previo."],
+    ["función pulmonar", "FEV1 1,62 L (61%)."],
+    ["prueba funcional/esfuerzo", "Prueba de esfuerzo con desaturación hasta 86%."],
+    ["analítica", "PCR 180 mg/L, leucocitos 14.000."],
+    ["procedimiento", "Broncoscopia con BAL."],
+  ])("no considera narrativa un texto que solo trae un dato objetivo de %s ('%s')", (_category, text) => {
+    expect(hasConsultationNarrative(text)).toBe(false);
+  });
+
+  it("considera narrativa un texto que describe el motivo de la visita ('acude por...')", () => {
+    expect(hasConsultationNarrative("Acude por aumento de disnea y expectoración purulenta en la última semana.")).toBe(true);
+  });
+
+  it("considera narrativa un texto mixto que combina relato clínico y un dato objetivo, sin dejar de detectar ambos", () => {
+    const text = "Acude por aumento de disnea y expectoración purulenta. Cultivo positivo para Pseudomonas aeruginosa.";
+    expect(hasConsultationNarrative(text)).toBe(true);
+    const events = runExtractionEngine(text, "2024-01-01");
+    expect(events.some((e) => e.type === "microbiology")).toBe(true);
   });
 });

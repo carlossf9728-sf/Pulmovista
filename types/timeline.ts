@@ -6,7 +6,8 @@ export type TimelineGroup =
   | "Hospitalización"
   | "Tratamiento"
   | "Radiología"
-  | "Analítica";
+  | "Analítica"
+  | "Prueba funcional";
 
 /** Representación de un ClinicalEvent para la pestaña Timeline. */
 export interface TimelineEntry {

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, AlertTriangle, ClipboardList, FlaskConical, Microscope, Pill, ScanLine } from "lucide-react";
+import { Activity, AlertTriangle, ClipboardList, FlaskConical, HeartPulse, Microscope, Pill, ScanLine } from "lucide-react";
 import { COLORS } from "./theme";
 import type { TimelineGroup } from "@/types/timeline";
 
@@ -19,6 +19,7 @@ export const TIMELINE_GROUPS: TimelineGroup[] = [
   "Tratamiento",
   "Radiología",
   "Analítica",
+  "Prueba funcional",
 ];
 
 export const GROUP_COLOR: Record<TimelineGroup, string> = {
@@ -30,6 +31,7 @@ export const GROUP_COLOR: Record<TimelineGroup, string> = {
   Tratamiento: COLORS.green,
   Radiología: COLORS.teal,
   Analítica: COLORS.violet,
+  "Prueba funcional": COLORS.tealDeep,
 };
 
 export const GROUP_ICON: Record<TimelineGroup, LucideIcon> = {
@@ -41,4 +43,5 @@ export const GROUP_ICON: Record<TimelineGroup, LucideIcon> = {
   Tratamiento: Pill,
   Radiología: ScanLine,
   Analítica: FlaskConical,
+  "Prueba funcional": HeartPulse,
 };
