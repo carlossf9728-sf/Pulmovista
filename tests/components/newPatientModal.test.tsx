@@ -24,14 +24,14 @@ function cardFor(titleMatch: RegExp): HTMLElement {
 }
 
 describe("NewPatientModal", () => {
-  it("no crea el paciente al pulsar 'Continuar': primero muestra la revisión de lo detectado", async () => {
+  it("no crea el paciente al pulsar 'Continuar': primero muestra la revisión de lo detectado, sin Consulta cuando el texto no narra nada (solo datos objetivos)", async () => {
     const onCreate = vi.fn();
     render(<NewPatientModal onClose={vi.fn()} onCreate={onCreate} />);
     await fillFormAndContinue("Bronquiectasias no FQ", "FEV1 72%. Cultivo con Pseudomonas aeruginosa.");
 
-    expect(screen.getByText("Consulta / evolución")).toBeInTheDocument();
     expect(screen.getByText("Función pulmonar")).toBeInTheDocument();
     expect(screen.getByText("Microbiología")).toBeInTheDocument();
+    expect(screen.queryByText("Consulta / evolución")).not.toBeInTheDocument();
     expect(onCreate).not.toHaveBeenCalled();
   });
 
@@ -43,27 +43,33 @@ describe("NewPatientModal", () => {
     const pftCard = cardFor(/^FEV1 72%$/);
     await userEvent.click(within(pftCard).getByRole("button", { name: /descartar/i }));
 
-    await userEvent.click(screen.getByRole("button", { name: /^Crear expediente \(\d+\)$/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Crear expediente/ }));
 
     expect(onCreate).toHaveBeenCalledOnce();
     const [input, events] = onCreate.mock.calls[0] as [NewPatientInput, ClinicalEvent[]];
     expect(input.primaryDiagnosis).toBe("Bronquiectasias no FQ");
     expect(events.some((e) => e.type === "pulmonary_function")).toBe(false);
     expect(events.some((e) => e.type === "microbiology")).toBe(true);
-    expect(events.some((e) => e.type === "consultation")).toBe(true);
+    // Este texto no tiene narrativa clínica ("FEV1 72%. Cultivo con Pseudomonas aeruginosa." es puro dato objetivo) — no hay Consulta que crear ni que descartar.
+    expect(events.some((e) => e.type === "consultation")).toBe(false);
   });
 
-  it("un alta sin texto clínico igualmente pasa por la revisión (con solo la consulta vacía como candidato) antes de crear el expediente", async () => {
+  it("un alta sin texto clínico no genera ningún evento ficticio ('Consulta' ni ningún otro) — la demografía del paciente no implica que haya ocurrido una consulta", async () => {
     const onCreate = vi.fn();
     render(<NewPatientModal onClose={vi.fn()} onCreate={onCreate} />);
     await fillFormAndContinue("EPOC", "");
 
+    expect(screen.getByText(/no ha identificado ningún evento clínico/i)).toBeInTheDocument();
+    expect(screen.queryByText("Consulta / evolución")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId(/^candidate-/)).toHaveLength(0);
+
     expect(onCreate).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: /^Crear expediente \(\d+\)$/ }));
+    // Sin candidatos, el botón no lleva contador — "Crear expediente" a secas — y sigue permitiendo crear el expediente (solo con demografía).
+    await userEvent.click(screen.getByRole("button", { name: "Crear expediente" }));
     expect(onCreate).toHaveBeenCalledOnce();
-    const [, events] = onCreate.mock.calls[0] as [NewPatientInput, ClinicalEvent[]];
-    expect(events).toHaveLength(1);
-    expect(events[0].type).toBe("consultation");
+    const [input, events] = onCreate.mock.calls[0] as [NewPatientInput, ClinicalEvent[]];
+    expect(input.primaryDiagnosis).toBe("EPOC");
+    expect(events).toHaveLength(0);
   });
 
   it("un texto con datos identificativos pasa primero por el Escudo de privacidad antes de llegar a la revisión", async () => {
@@ -78,5 +84,66 @@ describe("NewPatientModal", () => {
   it("'Continuar' está deshabilitado sin diagnóstico principal", () => {
     render(<NewPatientModal onClose={vi.fn()} onCreate={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Continuar" })).toBeDisabled();
+  });
+});
+
+/**
+ * Mismo criterio que AddClinicalInfoModal (ver
+ * tests/components/addClinicalInfoModal.test.tsx): un evento clínico
+ * solo existe si el contenido del alta inicial permite identificarlo —
+ * "Consulta/evolución" nunca es un relleno automático del alta, ni
+ * siquiera con texto vacío.
+ */
+describe("NewPatientModal — 'Consulta/evolución' solo con narrativa real, nunca por defecto en el alta inicial", () => {
+  it.each([
+    ["Cultivo positivo para Pseudomonas aeruginosa.", "Microbiología"],
+    ["TC tórax: sin cambios respecto al previo.", "Radiología"],
+    ["FEV1 1,62 L (61%).", "Función pulmonar"],
+  ])("un alta inicial con '%s' crea solo %s, sin Consulta", async (text, expectedGroup) => {
+    const onCreate = vi.fn();
+    render(<NewPatientModal onClose={vi.fn()} onCreate={onCreate} />);
+    await fillFormAndContinue("Bronquiectasias no FQ", text);
+
+    expect(screen.getAllByText(expectedGroup).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Consulta / evolución")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: /^Crear expediente/ }));
+    const [, events] = onCreate.mock.calls[0] as [NewPatientInput, ClinicalEvent[]];
+    expect(events).toHaveLength(1);
+    expect(events[0].type).not.toBe("consultation");
+  });
+
+  it("un alta inicial puramente narrativa ('Acude por...') sí crea Consulta, aunque no haya ninguna categoría objetiva", async () => {
+    const onCreate = vi.fn();
+    render(<NewPatientModal onClose={vi.fn()} onCreate={onCreate} />);
+    await fillFormAndContinue("Bronquiectasias no FQ", "Acude por aumento de disnea y expectoración purulenta en la última semana.");
+
+    expect(screen.getByText("Consulta / evolución")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: /^Crear expediente/ }));
+    const [, events] = onCreate.mock.calls[0] as [NewPatientInput, ClinicalEvent[]];
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("consultation");
+  });
+
+  it("un alta inicial con narrativa + dato objetivo crea Consulta Y la categoría específica", async () => {
+    const onCreate = vi.fn();
+    render(<NewPatientModal onClose={vi.fn()} onCreate={onCreate} />);
+    await fillFormAndContinue(
+      "Bronquiectasias no FQ",
+      "Acude por aumento de disnea y expectoración purulenta. Cultivo positivo para Pseudomonas aeruginosa.",
+    );
+
+    expect(screen.getByText("Consulta / evolución")).toBeInTheDocument();
+    expect(screen.getByText("Microbiología")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole("button", { name: /^Crear expediente/ }));
+    const [, events] = onCreate.mock.calls[0] as [NewPatientInput, ClinicalEvent[]];
+    expect(events).toHaveLength(2);
+    expect(events.some((e) => e.type === "consultation")).toBe(true);
+    expect(events.some((e) => e.type === "microbiology")).toBe(true);
   });
 });

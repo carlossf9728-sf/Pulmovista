@@ -5,14 +5,13 @@ import type { CSSProperties } from "react";
 import { ShieldAlert } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
-import { runExtractionEngine } from "@/engines/extraction";
+import { buildCandidateEvents } from "@/engines/extraction";
 import { scanPrivacyShield, redactText } from "@/engines/privacy";
-import { mkEvent, CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import { Modal } from "@/components/ui";
 import { PrivacyShieldModal } from "./PrivacyShieldModal";
 import { ClinicalCandidateReview, countIncluded } from "./ClinicalCandidateReview";
 import type { ReviewCandidate } from "./ClinicalCandidateReview";
-import type { ClinicalEvent, ConsultationEvent } from "@/types/clinicalEvent";
+import type { ClinicalEvent } from "@/types/clinicalEvent";
 import type { NewPatientInput, PatientSex } from "@/types/patient";
 import type { PrivacyFinding } from "@/types/privacy";
 
@@ -21,10 +20,14 @@ const inputStyle: CSSProperties = { width: "100%", padding: "9px 11px", borderRa
 
 /**
  * "Nuevo paciente" — mismo patrón que "Añadir información clínica"
- * (ver AddClinicalInfoModal): el texto clínico inicial se separa
- * automáticamente y se revisa ANTES de crear el expediente. El alta
- * inicial no guarda datos extraídos sin pasar por la misma
- * confirmación que exige el resto del sistema.
+ * (ver AddClinicalInfoModal), incluido el mismo criterio de
+ * buildCandidateEvents para decidir qué eventos existen: el texto
+ * clínico inicial se separa automáticamente y se revisa ANTES de crear
+ * el expediente, y un alta sin texto (o con texto que no describe
+ * ninguna categoría reconocible) no produce ningún evento — la
+ * demografía del paciente es independiente de que haya ocurrido o no
+ * una consulta. El alta inicial no guarda datos extraídos sin pasar
+ * por la misma confirmación que exige el resto del sistema.
  */
 export function NewPatientModal({ onClose, onCreate }: { onClose: () => void; onCreate: (input: NewPatientInput, events: ClinicalEvent[]) => void }) {
   const [step, setStep] = useState<"form" | "review">("form");
@@ -37,16 +40,12 @@ export function NewPatientModal({ onClose, onCreate }: { onClose: () => void; on
   const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
 
   function buildCandidates(cleanText: string): ReviewCandidate[] {
-    const date = todayISO();
-    const consultation = mkEvent<ConsultationEvent>(
-      null,
-      CLINICAL_EVENT_TYPES.CONSULTATION,
-      date,
-      {},
-      { source: "manual", rawText: cleanText || "Sin texto clínico inicial." },
-    );
-    const extracted = cleanText ? runExtractionEngine(cleanText, date) : [];
-    return [{ event: consultation, included: true }, ...extracted.map((event) => ({ event, included: true }))];
+    // Mismo criterio que AddClinicalInfoModal (ver buildCandidateEvents): un evento clínico
+    // solo existe si el contenido permite identificarlo. Un alta sin texto clínico (o con texto
+    // que no describe ninguna categoría reconocible) no produce ningún evento — ni una Consulta
+    // de relleno. La demografía del paciente (este formulario) es independiente de que haya
+    // ocurrido o no una consulta: crear el expediente no la implica.
+    return buildCandidateEvents(cleanText, todayISO()).map((event) => ({ event, included: true }));
   }
 
   function goToReview(cleanText: string) {
@@ -160,10 +159,9 @@ export function NewPatientModal({ onClose, onCreate }: { onClose: () => void; on
                 </button>
                 <button
                   onClick={handleCreate}
-                  disabled={!included}
-                  style={{ padding: "9px 18px", borderRadius: 9, border: "none", background: included ? COLORS.teal : COLORS.line, color: "white", fontWeight: 700, fontSize: 13 }}
+                  style={{ padding: "9px 18px", borderRadius: 9, border: "none", background: COLORS.teal, color: "white", fontWeight: 700, fontSize: 13 }}
                 >
-                  Crear expediente ({included})
+                  {included ? `Crear expediente (${included} ${included === 1 ? "elemento clínico" : "elementos clínicos"})` : "Crear expediente"}
                 </button>
               </div>
             </div>

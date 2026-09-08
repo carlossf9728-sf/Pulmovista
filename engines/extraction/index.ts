@@ -35,6 +35,7 @@ import {
 } from "./keywords";
 import type {
   ClinicalEvent,
+  ConsultationEvent,
   ExacerbationEvent,
   ExerciseTestEvent,
   HospitalizationEvent,
@@ -52,12 +53,30 @@ import type {
  * la visita, relato de síntomas, curso clínico)? Un texto que solo trae
  * datos objetivos (cultivo, TC, FEV1, analítica...) sin ninguna frase de
  * este tipo NO debe producir un evento de Consulta — ver
- * CONSULTATION_NARRATIVE_TRIGGER. El llamador (AddClinicalInfoModal)
- * decide con esto si añade el candidato de Consulta; el motor no lo crea
- * él mismo, igual que no crea ningún otro tipo por defecto.
+ * CONSULTATION_NARRATIVE_TRIGGER.
  */
 export function hasConsultationNarrative(text: string): boolean {
   return CONSULTATION_NARRATIVE_TRIGGER.test(text);
+}
+
+/**
+ * Punto único de decisión de "qué eventos candidatos produce este
+ * texto" — usado tanto por AddClinicalInfoModal (añadir información a
+ * un paciente existente) como por NewPatientModal (alta inicial), para
+ * que los dos compartan exactamente el mismo criterio en vez de cada
+ * uno decidir por su cuenta cuándo existe una Consulta. Regla única:
+ * solo existe un evento clínico si el contenido permite identificarlo
+ * — un texto vacío o sin ninguna categoría reconocible no produce
+ * ningún evento, ni siquiera una Consulta de relleno. El motor nunca
+ * inventa un evento "vacío" solo porque se está dando de alta un
+ * expediente: la demografía del paciente (NewPatientModal) es
+ * independiente de que haya ocurrido o no una consulta.
+ */
+export function buildCandidateEvents(text: string, date: string): ClinicalEvent[] {
+  const extracted = runExtractionEngine(text, date);
+  if (!hasConsultationNarrative(text)) return extracted;
+  const consultation = mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, date, {}, { source: "manual", rawText: text });
+  return [consultation, ...extracted];
 }
 
 /**

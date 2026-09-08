@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasConsultationNarrative, runExtractionEngine } from "@/engines/extraction";
+import { buildCandidateEvents, hasConsultationNarrative, runExtractionEngine } from "@/engines/extraction";
 
 describe("runExtractionEngine", () => {
   it("extrae función pulmonar (FEV1/FVC/DLCO)", () => {
@@ -183,5 +183,31 @@ describe("hasConsultationNarrative", () => {
     expect(hasConsultationNarrative(text)).toBe(true);
     const events = runExtractionEngine(text, "2024-01-01");
     expect(events.some((e) => e.type === "microbiology")).toBe(true);
+  });
+});
+
+/**
+ * buildCandidateEvents — punto único compartido por AddClinicalInfoModal
+ * y NewPatientModal para decidir qué eventos candidatos existen. Un
+ * texto vacío es el caso límite del alta inicial sin historia clínica:
+ * no debe producir ningún evento, ni siquiera una Consulta de relleno.
+ */
+describe("buildCandidateEvents", () => {
+  it("un texto vacío no produce ningún evento candidato (ni Consulta ni ningún otro)", () => {
+    expect(buildCandidateEvents("", "2024-01-01")).toEqual([]);
+  });
+
+  it("un texto que solo trae un dato objetivo produce solo ese evento, sin Consulta", () => {
+    const events = buildCandidateEvents("Cultivo positivo para Pseudomonas aeruginosa.", "2024-01-01");
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("microbiology");
+  });
+
+  it("un texto narrativo antepone la Consulta a los eventos extraídos", () => {
+    const events = buildCandidateEvents(
+      "Acude por aumento de disnea y expectoración purulenta. Cultivo positivo para Pseudomonas aeruginosa.",
+      "2024-01-01",
+    );
+    expect(events.map((e) => e.type)).toEqual(["consultation", "microbiology"]);
   });
 });

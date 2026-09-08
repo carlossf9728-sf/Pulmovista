@@ -105,8 +105,14 @@ export function ClinicalCandidateReview({ candidates, onChange }: { candidates: 
   return (
     <div>
       <div style={{ fontSize: 12.5, color: COLORS.slate, marginBottom: 12, lineHeight: 1.5 }}>
-        PulmoVista ha detectado {candidates.length} {candidates.length === 1 ? "elemento" : "elementos"} en el texto. Revíselos, corrija lo que
-        haga falta y descarte lo que no proceda antes de guardar — nada se añade a la historia todavía.
+        {candidates.length ? (
+          <>
+            PulmoVista ha detectado {candidates.length} {candidates.length === 1 ? "elemento" : "elementos"} en el texto. Revíselos, corrija lo
+            que haga falta y descarte lo que no proceda antes de guardar — nada se añade a la historia todavía.
+          </>
+        ) : (
+          "PulmoVista no ha identificado ningún evento clínico en el texto — puede continuar sin añadir nada a la historia."
+        )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

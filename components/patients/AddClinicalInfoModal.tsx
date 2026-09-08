@@ -4,14 +4,13 @@ import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
-import { hasConsultationNarrative, runExtractionEngine } from "@/engines/extraction";
+import { buildCandidateEvents } from "@/engines/extraction";
 import { scanPrivacyShield, redactText } from "@/engines/privacy";
-import { mkEvent, CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import { Modal } from "@/components/ui";
 import { PrivacyShieldModal } from "./PrivacyShieldModal";
 import { ClinicalCandidateReview, countIncluded } from "./ClinicalCandidateReview";
 import type { ReviewCandidate } from "./ClinicalCandidateReview";
-import type { ConsultationEvent, ClinicalEvent } from "@/types/clinicalEvent";
+import type { ClinicalEvent } from "@/types/clinicalEvent";
 import type { PrivacyFinding } from "@/types/privacy";
 
 /**
@@ -34,17 +33,9 @@ export function AddClinicalInfoModal({ onClose, onAdd }: { onClose: () => void; 
   const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
 
   function buildCandidates(cleanText: string): ReviewCandidate[] {
-    const date = todayISO();
-    const extracted = runExtractionEngine(cleanText, date);
-    const candidates = extracted.map((event) => ({ event, included: true }));
-    // Consulta/evolución solo se propone cuando el texto narra la visita o la evolución del paciente
-    // (ver hasConsultationNarrative) — no por defecto, para no duplicar en una "consulta" genérica
-    // lo que ya queda recogido en un evento específico (microbiología, radiología, PFR...).
-    if (hasConsultationNarrative(cleanText)) {
-      const consultation = mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, date, {}, { source: "manual", rawText: cleanText });
-      candidates.unshift({ event: consultation, included: true });
-    }
-    return candidates;
+    // Mismo criterio que NewPatientModal (ver buildCandidateEvents): un evento clínico
+    // solo existe si el contenido permite identificarlo — nunca una Consulta de relleno.
+    return buildCandidateEvents(cleanText, todayISO()).map((event) => ({ event, included: true }));
   }
 
   function goToReview(cleanText: string) {
