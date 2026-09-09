@@ -1,4 +1,5 @@
 export * from "./ArgosMark";
+export * from "./CollapsibleGroup";
 export * from "./Eyebrow";
 export * from "./Val";
 export * from "./StatusPill";

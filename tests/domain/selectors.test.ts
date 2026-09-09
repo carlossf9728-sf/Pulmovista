@@ -7,6 +7,7 @@ import {
   selectExacerbations,
   selectHospitalizationCount,
   selectImaging,
+  selectLabResults,
   selectMicrobiology,
   selectPFT,
   selectTreatments,
@@ -14,6 +15,7 @@ import {
 import type {
   ExacerbationEvent,
   ImagingEvent,
+  LabResultsEvent,
   MicrobiologyEvent,
   PulmonaryFunctionEvent,
   TreatmentStartedEvent,
@@ -60,6 +62,11 @@ function buildPatient(): Patient {
       label: "TC tórax",
       text: "Sin hallazgos relevantes.",
     }),
+    mkEvent<LabResultsEvent>(id, CLINICAL_EVENT_TYPES.LAB_RESULTS, "2023-09-01", {
+      label: "Analítica",
+      text: "PCR 8 mg/L.",
+      parameters: [{ name: "PCR", valueText: "8 mg/L", numericValue: 8, unit: "mg/L", status: "alterado", category: "general" }],
+    }),
   ];
   return {
     id,
@@ -95,6 +102,10 @@ describe("selectores derivados", () => {
 
   it("selectImaging filtra por tipo", () => {
     expect(selectImaging(patient.events)).toHaveLength(1);
+  });
+
+  it("selectLabResults filtra por tipo", () => {
+    expect(selectLabResults(patient.events)).toHaveLength(1);
   });
 
   it("selectHospitalizationCount cuenta exacerbaciones con hospitalization=true", () => {

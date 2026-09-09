@@ -16,6 +16,7 @@ import type {
   ConsultationEvent,
   ExacerbationEvent,
   ImagingEvent,
+  LabResultsEvent,
   MicrobiologyEvent,
   PulmonaryFunctionEvent,
   RespiratorySupportEvent,
@@ -37,6 +38,9 @@ function isExacerbation(e: ClinicalEvent): e is ExacerbationEvent {
 }
 function isImaging(e: ClinicalEvent): e is ImagingEvent {
   return e.type === CLINICAL_EVENT_TYPES.IMAGING;
+}
+function isLabResults(e: ClinicalEvent): e is LabResultsEvent {
+  return e.type === CLINICAL_EVENT_TYPES.LAB_RESULTS;
 }
 function isTreatmentStart(e: ClinicalEvent): e is TreatmentStartedEvent | RespiratorySupportEvent {
   return e.type === CLINICAL_EVENT_TYPES.TREATMENT_STARTED || e.type === CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT;
@@ -96,6 +100,10 @@ export function selectHospitalizationCount(events: ClinicalEvent[], upToDate: st
 
 export function selectImaging(events: ClinicalEvent[]): ImagingEvent[] {
   return sortByDate(events.filter(isImaging));
+}
+
+export function selectLabResults(events: ClinicalEvent[]): LabResultsEvent[] {
+  return sortByDate(events.filter(isLabResults));
 }
 
 /** Terapias no farmacológicas ya presentes en los datos demo — solo para la etiqueta de categoría en pantalla, no afecta a ningún motor clínico. */

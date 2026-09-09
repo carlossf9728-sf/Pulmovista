@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import { ChevronDown, ChevronRight, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
 import { guidelineShortLabel } from "@/utils/guidelineLabels";
@@ -11,7 +10,7 @@ import { diffChangedRecommendations, snapshotStatuses } from "@/engines/guidelin
 import { findRecommendationById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
 import { activeProblemCategories } from "@/domain/diagnosis";
-import { Card, Eyebrow, GuidelineRecommendationText, WhyButton } from "@/components/ui";
+import { Card, CollapsibleGroup, Eyebrow, GuidelineRecommendationText, WhyButton } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 import type { DiagnosisCategory } from "@/domain/diagnosis";
 import type { GuidelineMatch, GuidelineMatchStatus } from "@/types/guideline";
@@ -178,39 +177,6 @@ function MatchCard({ match, isUpdated, onWhy }: { match: GuidelineMatch; isUpdat
         <WhyButton onClick={onWhy} />
       </div>
     </Card>
-  );
-}
-
-/** Grupo plegable — "No indicadas / desaconsejadas" empieza plegado; el resto, abierto. */
-function CollapsibleGroup({
-  label,
-  color,
-  tint,
-  count,
-  defaultOpen,
-  children,
-}: {
-  label: string;
-  color: string;
-  tint: string;
-  count: number;
-  defaultOpen: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", width: "100%", textAlign: "left" }}
-      >
-        {open ? <ChevronDown size={14} color={COLORS.slateLight} /> : <ChevronRight size={14} color={COLORS.slateLight} />}
-        <Eyebrow color={color}>{label}</Eyebrow>
-        <span style={{ fontSize: 11, fontWeight: 700, color, background: tint, borderRadius: 20, padding: "1px 8px" }}>{count}</span>
-      </button>
-      {open && <div style={{ marginTop: 10 }}>{children}</div>}
-    </div>
   );
 }
 

@@ -17,6 +17,7 @@ import { SummaryTab } from "./SummaryTab";
 import { TimelineTab } from "./TimelineTab";
 import { PFTTab } from "./PFTTab";
 import { MicrobiologyTab } from "./MicrobiologyTab";
+import { AnalyticsTab } from "./AnalyticsTab";
 import { TreatmentsTab } from "./TreatmentsTab";
 import { ImagingTab } from "./ImagingTab";
 import { ConsultsTab } from "./ConsultsTab";
@@ -25,13 +26,14 @@ import { GuidelinesReviewTab } from "./GuidelinesReviewTab";
 import type { Patient } from "@/types/patient";
 import type { ClinicalExplanation } from "@/types/evidence";
 
-type TabKey = "resumen" | "timeline" | "funcion" | "micro" | "tratamientos" | "radiologia" | "consultas" | "alertas" | "guias";
+type TabKey = "resumen" | "timeline" | "funcion" | "micro" | "analiticas" | "tratamientos" | "radiologia" | "consultas" | "alertas" | "guias";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "resumen", label: "Resumen" },
   { key: "timeline", label: "Cronología" },
   { key: "funcion", label: "Función pulmonar" },
   { key: "micro", label: "Microbiología" },
+  { key: "analiticas", label: "Analíticas" },
   { key: "tratamientos", label: "Tratamientos" },
   { key: "radiologia", label: "Radiología" },
   { key: "consultas", label: "Consultas" },
@@ -107,6 +109,7 @@ export function PatientDetailView({ patient }: { patient: Patient }) {
       {tab === "timeline" && <TimelineTab patient={patient} />}
       {tab === "funcion" && <PFTTab patient={patient} />}
       {tab === "micro" && <MicrobiologyTab patient={patient} />}
+      {tab === "analiticas" && <AnalyticsTab patient={patient} />}
       {tab === "tratamientos" && <TreatmentsTab patient={patient} />}
       {tab === "radiologia" && <ImagingTab patient={patient} />}
       {tab === "consultas" && <ConsultsTab patient={patient} onAddClinicalInfo={() => setShowAddClinicalInfo(true)} />}

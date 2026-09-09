@@ -8,13 +8,23 @@
  * recomendaciones.
  */
 import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
-import { selectConsultations, selectExacerbations, selectImaging, selectMicrobiology, selectPFT } from "@/domain/selectors";
+import { selectConsultations, selectExacerbations, selectImaging, selectLabResults, selectMicrobiology, selectPFT } from "@/domain/selectors";
 import type { DiagnosisCategory } from "@/domain/diagnosis";
 import type { Patient } from "@/types/patient";
 
 export function allConsultText(patient: Patient): string {
   return selectConsultations(patient.events)
     .map((v) => v.rawText || "")
+    .join(" ")
+    .toLowerCase();
+}
+
+/** Nombres de todos los LabParameter de categoría "etiologico" registrados, en minúsculas, para buscar por patrón léxico igual que allConsultText. */
+function allEtiologicoParameterNames(patient: Patient): string {
+  return selectLabResults(patient.events)
+    .flatMap((e) => e.parameters ?? [])
+    .filter((param) => param.category === "etiologico")
+    .map((param) => param.name)
     .join(" ")
     .toLowerCase();
 }
@@ -31,6 +41,12 @@ export const MISSING_INFO_LEGACY_RULES: Record<DiagnosisCategory, MissingInfoRul
     { text: "No consta número de exacerbaciones documentado.", check: (p) => !selectExacerbations(p.events).length },
     { text: "No consta escala FACED/E-FACED.", check: (p) => !/faced|e-faced/i.test(allConsultText(p)) },
     { text: "No consta revisión de fisioterapia respiratoria.", check: (p) => !/fisioterapia/i.test(allConsultText(p)) },
+    // Las 3 reglas siguientes respaldadas por SEPAR 2018, Tabla 1 (separ-def-tabla1-causas): "Déficit de
+    // producción de anticuerpos — Inmunoglobulinas", "ABPA" y "Déficit de AAT". No se añaden reglas para IgE
+    // total, subclases de IgG por separado ni autoinmunidad: ninguna guía cargada las nombra individualmente.
+    { text: "No consta estudio de inmunoglobulinas (déficit de anticuerpos).", check: (p) => !/\big[gam]\b|inmunoglobulina/i.test(allEtiologicoParameterNames(p)) },
+    { text: "No consta cribado de ABPA/Aspergillus.", check: (p) => !/abpa|aspergillus/i.test(allEtiologicoParameterNames(p)) },
+    { text: "No consta cribado de déficit de alfa-1-antitripsina.", check: (p) => !/alfa-1-antitripsina|alfa1|\baat\b/i.test(allEtiologicoParameterNames(p)) },
   ],
   EPOC: [
     { text: "No consta espirometría reciente.", check: (p) => !selectPFT(p.events).length },

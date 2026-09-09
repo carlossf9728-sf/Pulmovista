@@ -150,11 +150,56 @@ export interface ImagingEvent extends ClinicalEventBase {
   text: string;
 }
 
-/** Resultado de laboratorio (analítica) — mismo formato libre que ImagingEvent: un rótulo de la prueba y el fragmento de texto que la describe, sin inventar una estructura de panel analítico que el texto no da. */
+/** A qué bloque de la pestaña "Analíticas" pertenece un LabParameter — dos niveles, no una taxonomía más fina. */
+export type LabParameterCategory = "general" | "etiologico";
+
+/**
+ * Solo "normal"/"alterado" cuando el propio informe lo indica de forma
+ * explícita (el texto lo dice, o el valor cae fuera de un rango de
+ * referencia que el propio informe trae) — null en cualquier otro caso.
+ * Nunca se infiere a partir de un umbral que PulmoVista decida por su
+ * cuenta: eso sería inventar normalidad/alteración que el dato no da.
+ */
+export type LabParameterStatus = "normal" | "alterado" | null;
+
+/** Rango de referencia tal y como lo trae el informe — ambos extremos opcionales porque muchos informes solo dan uno (p. ej. "<5 mg/dL"). */
+export interface LabReferenceRange {
+  low?: number | null;
+  high?: number | null;
+}
+
+/**
+ * Un parámetro analítico individual dentro de un LabResultsEvent.
+ * `valueText` es la fuente de verdad (tal como consta en el informe:
+ * "620 mg/dL", "Positivo", "<5 mg/dL") — `numericValue`/`unit` son una
+ * lectura estructurada de ese mismo texto SOLO cuando es inequívoca,
+ * nunca un valor inventado o forzado cuando el texto no es un número
+ * simple (p. ej. "Positivo" no tiene numericValue).
+ */
+export interface LabParameter {
+  name: string;
+  valueText: string;
+  numericValue?: number | null;
+  unit?: string | null;
+  referenceRange?: LabReferenceRange | null;
+  status?: LabParameterStatus;
+  category: LabParameterCategory;
+}
+
+/**
+ * Resultado de laboratorio (analítica) — mismo formato libre que
+ * ImagingEvent: un rótulo de la prueba y el fragmento de texto completo
+ * que la describe, siempre conservado tal cual. `parameters` es un
+ * desglose estructurado OPCIONAL de ese mismo texto — cuando no consta
+ * (analíticas antiguas, o texto que no permite aislar parámetros
+ * individuales) el evento se sigue mostrando por `label`/`text`, como
+ * siempre: no es obligatorio estructurar para que una analítica exista.
+ */
 export interface LabResultsEvent extends ClinicalEventBase {
   type: "lab_results";
   label: string;
   text: string;
+  parameters?: LabParameter[] | null;
 }
 
 /** Prueba funcional/de esfuerzo (test de la marcha, prueba de esfuerzo con desaturación…) — mismo formato libre que ImagingEvent/LabResultsEvent, categoría propia porque no es ni función pulmonar en reposo (PulmonaryFunctionEvent) ni una analítica. */

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { SummaryTab } from "@/components/patient-detail/SummaryTab";
 import { TimelineTab } from "@/components/patient-detail/TimelineTab";
 import { MicrobiologyTab } from "@/components/patient-detail/MicrobiologyTab";
+import { AnalyticsTab } from "@/components/patient-detail/AnalyticsTab";
 import { TreatmentsTab } from "@/components/patient-detail/TreatmentsTab";
 import { ImagingTab } from "@/components/patient-detail/ImagingTab";
 import { ConsultsTab } from "@/components/patient-detail/ConsultsTab";
@@ -129,10 +130,10 @@ describe("SummaryTab", () => {
   });
 
   it("'Qué información falta' muestra como mucho 3 ítems y remite a Alertas para el resto", () => {
-    // Paciente Bronquiectasias sin eventos: las 5 reglas legacy fallan todas.
+    // Paciente Bronquiectasias sin eventos: las 8 reglas legacy fallan todas.
     render(<SummaryTab patient={basePatient()} onWhy={() => {}} />);
     expect(screen.getAllByText(/No consta/).length).toBe(3);
-    expect(screen.getByText(/\+2 más en/)).toBeInTheDocument();
+    expect(screen.getByText(/\+5 más en/)).toBeInTheDocument();
   });
 
   it("'Qué revisar hoy' distingue 'sin guía cargada' de 'sin prioridades' — un diagnóstico no soportado (Asma) nunca dispara ni una recomendación GENERAL, a diferencia de Bronquiectasias", () => {
@@ -470,6 +471,56 @@ describe("MicrobiologyTab", () => {
     render(<MicrobiologyTab patient={p1} />);
     expect(screen.getAllByText("Nuevo aislamiento").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Persistencia").length).toBeGreaterThan(0);
+  });
+});
+
+describe("AnalyticsTab", () => {
+  it("separa 'Analítica general' de 'Estudio etiológico / cribado de bronquiectasias', cada una con sus propios parámetros (p1)", () => {
+    render(<AnalyticsTab patient={p1} />);
+    expect(screen.getByText("Analítica general")).toBeInTheDocument();
+    expect(screen.getByText("Estudio etiológico / cribado de bronquiectasias")).toBeInTheDocument();
+    // Parámetro de la analítica general.
+    expect(screen.getByText("PCR")).toBeInTheDocument();
+    // Parámetros del estudio etiológico — no aparecen en el mismo bloque que PCR.
+    expect(screen.getByText("IgG")).toBeInTheDocument();
+    expect(screen.getByText("Alfa-1-antitripsina")).toBeInTheDocument();
+  });
+
+  it("muestra el badge de estado solo cuando el parámetro trae status explícito, con el color correspondiente ('alterado' en PCR, 'normal' en el resto del estudio etiológico)", () => {
+    render(<AnalyticsTab patient={p1} />);
+    expect(screen.getAllByText("alterado").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("normal").length).toBeGreaterThan(0);
+  });
+
+  it("PCR tiene histórico (2 determinaciones) y se expande para mostrar ambas fechas y valores, sin inventar un veredicto de mejoría/empeoramiento", async () => {
+    render(<AnalyticsTab patient={p1} />);
+    // Leucocitos también tiene 2 determinaciones (mismo patrón) — se acota la búsqueda a la fila de PCR.
+    const pcrRow = screen.getByTestId("lab-param-general-PCR");
+    const historyToggle = within(pcrRow).getByRole("button", { name: /histórico \(2\)/i });
+    // "8 mg/L" (el valor más reciente) ya se ve en la fila compacta antes de expandir; "95 mg/L" solo aparece en el histórico.
+    expect(within(pcrRow).getByText("8 mg/L")).toBeInTheDocument();
+    expect(within(pcrRow).queryByText("95 mg/L")).not.toBeInTheDocument();
+    await userEvent.click(historyToggle);
+    expect(within(pcrRow).getByText("95 mg/L")).toBeInTheDocument();
+    expect(within(pcrRow).queryByText(/mejoría|empeoramiento/i)).not.toBeInTheDocument();
+  });
+
+  it("una analítica antigua sin desglose estructurado (p2) se sigue mostrando íntegra, con su texto original", () => {
+    render(<AnalyticsTab patient={p2} />);
+    expect(screen.getByText("Otras analíticas sin desglose")).toBeInTheDocument();
+    expect(screen.getByText(/Gasometría arterial/)).toBeInTheDocument();
+  });
+
+  it("un paciente sin ninguna analítica registrada (p3) muestra el estado de ausencia, no una pestaña vacía sin explicación", () => {
+    render(<AnalyticsTab patient={p3} />);
+    expect(screen.getByText("No disponible: sin analíticas registradas.")).toBeInTheDocument();
+  });
+
+  it("una categoría sin ningún parámetro registrado muestra su propio texto de ausencia, no un hueco silencioso", () => {
+    // p2 solo tiene una analítica sin desglosar: ambas categorías (general/etiológico) están vacías de series.
+    render(<AnalyticsTab patient={p2} />);
+    expect(screen.getByText("No se han registrado parámetros de analítica general desglosados.")).toBeInTheDocument();
+    expect(screen.getByText("No se han registrado parámetros del estudio etiológico desglosados.")).toBeInTheDocument();
   });
 });
 

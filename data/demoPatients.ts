@@ -195,9 +195,54 @@ export function buildDemoPatients(): Patient[] {
       p1,
       CLINICAL_EVENT_TYPES.LAB_RESULTS,
       "2026-02-05",
-      { label: "Analítica de ingreso", text: "Leucocitos 12.800/µL con neutrofilia, PCR 95 mg/L." },
+      {
+        label: "Analítica de ingreso",
+        text: "Leucocitos 12.800/µL con neutrofilia, PCR 95 mg/L.",
+        // Mismo texto libre de siempre, ahora también desglosado en parámetros estructurados — no se duplica el
+        // contenido, es el mismo dato en dos formas (ver pestaña "Analíticas" y domain/labParameters.ts).
+        parameters: [
+          { name: "PCR", valueText: "95 mg/L", numericValue: 95, unit: "mg/L", referenceRange: { low: 0, high: 5 }, status: "alterado", category: "general" },
+          {
+            name: "Leucocitos",
+            valueText: "12.800/µL",
+            numericValue: 12800,
+            unit: "/µL",
+            referenceRange: { low: 4000, high: 11000 },
+            status: "alterado",
+            category: "general",
+          },
+        ],
+      },
       { episodeId: "ep-p1-2026-02" },
     ),
+    mkEvent<LabResultsEvent>(p1, CLINICAL_EVENT_TYPES.LAB_RESULTS, "2026-06-20", {
+      label: "Analítica general",
+      text: "Hemograma, función renal/hepática y reactantes de fase aguda dentro de la normalidad salvo PCR ligeramente elevada.",
+      parameters: [
+        { name: "PCR", valueText: "8 mg/L", numericValue: 8, unit: "mg/L", referenceRange: { low: 0, high: 5 }, status: "alterado", category: "general" },
+        { name: "Leucocitos", valueText: "9.200/µL", numericValue: 9200, unit: "/µL", referenceRange: { low: 4000, high: 11000 }, status: "normal", category: "general" },
+        { name: "Hemoglobina", valueText: "13,8 g/dL", numericValue: 13.8, unit: "g/dL", referenceRange: { low: 12, high: 16 }, status: "normal", category: "general" },
+        { name: "Eosinófilos", valueText: "280/µL", numericValue: 280, unit: "/µL", referenceRange: { low: 0, high: 500 }, status: "normal", category: "general" },
+        { name: "Creatinina", valueText: "0,9 mg/dL", numericValue: 0.9, unit: "mg/dL", referenceRange: { low: 0.6, high: 1.2 }, status: "normal", category: "general" },
+        { name: "ALT (GPT)", valueText: "22 U/L", numericValue: 22, unit: "U/L", referenceRange: { low: 0, high: 41 }, status: "normal", category: "general" },
+      ],
+    }),
+    // Estudio etiológico realizado una sola vez, cerca del diagnóstico — no se repite en cada revisión, a diferencia
+    // de la analítica general. Ningún hallazgo sugiere una causa secundaria identificable en este paciente.
+    mkEvent<LabResultsEvent>(p1, CLINICAL_EVENT_TYPES.LAB_RESULTS, "2023-02-20", {
+      label: "Estudio etiológico de bronquiectasias",
+      text: "Inmunoglobulinas, IgE total, cribado de ABPA, alfa-1-antitripsina y autoinmunidad sin hallazgos que sugieran una causa secundaria identificable.",
+      parameters: [
+        { name: "IgG", valueText: "950 mg/dL", numericValue: 950, unit: "mg/dL", referenceRange: { low: 700, high: 1600 }, status: "normal", category: "etiologico" },
+        { name: "IgA", valueText: "210 mg/dL", numericValue: 210, unit: "mg/dL", referenceRange: { low: 70, high: 400 }, status: "normal", category: "etiologico" },
+        { name: "IgM", valueText: "90 mg/dL", numericValue: 90, unit: "mg/dL", referenceRange: { low: 40, high: 230 }, status: "normal", category: "etiologico" },
+        { name: "IgG2 (subclase)", valueText: "180 mg/dL", numericValue: 180, unit: "mg/dL", referenceRange: { low: 150, high: 700 }, status: "normal", category: "etiologico" },
+        { name: "IgE total", valueText: "45 kU/L", numericValue: 45, unit: "kU/L", referenceRange: { high: 100 }, status: "normal", category: "etiologico" },
+        { name: "IgE específica Aspergillus fumigatus", valueText: "Negativo", status: "normal", category: "etiologico" },
+        { name: "Alfa-1-antitripsina", valueText: "135 mg/dL", numericValue: 135, unit: "mg/dL", referenceRange: { low: 90, high: 200 }, status: "normal", category: "etiologico" },
+        { name: "Autoinmunidad (FR, ANA)", valueText: "Negativo", status: "normal", category: "etiologico" },
+      ],
+    }),
     mkEvent<ImagingEvent>(p1, CLINICAL_EVENT_TYPES.IMAGING, "2023-01-20", {
       label: "TC tórax",
       text: "Bronquiectasias cilíndricas bilaterales de predominio en lóbulos inferiores. Sin impactación mucosa relevante.",

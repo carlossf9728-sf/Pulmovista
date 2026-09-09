@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
 import { computeMissingInfo, computeReviewOpportunities } from "@/engines/missingInfo";
-import type { MicrobiologyEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
+import type { LabResultsEvent, MicrobiologyEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 function basePatient(primaryDiagnosis: string, events: Patient["events"] = []): Patient {
@@ -40,6 +40,63 @@ describe("computeMissingInfo (LEGACY)", () => {
 
   it("usa el checklist General para diagnósticos no reconocidos", () => {
     expect(computeMissingInfo(basePatient("Asma bronquial")).category).toBe("General");
+  });
+
+  /**
+   * Las 3 reglas de cribado etiológico están respaldadas por SEPAR 2018,
+   * Tabla 1 (separ-def-tabla1-causas): "Déficit de producción de
+   * anticuerpos — Inmunoglobulinas", "ABPA" y "Déficit de AAT" — las
+   * únicas 3 pruebas de cribado de bronquiectasias que aparecen
+   * literalmente en una guía cargada.
+   */
+  it("señala inmunoglobulinas, ABPA y alfa-1-antitripsina como ausentes cuando no hay ningún LabResultsEvent con esos parámetros", () => {
+    const result = computeMissingInfo(basePatient("Bronquiectasias no FQ"));
+    expect(result.items).toContain("No consta estudio de inmunoglobulinas (déficit de anticuerpos).");
+    expect(result.items).toContain("No consta cribado de ABPA/Aspergillus.");
+    expect(result.items).toContain("No consta cribado de déficit de alfa-1-antitripsina.");
+  });
+
+  it("deja de señalar inmunoglobulinas cuando ya consta un parámetro IgG/IgA/IgM de categoría etiológica", () => {
+    const patient = basePatient("Bronquiectasias no FQ", [
+      mkEvent<LabResultsEvent>("p1", CLINICAL_EVENT_TYPES.LAB_RESULTS, "2023-01-01", {
+        label: "Estudio etiológico",
+        text: "IgG 950 mg/dL.",
+        parameters: [{ name: "IgG", valueText: "950 mg/dL", numericValue: 950, unit: "mg/dL", status: "normal", category: "etiologico" }],
+      }),
+    ]);
+    const result = computeMissingInfo(patient);
+    expect(result.items).not.toContain("No consta estudio de inmunoglobulinas (déficit de anticuerpos).");
+    // ABPA y AAT siguen sin constar — este LabResultsEvent solo trae IgG.
+    expect(result.items).toContain("No consta cribado de ABPA/Aspergillus.");
+    expect(result.items).toContain("No consta cribado de déficit de alfa-1-antitripsina.");
+  });
+
+  it("deja de señalar ABPA cuando ya consta un parámetro de Aspergillus, y alfa-1-antitripsina cuando ya consta ese parámetro", () => {
+    const patient = basePatient("Bronquiectasias no FQ", [
+      mkEvent<LabResultsEvent>("p1", CLINICAL_EVENT_TYPES.LAB_RESULTS, "2023-01-01", {
+        label: "Estudio etiológico",
+        text: "Cribado de ABPA e IgE específica Aspergillus negativos. Alfa-1-antitripsina 135 mg/dL.",
+        parameters: [
+          { name: "IgE específica Aspergillus fumigatus", valueText: "Negativo", status: "normal", category: "etiologico" },
+          { name: "Alfa-1-antitripsina", valueText: "135 mg/dL", numericValue: 135, unit: "mg/dL", status: "normal", category: "etiologico" },
+        ],
+      }),
+    ]);
+    const result = computeMissingInfo(patient);
+    expect(result.items).not.toContain("No consta cribado de ABPA/Aspergillus.");
+    expect(result.items).not.toContain("No consta cribado de déficit de alfa-1-antitripsina.");
+  });
+
+  it("un LabResultsEvent sin parámetros estructurados (analítica antigua en texto libre) no cuenta como cribado etiológico constatado", () => {
+    const patient = basePatient("Bronquiectasias no FQ", [
+      mkEvent<LabResultsEvent>("p1", CLINICAL_EVENT_TYPES.LAB_RESULTS, "2023-01-01", {
+        label: "Analítica",
+        text: "IgG, IgA, IgM y ABPA sin alteraciones.",
+      }),
+    ]);
+    const result = computeMissingInfo(patient);
+    expect(result.items).toContain("No consta estudio de inmunoglobulinas (déficit de anticuerpos).");
+    expect(result.items).toContain("No consta cribado de ABPA/Aspergillus.");
   });
 });
 
