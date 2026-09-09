@@ -6,8 +6,11 @@
  * GuidelineCriterion/GuidelineRecommendation. Ver ers2025.ts y
  * separ2018.ts para las notas de fidelidad de cada fuente.
  *
- * NO conectado todavía a Sentinel, Turning Points, Missing Information,
- * Review Opportunities ni a ningún componente de UI — ver
+ * NO conectado todavía a Sentinel, Turning Points ni Review
+ * Opportunities. Missing Information sí cita puntualmente
+ * separar-def-tabla1-causas (ver engines/missingInfo/index.ts) para el
+ * bloque "Estudio etiológico de bronquiectasias incompleto" — una
+ * constatación, no una recomendación con criterios de coincidencia. Ver
  * tests/engines/guidelinesKnowledge.test.ts para las comprobaciones de
  * integridad estructural (IDs únicos, referencias válidas, sin fuerza/
  * evidencia/página inventadas).
@@ -53,6 +56,10 @@ export function findChildRecommendations(parentRecommendationId: string): Guidel
 
 export function findCriterionById(criterionId: string): GuidelineCriterion | undefined {
   return KNOWLEDGE_BASE_CRITERIA.find((c) => c.criterionId === criterionId);
+}
+
+export function findDefinitionById(definitionId: string): GuidelineDefinition | undefined {
+  return KNOWLEDGE_BASE_DEFINITIONS.find((d) => d.definitionId === definitionId);
 }
 
 export function findRecommendationById(recommendationId: string): GuidelineRecommendation | undefined {

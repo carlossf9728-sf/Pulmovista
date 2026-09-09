@@ -47,6 +47,25 @@ export type ClinicalSource =
       year: number;
       section?: string | null;
       page?: number | null;
+    }
+  | {
+      /**
+       * Cita una GuidelineDefinition (concepto/tabla informativa de la
+       * guía, ver types/guideline.ts) en vez de una GuidelineRecommendation
+       * — deliberadamente sin `recommendationId` ni fuerza/calidad de
+       * evidencia, porque no lo es: es una constatación de qué dice la
+       * guía sobre un concepto, nunca una recomendación accionable con
+       * grado GRADE. Usar este `kind` en vez de "guideline" para no dar a
+       * entender que existe una recomendación explícita cuando solo hay
+       * una definición o tabla de referencia.
+       */
+      kind: "guideline_definition";
+      guidelineId: string;
+      definitionId: string;
+      society: string;
+      year: number;
+      section?: string | null;
+      page?: number | null;
     };
 
 export interface ClinicalExplanationSection {
@@ -79,6 +98,6 @@ export interface ClinicalExplanation {
   source: ClinicalSource;
   sections: ClinicalExplanationSection[];
   evidence: EvidenceItem[];
-  /** Presente solo cuando `source.kind === "guideline"` y hay una cita real que mostrar. */
+  /** Presente solo cuando `source.kind` es "guideline" o "guideline_definition" y hay una cita real que mostrar. */
   citation?: ClinicalExplanationCitation;
 }

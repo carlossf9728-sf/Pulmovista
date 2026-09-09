@@ -251,7 +251,7 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
       </SectionCard>
 
       <SectionCard title="Qué información falta" color={COLORS.slate}>
-        {!topMissing.length && <EmptyNote text="No se han identificado ausencias relevantes para este diagnóstico." />}
+        {!topMissing.length && !missing.groups.length && <EmptyNote text="No se han identificado ausencias relevantes para este diagnóstico." />}
         {!!topMissing.length && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {topMissing.map((m, i) => (
@@ -266,6 +266,15 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
             +{missing.items.length - topMissing.length} más en “Alertas”.
           </div>
         )}
+        {missing.groups.map((g) => (
+          <div
+            key={g.title}
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: topMissing.length ? 12 : 0, paddingTop: topMissing.length ? 12 : 0, borderTop: topMissing.length ? `1px solid ${COLORS.line}` : "none" }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.ink }}>{g.title}</div>
+            {g.explanation && <WhyButton onClick={() => onWhy(g.explanation!)} />}
+          </div>
+        ))}
       </SectionCard>
 
       <SectionCard title="Momentos clave" color={COLORS.orange}>

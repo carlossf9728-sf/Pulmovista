@@ -20,7 +20,7 @@ export function allConsultText(patient: Patient): string {
 }
 
 /** Nombres de todos los LabParameter de categoría "etiologico" registrados, en minúsculas, para buscar por patrón léxico igual que allConsultText. */
-function allEtiologicoParameterNames(patient: Patient): string {
+export function allEtiologicoParameterNames(patient: Patient): string {
   return selectLabResults(patient.events)
     .flatMap((e) => e.parameters ?? [])
     .filter((param) => param.category === "etiologico")
@@ -34,6 +34,28 @@ export interface MissingInfoRule {
   check(patient: Patient): boolean;
 }
 
+/**
+ * Componentes del cribado etiológico de bronquiectasias que MissingInfoEngine
+ * puede constatar como "no consta" — respaldados por SEPAR 2018, Tabla 1
+ * (separ-def-tabla1-causas): "Déficit de producción de anticuerpos —
+ * Inmunoglobulinas", "ABPA" y "Déficit de AAT". Deliberadamente no incluye
+ * IgE total, subclases de IgG por separado ni autoinmunidad: ninguna guía
+ * cargada las nombra individualmente, y no se inventan reglas de cribado a
+ * partir de una simple mención en una tabla. Se agrupan en un único bloque
+ * ("Estudio etiológico de bronquiectasias incompleto", ver
+ * engines/missingInfo/index.ts) en vez de 3 líneas sueltas en `items`.
+ */
+export interface EtiologicalScreeningComponent {
+  label: string;
+  matcher: RegExp;
+}
+
+export const BRONCHIECTASIS_ETIOLOGICAL_SCREENING: EtiologicalScreeningComponent[] = [
+  { label: "Inmunoglobulinas / anticuerpos", matcher: /\big[gam]\b|inmunoglobulina/i },
+  { label: "Estudio de ABPA", matcher: /abpa|aspergillus/i },
+  { label: "Alfa-1-antitripsina", matcher: /alfa-1-antitripsina|alfa1|\baat\b/i },
+];
+
 export const MISSING_INFO_LEGACY_RULES: Record<DiagnosisCategory, MissingInfoRule[]> = {
   Bronquiectasias: [
     { text: "No consta microbiología reciente.", check: (p) => !selectMicrobiology(p.events).length },
@@ -41,12 +63,8 @@ export const MISSING_INFO_LEGACY_RULES: Record<DiagnosisCategory, MissingInfoRul
     { text: "No consta número de exacerbaciones documentado.", check: (p) => !selectExacerbations(p.events).length },
     { text: "No consta escala FACED/E-FACED.", check: (p) => !/faced|e-faced/i.test(allConsultText(p)) },
     { text: "No consta revisión de fisioterapia respiratoria.", check: (p) => !/fisioterapia/i.test(allConsultText(p)) },
-    // Las 3 reglas siguientes respaldadas por SEPAR 2018, Tabla 1 (separ-def-tabla1-causas): "Déficit de
-    // producción de anticuerpos — Inmunoglobulinas", "ABPA" y "Déficit de AAT". No se añaden reglas para IgE
-    // total, subclases de IgG por separado ni autoinmunidad: ninguna guía cargada las nombra individualmente.
-    { text: "No consta estudio de inmunoglobulinas (déficit de anticuerpos).", check: (p) => !/\big[gam]\b|inmunoglobulina/i.test(allEtiologicoParameterNames(p)) },
-    { text: "No consta cribado de ABPA/Aspergillus.", check: (p) => !/abpa|aspergillus/i.test(allEtiologicoParameterNames(p)) },
-    { text: "No consta cribado de déficit de alfa-1-antitripsina.", check: (p) => !/alfa-1-antitripsina|alfa1|\baat\b/i.test(allEtiologicoParameterNames(p)) },
+    // El cribado etiológico (inmunoglobulinas, ABPA, alfa-1-antitripsina) NO va aquí como líneas sueltas:
+    // se agrupa en su propio bloque con trazabilidad "¿Por qué?" — ver computeMissingInfo en ./index.ts.
   ],
   EPOC: [
     { text: "No consta espirometría reciente.", check: (p) => !selectPFT(p.events).length },

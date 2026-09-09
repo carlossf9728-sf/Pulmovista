@@ -130,10 +130,12 @@ describe("SummaryTab", () => {
   });
 
   it("'Qué información falta' muestra como mucho 3 ítems y remite a Alertas para el resto", () => {
-    // Paciente Bronquiectasias sin eventos: las 8 reglas legacy fallan todas.
+    // Paciente Bronquiectasias sin eventos: las 5 reglas legacy fallan todas,
+    // más el bloque agrupado de cribado etiológico (por separado, no cuenta en "items").
     render(<SummaryTab patient={basePatient()} onWhy={() => {}} />);
     expect(screen.getAllByText(/No consta/).length).toBe(3);
-    expect(screen.getByText(/\+5 más en/)).toBeInTheDocument();
+    expect(screen.getByText(/\+2 más en/)).toBeInTheDocument();
+    expect(screen.getByText("Estudio etiológico de bronquiectasias incompleto")).toBeInTheDocument();
   });
 
   it("'Qué revisar hoy' distingue 'sin guía cargada' de 'sin prioridades' — un diagnóstico no soportado (Asma) nunca dispara ni una recomendación GENERAL, a diferencia de Bronquiectasias", () => {

@@ -157,13 +157,30 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
           <Eyebrow color={COLORS.slate}>¿Qué me falta revisar?</Eyebrow>
           <span style={{ fontSize: 10.5, color: COLORS.slateLight }}>Lista de comprobación para: {missing.category}</span>
         </div>
-        {!missing.items.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>No se han identificado ausencias relevantes para este diagnóstico.</div>}
+        {!missing.items.length && !missing.groups.length && (
+          <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>No se han identificado ausencias relevantes para este diagnóstico.</div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
           {missing.items.map((m, i) => (
             <div key={i} style={{ display: "flex", gap: 8, fontSize: 13, color: COLORS.ink, background: COLORS.white, border: `1px solid ${COLORS.line}`, borderRadius: 8, padding: "9px 12px" }}>
               <CircleAlert size={14} color={COLORS.slateLight} style={{ flexShrink: 0, marginTop: 1 }} />
               {m}
             </div>
+          ))}
+          {missing.groups.map((g) => (
+            <Card key={g.title} accent={COLORS.slate}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5, color: COLORS.ink }}>{g.title}</div>
+                {g.explanation && <WhyButton onClick={() => onWhy(g.explanation!)} />}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+                {g.missingComponents.map((c) => (
+                  <div key={c} style={{ fontSize: 12.5, color: COLORS.slate }}>
+                    {c}: no consta
+                  </div>
+                ))}
+              </div>
+            </Card>
           ))}
         </div>
       </div>
