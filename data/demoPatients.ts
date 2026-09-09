@@ -201,7 +201,7 @@ export function buildDemoPatients(): Patient[] {
         // Mismo texto libre de siempre, ahora también desglosado en parámetros estructurados — no se duplica el
         // contenido, es el mismo dato en dos formas (ver pestaña "Analíticas" y domain/labParameters.ts).
         parameters: [
-          { name: "PCR", valueText: "95 mg/L", numericValue: 95, unit: "mg/L", referenceRange: { low: 0, high: 5 }, status: "alterado", category: "general" },
+          { name: "PCR", valueText: "95 mg/L", numericValue: 95, unit: "mg/L", referenceRange: { low: 0, high: 5 }, status: "alterado", category: "inflamacion" },
           {
             name: "Leucocitos",
             valueText: "12.800/µL",
@@ -209,7 +209,7 @@ export function buildDemoPatients(): Patient[] {
             unit: "/µL",
             referenceRange: { low: 4000, high: 11000 },
             status: "alterado",
-            category: "general",
+            category: "hemograma",
           },
         ],
       },
@@ -219,28 +219,30 @@ export function buildDemoPatients(): Patient[] {
       label: "Analítica general",
       text: "Hemograma, función renal/hepática y reactantes de fase aguda dentro de la normalidad salvo PCR ligeramente elevada.",
       parameters: [
-        { name: "PCR", valueText: "8 mg/L", numericValue: 8, unit: "mg/L", referenceRange: { low: 0, high: 5 }, status: "alterado", category: "general" },
-        { name: "Leucocitos", valueText: "9.200/µL", numericValue: 9200, unit: "/µL", referenceRange: { low: 4000, high: 11000 }, status: "normal", category: "general" },
-        { name: "Hemoglobina", valueText: "13,8 g/dL", numericValue: 13.8, unit: "g/dL", referenceRange: { low: 12, high: 16 }, status: "normal", category: "general" },
-        { name: "Eosinófilos", valueText: "280/µL", numericValue: 280, unit: "/µL", referenceRange: { low: 0, high: 500 }, status: "normal", category: "general" },
-        { name: "Creatinina", valueText: "0,9 mg/dL", numericValue: 0.9, unit: "mg/dL", referenceRange: { low: 0.6, high: 1.2 }, status: "normal", category: "general" },
-        { name: "ALT (GPT)", valueText: "22 U/L", numericValue: 22, unit: "U/L", referenceRange: { low: 0, high: 41 }, status: "normal", category: "general" },
+        { name: "PCR", valueText: "8 mg/L", numericValue: 8, unit: "mg/L", referenceRange: { low: 0, high: 5 }, status: "alterado", category: "inflamacion" },
+        { name: "Leucocitos", valueText: "9.200/µL", numericValue: 9200, unit: "/µL", referenceRange: { low: 4000, high: 11000 }, status: "normal", category: "hemograma" },
+        { name: "Hemoglobina", valueText: "13,8 g/dL", numericValue: 13.8, unit: "g/dL", referenceRange: { low: 12, high: 16 }, status: "normal", category: "hemograma" },
+        { name: "Eosinófilos", valueText: "280/µL", numericValue: 280, unit: "/µL", referenceRange: { low: 0, high: 500 }, status: "normal", category: "hemograma" },
+        { name: "Creatinina", valueText: "0,9 mg/dL", numericValue: 0.9, unit: "mg/dL", referenceRange: { low: 0.6, high: 1.2 }, status: "normal", category: "funcion_renal" },
+        { name: "ALT (GPT)", valueText: "22 U/L", numericValue: 22, unit: "U/L", referenceRange: { low: 0, high: 41 }, status: "normal", category: "perfil_hepatico" },
       ],
     }),
     // Estudio etiológico realizado una sola vez, cerca del diagnóstico — no se repite en cada revisión, a diferencia
-    // de la analítica general. Ningún hallazgo sugiere una causa secundaria identificable en este paciente.
+    // de la analítica general. Ningún hallazgo sugiere una causa secundaria identificable en este paciente. Los
+    // parámetros se reparten por bloque de laboratorio (Inmunología/Aspergillus-ABPA/Alfa-1-antitripsina/
+    // Autoinmunidad) igual que en cualquier otra analítica — ver LabPanelCategory en types/clinicalEvent.ts.
     mkEvent<LabResultsEvent>(p1, CLINICAL_EVENT_TYPES.LAB_RESULTS, "2023-02-20", {
       label: "Estudio etiológico de bronquiectasias",
       text: "Inmunoglobulinas, IgE total, cribado de ABPA, alfa-1-antitripsina y autoinmunidad sin hallazgos que sugieran una causa secundaria identificable.",
       parameters: [
-        { name: "IgG", valueText: "950 mg/dL", numericValue: 950, unit: "mg/dL", referenceRange: { low: 700, high: 1600 }, status: "normal", category: "etiologico" },
-        { name: "IgA", valueText: "210 mg/dL", numericValue: 210, unit: "mg/dL", referenceRange: { low: 70, high: 400 }, status: "normal", category: "etiologico" },
-        { name: "IgM", valueText: "90 mg/dL", numericValue: 90, unit: "mg/dL", referenceRange: { low: 40, high: 230 }, status: "normal", category: "etiologico" },
-        { name: "IgG2 (subclase)", valueText: "180 mg/dL", numericValue: 180, unit: "mg/dL", referenceRange: { low: 150, high: 700 }, status: "normal", category: "etiologico" },
-        { name: "IgE total", valueText: "45 kU/L", numericValue: 45, unit: "kU/L", referenceRange: { high: 100 }, status: "normal", category: "etiologico" },
-        { name: "IgE específica Aspergillus fumigatus", valueText: "Negativo", status: "normal", category: "etiologico" },
-        { name: "Alfa-1-antitripsina", valueText: "135 mg/dL", numericValue: 135, unit: "mg/dL", referenceRange: { low: 90, high: 200 }, status: "normal", category: "etiologico" },
-        { name: "Autoinmunidad (FR, ANA)", valueText: "Negativo", status: "normal", category: "etiologico" },
+        { name: "IgG", valueText: "950 mg/dL", numericValue: 950, unit: "mg/dL", referenceRange: { low: 700, high: 1600 }, status: "normal", category: "inmunologia" },
+        { name: "IgA", valueText: "210 mg/dL", numericValue: 210, unit: "mg/dL", referenceRange: { low: 70, high: 400 }, status: "normal", category: "inmunologia" },
+        { name: "IgM", valueText: "90 mg/dL", numericValue: 90, unit: "mg/dL", referenceRange: { low: 40, high: 230 }, status: "normal", category: "inmunologia" },
+        { name: "IgG2 (subclase)", valueText: "180 mg/dL", numericValue: 180, unit: "mg/dL", referenceRange: { low: 150, high: 700 }, status: "normal", category: "inmunologia" },
+        { name: "IgE total", valueText: "45 kU/L", numericValue: 45, unit: "kU/L", referenceRange: { high: 100 }, status: "normal", category: "inmunologia" },
+        { name: "IgE específica Aspergillus fumigatus", valueText: "Negativo", status: "normal", category: "aspergillus_abpa" },
+        { name: "Alfa-1-antitripsina", valueText: "135 mg/dL", numericValue: 135, unit: "mg/dL", referenceRange: { low: 90, high: 200 }, status: "normal", category: "alfa1_antitripsina" },
+        { name: "Autoinmunidad (FR, ANA)", valueText: "Negativo", status: "normal", category: "autoinmunidad" },
       ],
     }),
     mkEvent<ImagingEvent>(p1, CLINICAL_EVENT_TYPES.IMAGING, "2023-01-20", {

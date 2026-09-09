@@ -65,7 +65,7 @@ function buildPatient(): Patient {
     mkEvent<LabResultsEvent>(id, CLINICAL_EVENT_TYPES.LAB_RESULTS, "2023-09-01", {
       label: "Analítica",
       text: "PCR 8 mg/L.",
-      parameters: [{ name: "PCR", valueText: "8 mg/L", numericValue: 8, unit: "mg/L", status: "alterado", category: "general" }],
+      parameters: [{ name: "PCR", valueText: "8 mg/L", numericValue: 8, unit: "mg/L", status: "alterado", category: "inflamacion" }],
     }),
   ];
   return {

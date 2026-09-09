@@ -477,27 +477,68 @@ describe("MicrobiologyTab", () => {
 });
 
 describe("AnalyticsTab", () => {
-  it("separa 'Analítica general' de 'Estudio etiológico / cribado de bronquiectasias', cada una con sus propios parámetros (p1)", () => {
+  it("organiza los parámetros por bloque de laboratorio, no por 'general vs etiológico' (p1)", () => {
     render(<AnalyticsTab patient={p1} />);
-    expect(screen.getByText("Analítica general")).toBeInTheDocument();
-    expect(screen.getByText("Estudio etiológico / cribado de bronquiectasias")).toBeInTheDocument();
-    // Parámetro de la analítica general.
-    expect(screen.getByText("PCR")).toBeInTheDocument();
-    // Parámetros del estudio etiológico — no aparecen en el mismo bloque que PCR.
-    expect(screen.getByText("IgG")).toBeInTheDocument();
+    // Bloques con datos en p1 — cada parámetro en su bloque de laboratorio, nunca "Analítica general"/"Estudio etiológico".
+    expect(screen.getByText("Hemograma")).toBeInTheDocument();
+    expect(screen.getByText("Inflamación")).toBeInTheDocument();
+    expect(screen.getByText("Función renal")).toBeInTheDocument();
+    expect(screen.getByText("Perfil hepático")).toBeInTheDocument();
+    expect(screen.getByText("Inmunología / inmunoglobulinas")).toBeInTheDocument();
+    expect(screen.getByText("Aspergillus / ABPA")).toBeInTheDocument();
     expect(screen.getByText("Alfa-1-antitripsina")).toBeInTheDocument();
+    expect(screen.getByText("Autoinmunidad")).toBeInTheDocument();
+    expect(screen.queryByText("Analítica general")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Estudio etiológico \/ cribado/)).not.toBeInTheDocument();
+    // PCR está en el único bloque abierto por defecto (Inflamación, por su valor alterado) — aparece una sola vez, no duplicado.
+    expect(screen.getAllByText("PCR")).toHaveLength(1);
   });
 
-  it("muestra el badge de estado solo cuando el parámetro trae status explícito, con el color correspondiente ('alterado' en PCR, 'normal' en el resto del estudio etiológico)", () => {
+  it("cada parámetro aparece en un único bloque al expandirlos todos — nunca duplicado entre secciones", async () => {
     render(<AnalyticsTab patient={p1} />);
+    for (const label of ["Hemograma", "Función renal", "Perfil hepático", "Inmunología / inmunoglobulinas", "Aspergillus / ABPA", "Alfa-1-antitripsina", "Autoinmunidad"]) {
+      const header = screen.getByText(label).closest("button")!;
+      if (header.getAttribute("aria-expanded") === "false") await userEvent.click(header);
+    }
+    expect(screen.getAllByText("IgG")).toHaveLength(1);
+    expect(screen.getAllByText("Alfa-1-antitripsina")).toHaveLength(2); // título del bloque (un único parámetro) + fila del parámetro
+    expect(screen.getAllByText("Leucocitos")).toHaveLength(1);
+  });
+
+  it("no muestra un bloque de laboratorio sin ningún parámetro registrado (p1 no tiene Coagulación) — evita alargar la pantalla con bloques vacíos", () => {
+    render(<AnalyticsTab patient={p1} />);
+    expect(screen.queryByText("Coagulación")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bioquímica")).not.toBeInTheDocument();
+    expect(screen.queryByText("Otros")).not.toBeInTheDocument();
+  });
+
+  it("muestra el badge de estado solo cuando el parámetro trae status explícito, con el color correspondiente ('alterado' en PCR, 'normal' en el resto del cribado etiológico)", async () => {
+    render(<AnalyticsTab patient={p1} />);
+    // "Inflamación" ya está abierto por defecto (PCR alterado).
     expect(screen.getAllByText("alterado").length).toBeGreaterThan(0);
+    // "Inmunología / inmunoglobulinas" arranca plegado (todo normal) — se despliega para ver sus badges "normal".
+    await userEvent.click(screen.getByText("Inmunología / inmunoglobulinas").closest("button")!);
     expect(screen.getAllByText("normal").length).toBeGreaterThan(0);
+  });
+
+  it("un bloque con algún parámetro 'alterado' en su valor más reciente arranca desplegado (Inflamación, por PCR)", () => {
+    render(<AnalyticsTab patient={p1} />);
+    const inflamacionHeader = screen.getByText("Inflamación").closest("button");
+    expect(inflamacionHeader).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("un bloque sin ningún parámetro 'alterado' arranca plegado, para no alargar la pantalla (Perfil hepático, todo normal en p1)", () => {
+    render(<AnalyticsTab patient={p1} />);
+    const hepaticoHeader = screen.getByText("Perfil hepático").closest("button");
+    expect(hepaticoHeader).toHaveAttribute("aria-expanded", "false");
+    // El bloque plegado no muestra sus filas de parámetro hasta desplegarlo.
+    expect(screen.queryByText("ALT (GPT)")).not.toBeInTheDocument();
   });
 
   it("PCR tiene histórico (2 determinaciones) y se expande para mostrar ambas fechas y valores, sin inventar un veredicto de mejoría/empeoramiento", async () => {
     render(<AnalyticsTab patient={p1} />);
     // Leucocitos también tiene 2 determinaciones (mismo patrón) — se acota la búsqueda a la fila de PCR.
-    const pcrRow = screen.getByTestId("lab-param-general-PCR");
+    const pcrRow = screen.getByTestId("lab-param-inflamacion-PCR");
     const historyToggle = within(pcrRow).getByRole("button", { name: /histórico \(2\)/i });
     // "8 mg/L" (el valor más reciente) ya se ve en la fila compacta antes de expandir; "95 mg/L" solo aparece en el histórico.
     expect(within(pcrRow).getByText("8 mg/L")).toBeInTheDocument();
@@ -518,11 +559,11 @@ describe("AnalyticsTab", () => {
     expect(screen.getByText("No disponible: sin analíticas registradas.")).toBeInTheDocument();
   });
 
-  it("una categoría sin ningún parámetro registrado muestra su propio texto de ausencia, no un hueco silencioso", () => {
-    // p2 solo tiene una analítica sin desglosar: ambas categorías (general/etiológico) están vacías de series.
+  it("un paciente con solo analíticas sin desglosar (p2) no muestra ningún bloque de laboratorio, solo 'Otras analíticas sin desglose'", () => {
     render(<AnalyticsTab patient={p2} />);
-    expect(screen.getByText("No se han registrado parámetros de analítica general desglosados.")).toBeInTheDocument();
-    expect(screen.getByText("No se han registrado parámetros del estudio etiológico desglosados.")).toBeInTheDocument();
+    expect(screen.queryByText("Hemograma")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inflamación")).not.toBeInTheDocument();
+    expect(screen.getByText("Otras analíticas sin desglose")).toBeInTheDocument();
   });
 });
 

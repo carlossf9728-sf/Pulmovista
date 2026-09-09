@@ -12,7 +12,7 @@ describe("parseLabParameterLine", () => {
       unit: "x10^3/µL",
       referenceRange: { low: 4, high: 10 },
       status: "alterado",
-      category: "general",
+      category: "hemograma",
     });
   });
 
@@ -50,15 +50,21 @@ describe("parseLabParameterLine", () => {
     expect(parseLabParameterLine("Srm-Cr 0.92 mg/dL")).toMatchObject({ name: "Creatinina", rawName: "Srm-Cr" });
   });
 
-  it("es conservador: un nombre no reconocido en el mapa de sinónimos NO se fuerza a encajar en uno conocido, se conserva tal cual", () => {
+  it("es conservador: un nombre no reconocido en el mapa de sinónimos NO se fuerza a encajar en uno conocido, se conserva tal cual con categoría 'otros'", () => {
     const p = parseLabParameterLine("Srm-Ferritina 320 ng/mL [>15]");
-    expect(p).toMatchObject({ name: "Ferritina", rawName: "Srm-Ferritina", category: "general" });
+    expect(p).toMatchObject({ name: "Ferritina", rawName: "Srm-Ferritina", category: "otros" });
   });
 
-  it("categoriza como 'etiologico' los parámetros del cribado de bronquiectasias ya conocidos, y 'general' el resto por defecto", () => {
-    expect(parseLabParameterLine("Srm-IgG 950 mg/dL [700 - 1600]")).toMatchObject({ category: "etiologico" });
-    expect(parseLabParameterLine("Srm-Alfa-1-antitripsina 135 mg/dL [90 - 200]")).toMatchObject({ category: "etiologico" });
-    expect(parseLabParameterLine("Srm-Leucocitos 11.1 x10^3/µL [4 - 10]")).toMatchObject({ category: "general" });
+  it("categoriza cada parámetro reconocido en su bloque de laboratorio correspondiente — nunca 'general vs etiológico'", () => {
+    expect(parseLabParameterLine("Srm-Leucocitos 11.1 x10^3/µL [4 - 10]")).toMatchObject({ category: "hemograma" });
+    expect(parseLabParameterLine("Srm-Creatinina 0.92 mg/dL [0.7 - 1.2]")).toMatchObject({ category: "funcion_renal" });
+    expect(parseLabParameterLine("Srm-ALT 22 U/L [0-41]")).toMatchObject({ category: "perfil_hepatico" });
+    expect(parseLabParameterLine("Srm-PCR 18.4 mg/L [0 - 5]")).toMatchObject({ category: "inflamacion" });
+    expect(parseLabParameterLine("Srm-INR 1.1")).toMatchObject({ category: "coagulacion" });
+    expect(parseLabParameterLine("Srm-IgG 950 mg/dL [700 - 1600]")).toMatchObject({ category: "inmunologia" });
+    expect(parseLabParameterLine("Srm-IgE especifica Aspergillus 0.2 kU/L")).toMatchObject({ category: "aspergillus_abpa" });
+    expect(parseLabParameterLine("Srm-Alfa-1-antitripsina 135 mg/dL [90 - 200]")).toMatchObject({ category: "alfa1_antitripsina" });
+    expect(parseLabParameterLine("Srm-ANA 1.5 U/mL")).toMatchObject({ category: "autoinmunidad" });
   });
 
   it("soporta rangos con un solo extremo ('<x' o '>x'), tal como declara el propio tipo LabReferenceRange", () => {
@@ -149,14 +155,15 @@ Srm-VSG 15 mm/h [0 - 20]`;
     expect(result.unparsedLines).toEqual([]);
   });
 
-  it("estructura el bloque de cribado etiológico de bronquiectasias, categorizado como 'etiologico'", () => {
+  it("estructura el bloque de cribado etiológico de bronquiectasias, cada parámetro en su propio bloque de laboratorio (Inmunología / Alfa-1-antitripsina)", () => {
     const text = `Srm-IgG 950 mg/dL [700 - 1600]
 Srm-IgA 210 mg/dL [70 - 400]
 Srm-IgM 90 mg/dL [40 - 230]
 Srm-Alfa-1-antitripsina 135 mg/dL [90 - 200]`;
     const result = parseLabBlock(text);
     expect(result.parameters).toHaveLength(4);
-    expect(result.parameters.every((p) => p.category === "etiologico")).toBe(true);
+    expect(result.parameters.filter((p) => p.category === "inmunologia").map((p) => p.name)).toEqual(["IgG", "IgA", "IgM"]);
+    expect(result.parameters.filter((p) => p.category === "alfa1_antitripsina").map((p) => p.name)).toEqual(["Alfa-1-antitripsina"]);
   });
 
   it("un bloque ruidoso con encabezados, comentarios y firma mezclados estructura solo las líneas de parámetro reales, conservando el resto para revisión", () => {

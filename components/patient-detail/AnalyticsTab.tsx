@@ -5,23 +5,48 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { formatDate } from "@/utils/date";
 import { selectLabResults } from "@/domain/selectors";
-import { groupLabParameters, latestPoint, selectUnstructuredLabResults } from "@/domain/labParameters";
+import { groupLabParametersByPanel, latestPoint, selectUnstructuredLabResults } from "@/domain/labParameters";
 import { Card, CollapsibleGroup, Val } from "@/components/ui";
 import type { LabParameterPoint, LabParameterSeries } from "@/domain/labParameters";
-import type { LabParameterStatus, LabReferenceRange } from "@/types/clinicalEvent";
+import type { LabPanelCategory, LabParameterStatus, LabReferenceRange } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 /**
- * Pestaña "Analíticas" — dos niveles (analítica general / estudio
- * etiológico de bronquiectasias), agrupados por `LabParameter.category`.
- * Vista compacta: nombre + valor + fecha más reciente, con un badge de
- * estado SOLO cuando `status` viene explícito en el dato (nunca
- * inferido). Detalle expandible: histórico completo del parámetro,
- * fecha a fecha, sin clasificar el sentido del cambio — ver
- * domain/labParameters.ts. Las analíticas sin desglose estructurado
- * (formato antiguo, o texto que no permite aislar parámetros) se siguen
- * mostrando íntegras al final, nunca ocultas.
+ * Pestaña "Analíticas" — una única vista organizada por BLOQUE DE
+ * LABORATORIO (Hemograma, Bioquímica, Función renal...), no por "general
+ * vs etiológico": ver LabPanelCategory en types/clinicalEvent.ts y la
+ * normalización que la asigna en engines/extraction/labParameters.ts.
+ * La categoría es puramente organizativa — no interviene en ningún
+ * cálculo clínico, y es intencionadamente independiente de
+ * MissingInfoEngine (ver engines/missingInfo/legacyRules.ts): esa
+ * lógica decide qué bloques de LabPanelCategory cuentan como cribado
+ * etiológico para sus propios fines, sin que esta pestaña tenga que
+ * saber nada de eso ni viceversa.
+ *
+ * Vista compacta en dos niveles: cada bloque es un CollapsibleGroup con
+ * sus filas de parámetros (nombre + valor + fecha más reciente, badge de
+ * estado SOLO cuando `status` viene explícito); el histórico completo de
+ * un parámetro solo se ve al expandir SU fila, no el bloque entero. Para
+ * no alargar la pantalla, un bloque arranca plegado salvo que alguno de
+ * sus parámetros esté marcado "alterado" en su valor más reciente — así
+ * lo relevante se ve de un vistazo sin tener que abrir bloque a bloque.
+ * Las analíticas sin desglose estructurado se siguen mostrando íntegras
+ * al final, nunca ocultas.
  */
+
+const PANELS: { key: LabPanelCategory; label: string }[] = [
+  { key: "hemograma", label: "Hemograma" },
+  { key: "bioquimica", label: "Bioquímica" },
+  { key: "funcion_renal", label: "Función renal" },
+  { key: "perfil_hepatico", label: "Perfil hepático" },
+  { key: "inflamacion", label: "Inflamación" },
+  { key: "coagulacion", label: "Coagulación" },
+  { key: "inmunologia", label: "Inmunología / inmunoglobulinas" },
+  { key: "aspergillus_abpa", label: "Aspergillus / ABPA" },
+  { key: "alfa1_antitripsina", label: "Alfa-1-antitripsina" },
+  { key: "autoinmunidad", label: "Autoinmunidad" },
+  { key: "otros", label: "Otros" },
+];
 
 const STATUS_TONE: Record<"normal" | "alterado", { color: string; tint: string }> = {
   normal: { color: COLORS.green, tint: COLORS.greenTint },
@@ -114,17 +139,19 @@ function ParameterRow({ series }: { series: LabParameterSeries }) {
   );
 }
 
-function ParameterSection({ title, color, tint, series, emptyText }: { title: string; color: string; tint: string; series: LabParameterSeries[]; emptyText: string }) {
+/** Un bloque arranca abierto solo si algún parámetro está "alterado" en su punto más reciente — señal ya calculada aguas arriba, no una inferencia nueva; solo decide el estado inicial de plegado. */
+function hasRecentAltered(series: LabParameterSeries[]): boolean {
+  return series.some((s) => latestPoint(s)?.status === "alterado");
+}
+
+function PanelSection({ label, series }: { label: string; series: LabParameterSeries[] }) {
   return (
-    <CollapsibleGroup label={title} color={color} tint={tint} count={series.length} defaultOpen>
-      {!series.length && <div style={{ fontSize: 13, color: COLORS.slateLight }}>{emptyText}</div>}
-      {!!series.length && (
-        <Card style={{ padding: "0 16px" }}>
-          {series.map((s) => (
-            <ParameterRow key={`${s.category}-${s.name}`} series={s} />
-          ))}
-        </Card>
-      )}
+    <CollapsibleGroup label={label} color={COLORS.tealDeep} tint={COLORS.tealTint} count={series.length} defaultOpen={hasRecentAltered(series)}>
+      <Card style={{ padding: "0 16px" }}>
+        {series.map((s) => (
+          <ParameterRow key={`${s.category}-${s.name}`} series={s} />
+        ))}
+      </Card>
     </CollapsibleGroup>
   );
 }
@@ -135,30 +162,24 @@ export function AnalyticsTab({ patient }: { patient: Patient }) {
     return <div style={{ color: COLORS.slateLight, fontSize: 13.5 }}>No disponible: sin analíticas registradas.</div>;
   }
 
-  const general = groupLabParameters(labResults, "general");
-  const etiologico = groupLabParameters(labResults, "etiologico");
+  const byPanel = groupLabParametersByPanel(labResults);
   const unstructured = selectUnstructuredLabResults(labResults);
+  const hasAnyStructured = PANELS.some((p) => byPanel[p.key]?.length);
 
   return (
-    <div className="pv-fade-in" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-      <ParameterSection
-        title="Analítica general"
-        color={COLORS.violet}
-        tint={COLORS.violetTint}
-        series={general}
-        emptyText="No se han registrado parámetros de analítica general desglosados."
-      />
-      <ParameterSection
-        title="Estudio etiológico / cribado de bronquiectasias"
-        color={COLORS.tealDeep}
-        tint={COLORS.tealTint}
-        series={etiologico}
-        emptyText="No se han registrado parámetros del estudio etiológico desglosados."
-      />
+    <div className="pv-fade-in" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {!hasAnyStructured && !unstructured.length && (
+        <div style={{ color: COLORS.slateLight, fontSize: 13.5 }}>No disponible: sin analíticas registradas.</div>
+      )}
+
+      {PANELS.map(({ key, label }) => {
+        const series = byPanel[key];
+        return series?.length ? <PanelSection key={key} label={label} series={series} /> : null;
+      })}
 
       {!!unstructured.length && (
         <div>
-          <CollapsibleGroup label="Otras analíticas sin desglose" color={COLORS.slate} tint={COLORS.paper} count={unstructured.length} defaultOpen={!general.length && !etiologico.length}>
+          <CollapsibleGroup label="Otras analíticas sin desglose" color={COLORS.slate} tint={COLORS.paper} count={unstructured.length} defaultOpen={!hasAnyStructured}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[...unstructured].reverse().map((e) => (
                 <Card key={e.id}>

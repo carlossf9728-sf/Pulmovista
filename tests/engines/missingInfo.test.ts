@@ -79,7 +79,7 @@ describe("computeMissingInfo (LEGACY)", () => {
       mkEvent<LabResultsEvent>("p1", CLINICAL_EVENT_TYPES.LAB_RESULTS, "2023-01-01", {
         label: "Estudio etiológico",
         text: "IgG 950 mg/dL.",
-        parameters: [{ name: "IgG", valueText: "950 mg/dL", numericValue: 950, unit: "mg/dL", status: "normal", category: "etiologico" }],
+        parameters: [{ name: "IgG", valueText: "950 mg/dL", numericValue: 950, unit: "mg/dL", status: "normal", category: "inmunologia" }],
       }),
     ]);
     const result = computeMissingInfo(patient);
@@ -94,8 +94,8 @@ describe("computeMissingInfo (LEGACY)", () => {
         label: "Estudio etiológico",
         text: "Cribado de ABPA e IgE específica Aspergillus negativos. Alfa-1-antitripsina 135 mg/dL.",
         parameters: [
-          { name: "IgE específica Aspergillus fumigatus", valueText: "Negativo", status: "normal", category: "etiologico" },
-          { name: "Alfa-1-antitripsina", valueText: "135 mg/dL", numericValue: 135, unit: "mg/dL", status: "normal", category: "etiologico" },
+          { name: "IgE específica Aspergillus fumigatus", valueText: "Negativo", status: "normal", category: "aspergillus_abpa" },
+          { name: "Alfa-1-antitripsina", valueText: "135 mg/dL", numericValue: 135, unit: "mg/dL", status: "normal", category: "alfa1_antitripsina" },
         ],
       }),
     ]);
@@ -123,9 +123,9 @@ describe("computeMissingInfo (LEGACY)", () => {
         label: "Estudio etiológico",
         text: "IgG, ABPA y alfa-1-antitripsina sin alteraciones.",
         parameters: [
-          { name: "IgG", valueText: "950 mg/dL", numericValue: 950, unit: "mg/dL", status: "normal", category: "etiologico" },
-          { name: "IgE específica Aspergillus fumigatus", valueText: "Negativo", status: "normal", category: "etiologico" },
-          { name: "Alfa-1-antitripsina", valueText: "135 mg/dL", numericValue: 135, unit: "mg/dL", status: "normal", category: "etiologico" },
+          { name: "IgG", valueText: "950 mg/dL", numericValue: 950, unit: "mg/dL", status: "normal", category: "inmunologia" },
+          { name: "IgE específica Aspergillus fumigatus", valueText: "Negativo", status: "normal", category: "aspergillus_abpa" },
+          { name: "Alfa-1-antitripsina", valueText: "135 mg/dL", numericValue: 135, unit: "mg/dL", status: "normal", category: "alfa1_antitripsina" },
         ],
       }),
     ]);

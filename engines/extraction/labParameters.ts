@@ -18,7 +18,7 @@
  * labParameters.test.ts, incluyendo bloques completos con líneas
  * ruidosas mezcladas, para el comportamiento exacto caso a caso.
  */
-import type { LabParameter, LabParameterCategory, LabReferenceRange } from "@/types/clinicalEvent";
+import type { LabParameter, LabPanelCategory, LabReferenceRange } from "@/types/clinicalEvent";
 
 /**
  * Prefijos de tipo de muestra que IANUS antepone al nombre del parámetro
@@ -39,7 +39,7 @@ const PFT_NAME_DENYLIST = /^(fev1\/fvc|fev1|fvc|dlco|pef|fef2575?)$/i;
 
 interface LabParameterSynonym {
   canonical: string;
-  category: LabParameterCategory;
+  category: LabPanelCategory;
   /** Nombres reconocidos, en minúsculas y sin acentos — comparación exacta, nunca por subcadena (ver stripAccents/lookupSynonym). */
   names: string[];
 }
@@ -49,34 +49,58 @@ interface LabParameterSynonym {
  * fusiona variantes que son inequívocamente el mismo parámetro (siglas y
  * abreviaturas estándar de laboratorio). Un nombre que no aparece aquí
  * NUNCA se fuerza a encajar en uno de estos — se conserva tal cual (sin
- * prefijo de muestra) como su propio parámetro, con categoría "general"
- * por defecto (ver resolveNameAndCategory). No se amplía esta lista para
+ * prefijo de muestra) como su propio parámetro, con categoría "otros" por
+ * defecto (ver parseLabParameterLine). No se amplía esta lista para
  * cubrir "todo lo posible": cada entrada es una equivalencia realmente
- * inequívoca en el contexto de un informe de laboratorio.
+ * inequívoca en el contexto de un informe de laboratorio. `category` es
+ * puramente organizativa (bloque de la pestaña "Analíticas"), nunca un
+ * juicio clínico — ver LabPanelCategory en types/clinicalEvent.ts.
  */
 const LAB_PARAMETER_SYNONYMS: LabParameterSynonym[] = [
-  { canonical: "Leucocitos", category: "general", names: ["leucocitos", "leucos", "leu", "wbc"] },
-  { canonical: "Hemoglobina", category: "general", names: ["hemoglobina", "hb"] },
-  { canonical: "Hematocrito", category: "general", names: ["hematocrito", "hto", "hct"] },
-  { canonical: "Plaquetas", category: "general", names: ["plaquetas", "plt"] },
-  { canonical: "Neutrófilos", category: "general", names: ["neutrofilos", "neutrófilos", "neu"] },
-  { canonical: "Linfocitos", category: "general", names: ["linfocitos", "linf", "lym"] },
-  { canonical: "Eosinófilos", category: "general", names: ["eosinofilos", "eosinófilos", "eos"] },
-  { canonical: "PCR", category: "general", names: ["pcr", "proteina c reactiva", "proteína c reactiva"] },
-  { canonical: "Procalcitonina", category: "general", names: ["procalcitonina", "pct"] },
-  { canonical: "VSG", category: "general", names: ["vsg"] },
-  { canonical: "Creatinina", category: "general", names: ["creatinina", "cr"] },
-  { canonical: "Urea", category: "general", names: ["urea"] },
-  { canonical: "Sodio", category: "general", names: ["sodio", "na"] },
-  { canonical: "Potasio", category: "general", names: ["potasio", "k"] },
-  { canonical: "Glucosa", category: "general", names: ["glucosa", "glu"] },
-  { canonical: "ALT (GPT)", category: "general", names: ["alt", "gpt", "alt (gpt)"] },
-  { canonical: "AST (GOT)", category: "general", names: ["ast", "got", "ast (got)"] },
-  { canonical: "Bilirrubina total", category: "general", names: ["bilirrubina total", "bilirrubina"] },
-  { canonical: "IgG", category: "etiologico", names: ["igg", "inmunoglobulina g"] },
-  { canonical: "IgA", category: "etiologico", names: ["iga", "inmunoglobulina a"] },
-  { canonical: "IgM", category: "etiologico", names: ["igm", "inmunoglobulina m"] },
-  { canonical: "Alfa-1-antitripsina", category: "etiologico", names: ["alfa-1-antitripsina", "alfa 1 antitripsina", "aat"] },
+  // Hemograma
+  { canonical: "Leucocitos", category: "hemograma", names: ["leucocitos", "leucos", "leu", "wbc"] },
+  { canonical: "Hemoglobina", category: "hemograma", names: ["hemoglobina", "hb"] },
+  { canonical: "Hematocrito", category: "hemograma", names: ["hematocrito", "hto", "hct"] },
+  { canonical: "Plaquetas", category: "hemograma", names: ["plaquetas", "plt"] },
+  { canonical: "Neutrófilos", category: "hemograma", names: ["neutrofilos", "neutrófilos", "neu"] },
+  { canonical: "Linfocitos", category: "hemograma", names: ["linfocitos", "linf", "lym"] },
+  { canonical: "Eosinófilos", category: "hemograma", names: ["eosinofilos", "eosinófilos", "eos"] },
+  // Inflamación
+  { canonical: "PCR", category: "inflamacion", names: ["pcr", "proteina c reactiva", "proteína c reactiva"] },
+  { canonical: "Procalcitonina", category: "inflamacion", names: ["procalcitonina", "pct"] },
+  { canonical: "VSG", category: "inflamacion", names: ["vsg"] },
+  // Función renal
+  { canonical: "Creatinina", category: "funcion_renal", names: ["creatinina", "cr"] },
+  { canonical: "Urea", category: "funcion_renal", names: ["urea"] },
+  // Bioquímica general
+  { canonical: "Sodio", category: "bioquimica", names: ["sodio", "na"] },
+  { canonical: "Potasio", category: "bioquimica", names: ["potasio", "k"] },
+  { canonical: "Glucosa", category: "bioquimica", names: ["glucosa", "glu"] },
+  // Perfil hepático
+  { canonical: "ALT (GPT)", category: "perfil_hepatico", names: ["alt", "gpt", "alt (gpt)"] },
+  { canonical: "AST (GOT)", category: "perfil_hepatico", names: ["ast", "got", "ast (got)"] },
+  { canonical: "GGT", category: "perfil_hepatico", names: ["ggt", "gamma gt", "gamma-gt"] },
+  { canonical: "Fosfatasa alcalina", category: "perfil_hepatico", names: ["fa", "fosfatasa alcalina"] },
+  { canonical: "Bilirrubina total", category: "perfil_hepatico", names: ["bilirrubina total", "bilirrubina"] },
+  // Coagulación
+  { canonical: "INR", category: "coagulacion", names: ["inr"] },
+  { canonical: "TP", category: "coagulacion", names: ["tp", "tiempo de protrombina"] },
+  { canonical: "TTPa", category: "coagulacion", names: ["ttpa", "tiempo de tromboplastina parcial activado"] },
+  // Inmunología / inmunoglobulinas (IgE total incluido: solo la IgE específica de Aspergillus va en Aspergillus/ABPA — ver user request)
+  { canonical: "IgG", category: "inmunologia", names: ["igg", "inmunoglobulina g"] },
+  { canonical: "IgA", category: "inmunologia", names: ["iga", "inmunoglobulina a"] },
+  { canonical: "IgM", category: "inmunologia", names: ["igm", "inmunoglobulina m"] },
+  { canonical: "IgE total", category: "inmunologia", names: ["ige total", "ige"] },
+  // Aspergillus / ABPA
+  { canonical: "IgE específica Aspergillus", category: "aspergillus_abpa", names: ["ige especifica aspergillus", "ige especifica aspergillus fumigatus"] },
+  { canonical: "Precipitinas Aspergillus", category: "aspergillus_abpa", names: ["precipitinas aspergillus", "precipitinas"] },
+  { canonical: "IgG Aspergillus", category: "aspergillus_abpa", names: ["igg aspergillus"] },
+  // Alfa-1-antitripsina
+  { canonical: "Alfa-1-antitripsina", category: "alfa1_antitripsina", names: ["alfa-1-antitripsina", "alfa 1 antitripsina", "aat"] },
+  // Autoinmunidad
+  { canonical: "ANA", category: "autoinmunidad", names: ["ana", "anticuerpos antinucleares"] },
+  { canonical: "ANCA", category: "autoinmunidad", names: ["anca"] },
+  { canonical: "Factor reumatoide", category: "autoinmunidad", names: ["fr", "factor reumatoide"] },
 ];
 
 function stripAccents(s: string): string {
@@ -201,7 +225,7 @@ export function parseLabParameterLine(rawLine: string): LabParameter | null {
 
   const synonym = lookupSynonym(nameNoPrefix);
   const canonicalName = synonym ? synonym.canonical : nameNoPrefix;
-  const category: LabParameterCategory = synonym ? synonym.category : "general";
+  const category: LabPanelCategory = synonym ? synonym.category : "otros";
 
   const numericValue = parseFloat(value.replace(",", "."));
   if (Number.isNaN(numericValue)) return null;

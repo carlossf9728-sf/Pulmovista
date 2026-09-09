@@ -150,8 +150,28 @@ export interface ImagingEvent extends ClinicalEventBase {
   text: string;
 }
 
-/** A qué bloque de la pestaña "Analíticas" pertenece un LabParameter — dos niveles, no una taxonomía más fina. */
-export type LabParameterCategory = "general" | "etiologico";
+/**
+ * A qué bloque de laboratorio pertenece un LabParameter — puramente
+ * ORGANIZATIVO (controla en qué sección de la pestaña "Analíticas" se
+ * agrupa un parámetro), nunca un juicio clínico: no se usa para inferir
+ * diagnósticos, gravedad ni recomendaciones. Cada parámetro pertenece a
+ * una única categoría (ver engines/extraction/labParameters.ts para la
+ * normalización conservadora que la asigna). "otros" es el cajón de
+ * parámetros reconocidos pero sin un bloque de laboratorio claro — nunca
+ * se fuerza un parámetro a una categoría más específica por defecto.
+ */
+export type LabPanelCategory =
+  | "hemograma"
+  | "bioquimica"
+  | "funcion_renal"
+  | "perfil_hepatico"
+  | "inflamacion"
+  | "coagulacion"
+  | "inmunologia"
+  | "aspergillus_abpa"
+  | "alfa1_antitripsina"
+  | "autoinmunidad"
+  | "otros";
 
 /**
  * Solo "normal"/"alterado" cuando el propio informe lo indica de forma
@@ -191,7 +211,7 @@ export interface LabParameter {
   unit?: string | null;
   referenceRange?: LabReferenceRange | null;
   status?: LabParameterStatus;
-  category: LabParameterCategory;
+  category: LabPanelCategory;
 }
 
 /**

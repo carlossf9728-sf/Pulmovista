@@ -19,11 +19,22 @@ export function allConsultText(patient: Patient): string {
     .toLowerCase();
 }
 
-/** Nombres de todos los LabParameter de categoría "etiologico" registrados, en minúsculas, para buscar por patrón léxico igual que allConsultText. */
+/**
+ * Categorías de LabPanelCategory que forman parte del cribado etiológico
+ * de bronquiectasias — deliberadamente independiente de cómo se organiza
+ * visualmente la pestaña "Analíticas" (esa organización tiene sus propios
+ * bloques, p. ej. separa Aspergillus/ABPA de Inmunología; aquí solo
+ * importa "es un dato del cribado etiológico", no en qué bloque visual
+ * cae). Si la pestaña Analíticas cambia sus bloques, esta lista no tiene
+ * por qué cambiar con ella.
+ */
+const ETIOLOGICAL_SCREENING_CATEGORIES = new Set(["inmunologia", "aspergillus_abpa", "alfa1_antitripsina", "autoinmunidad"]);
+
+/** Nombres de todos los LabParameter del cribado etiológico registrados, en minúsculas, para buscar por patrón léxico igual que allConsultText. */
 export function allEtiologicoParameterNames(patient: Patient): string {
   return selectLabResults(patient.events)
     .flatMap((e) => e.parameters ?? [])
-    .filter((param) => param.category === "etiologico")
+    .filter((param) => ETIOLOGICAL_SCREENING_CATEGORIES.has(param.category))
     .map((param) => param.name)
     .join(" ")
     .toLowerCase();
