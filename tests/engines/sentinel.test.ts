@@ -213,7 +213,7 @@ describe("computeSentinelFindings / patientStatus — pacientes sintéticos exis
     // fev1-trend-decline sigue sin soporte de guía: no se inventa una interpretación.
     const fev1Finding = findings.find((f) => f.signalId === "fev1-trend-decline");
     expect(fev1Finding?.guidelineInterpretations).toEqual([]);
-    expect(fev1Finding?.noSupportMessage).toBe("No se ha encontrado soporte suficiente en las guías cargadas para interpretar clínicamente este hallazgo.");
+    expect(fev1Finding?.noSupportMessage).toBe("Sin interpretación basada en guía disponible");
   });
 
   it("p2 (EPOC) y p3 (fibrosis pulmonar): 'revisión' — hay hallazgos objetivos, pero ninguno con soporte de guía (la base de conocimiento solo cubre bronquiectasias)", () => {
@@ -232,5 +232,27 @@ describe("computeSentinelFindings / patientStatus — pacientes sintéticos exis
         expect(["ers-bronchiectasis-2025", "separ-bronchiectasis-2018"]).toContain(gi.guidelineId);
       }
     }
+  });
+
+  /**
+   * Capa de interpretación corta de Argos (engines/sentinel/interpretation.ts) — separada tanto del
+   * dato objetivo (`datum`) como de `guidelineInterpretations`: nunca lleva kindLabel "guideline", y su
+   * "¿Por qué?" deja explícito que es una heurística interna, no una recomendación de guía.
+   */
+  it("cada SentinelFinding lleva una interpretación corta propia, con su '¿Por qué?' marcado como heurística interna (no guía)", () => {
+    const findings = computeSentinelFindings(p1);
+    const exacFinding = findings.find((f) => f.signalId === "exacerbation-rate-increase");
+    expect(exacFinding?.interpretation).toBe("Aumento longitudinal de exacerbaciones. Requiere revisión.");
+    expect(exacFinding?.explanation.kindLabel).toBe("heurística experimental");
+    expect(exacFinding?.explanation.source).toMatchObject({ kind: "legacy_heuristic" });
+    const explanationText = exacFinding?.explanation.sections.map((s) => s.text).join(" ") ?? "";
+    expect(explanationText).toContain("regla longitudinal interna");
+    expect(explanationText).toMatch(/no.*recomendación de guía/i);
+    expect(explanationText).toMatch(/no equivale a una conclusión clínica definitiva/i);
+
+    // fev1-trend-decline no tiene soporte de guía, pero SÍ tiene su propia interpretación corta de Argos.
+    const fev1Finding = findings.find((f) => f.signalId === "fev1-trend-decline");
+    expect(fev1Finding?.interpretation).toBe("Descenso longitudinal objetivo de FEV1. Requiere revisión.");
+    expect(fev1Finding?.explanation.kindLabel).toBe("heurística experimental");
   });
 });

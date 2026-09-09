@@ -16,14 +16,18 @@
  */
 import { buildGuidelineInterpretations, NO_SUPPORT_MESSAGE } from "./guidelineInterpretation";
 import { detectObjectiveSentinelSignals } from "./objectiveDetectors";
+import { argosInterpretation, buildArgosExplanation } from "./interpretation";
 import type { Patient, PatientStatus } from "@/types/patient";
 import type { SentinelFinding } from "@/types/sentinel";
 
 export function computeSentinelFindings(patient: Patient): SentinelFinding[] {
   return detectObjectiveSentinelSignals(patient).map((signal) => {
     const guidelineInterpretations = buildGuidelineInterpretations(patient, signal);
+    const interpretation = argosInterpretation(signal);
     return {
       ...signal,
+      interpretation,
+      explanation: buildArgosExplanation(signal, interpretation),
       guidelineInterpretations,
       noSupportMessage: guidelineInterpretations.length ? null : NO_SUPPORT_MESSAGE,
     };

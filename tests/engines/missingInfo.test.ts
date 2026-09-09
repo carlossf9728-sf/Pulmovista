@@ -147,7 +147,7 @@ describe("computeReviewOpportunities (LEGACY)", () => {
     const opportunities = computeReviewOpportunities(patient);
     expect(opportunities).toHaveLength(1);
     expect(opportunities[0].note).toBe(
-      "No consta posteriormente una valoración documentada de estrategia preventiva en la información introducida.",
+      "No se ha identificado en los datos disponibles una revisión posterior de estrategia preventiva.",
     );
     expect(opportunities[0].source.kind).toBe("legacy_heuristic");
   });

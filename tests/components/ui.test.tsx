@@ -23,9 +23,10 @@ describe("StatusPill", () => {
 });
 
 describe("KindTag / DataConfidenceBadge", () => {
-  it("KindTag muestra la etiqueta de tipo", () => {
+  it("KindTag muestra 'Interpretación de PulmoVista' para 'heurística experimental' — nunca el identificador técnico interno", () => {
     render(<KindTag kind="heurística experimental" />);
-    expect(screen.getByText("heurística experimental")).toBeInTheDocument();
+    expect(screen.getByText("Interpretación de PulmoVista")).toBeInTheDocument();
+    expect(screen.queryByText("heurística experimental")).not.toBeInTheDocument();
   });
   it("KindTag distingue 'guideline_definition' (referencia de la guía) de 'guideline' (recomendación graduada) con una etiqueta propia", () => {
     render(<KindTag kind="guideline_definition" />);
@@ -93,7 +94,7 @@ describe("WhyModal", () => {
     };
     render(<WhyModal data={explanation} onClose={() => {}} />);
     expect(screen.getByText("¿Por qué?")).toBeInTheDocument();
-    expect(screen.getByText("heurística experimental")).toBeInTheDocument();
+    expect(screen.getByText("Interpretación de PulmoVista")).toBeInTheDocument();
     expect(screen.getByText("FEV1 80% -> 70%")).toBeInTheDocument();
     expect(screen.getByText("Tendencia descendente.")).toBeInTheDocument();
     expect(screen.queryByText("Evidencias")).not.toBeInTheDocument();

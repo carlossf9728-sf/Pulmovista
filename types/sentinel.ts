@@ -67,6 +67,17 @@ export interface SentinelGuidelineInterpretation {
 }
 
 export interface SentinelFinding extends ObjectiveSentinelSignal {
+  /**
+   * Frase corta que describe la FORMA del cambio ya detectado (aumento,
+   * descenso, persistencia...) — ver engines/sentinel/interpretation.ts.
+   * Heurística interna de PulmoVista, nunca una interpretación de guía:
+   * esa vive aparte en `guidelineInterpretations`. Es el texto principal
+   * de la tarjeta compacta de Argos, distinto tanto del dato objetivo
+   * (`datum`) como del soporte de guía.
+   */
+  interpretation: string;
+  /** Trazabilidad "¿Por qué?" de `interpretation` — kindLabel "heurística experimental", nunca "guideline": ver buildArgosExplanation. */
+  explanation: ClinicalExplanation;
   /** Interpretaciones respaldadas por guía — ERS y SEPAR siempre por separado, nunca fusionadas. Vacío si no hay soporte suficiente. */
   guidelineInterpretations: SentinelGuidelineInterpretation[];
   /** Mensaje fijo cuando `guidelineInterpretations` está vacío; `null` en caso contrario. */

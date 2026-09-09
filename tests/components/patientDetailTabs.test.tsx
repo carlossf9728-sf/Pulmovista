@@ -603,20 +603,56 @@ describe("AlertsTab", () => {
     expect(screen.queryByText("PulmoVista Sentinel")).not.toBeInTheDocument();
   });
 
-  it("Sentinel muestra hallazgos objetivos con interpretación respaldada por guía (ya no heurística legacy) y permite abrir '¿Por qué?'", async () => {
+  it("las tarjetas de Sentinel separan 3 capas (dato objetivo / interpretación de Argos / soporte de guía) sin mezclarlas en un mismo párrafo", () => {
+    render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
+    expect(screen.getByText("Aumento de la tasa de exacerbaciones")).toBeInTheDocument();
+    // Capa 1: dato objetivo, con su propia etiqueta (una por tarjeta).
+    expect(screen.getAllByText("Dato objetivo").length).toBeGreaterThan(0);
+    // Capa 2: interpretación corta de Argos — frase propia, no el dato ni el estado de guía.
+    expect(screen.getByText("Aumento longitudinal de exacerbaciones. Requiere revisión.")).toBeInTheDocument();
+    // Capa 3: soporte de guía como estado de 3 valores — nunca "Cumple"/"No cumple" visible en la tarjeta compacta.
+    expect(screen.getByText("Respaldado por guía")).toBeInTheDocument();
+    expect(screen.queryByText("Cumple")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("GuidelineMatch");
+  });
+
+  it("una tarjeta sin recomendaciones relacionadas muestra el estado 'sin soporte' con su aclaración, y no ofrece 'Ver recomendaciones'", () => {
+    render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
+    const fev1Card = screen.getByText("Tendencia descendente de FEV1").closest('[class*="pv-card-hover"]') as HTMLElement;
+    expect(within(fev1Card).getByText("Sin interpretación basada en guía disponible")).toBeInTheDocument();
+    expect(within(fev1Card).getByText("Argos muestra el cambio objetivo, pero no asigna significado clínico.")).toBeInTheDocument();
+    expect(within(fev1Card).queryByRole("button", { name: /ver recomendaciones/i })).not.toBeInTheDocument();
+    expect(within(fev1Card).getByRole("button", { name: /¿por qué\?/i })).toBeInTheDocument();
+  });
+
+  it("el '¿Por qué?' de la tarjeta compacta explica la interpretación de Argos (heurística interna), nunca una recomendación de guía", async () => {
     const onWhy = vi.fn();
     render(<AlertsTab patient={p1} onWhy={onWhy} />);
-    expect(screen.getByText("Aislamiento microbiológico persistente")).toBeInTheDocument();
-    // El dato objetivo de FEV1 se muestra sin interpretación respaldada (sin soporte de guía para ese cambio).
-    expect(screen.getByText("No se ha encontrado soporte suficiente en las guías cargadas para interpretar clínicamente este hallazgo.")).toBeInTheDocument();
-    // Traducción a lenguaje clínico — nunca el término técnico "GuidelineMatch".
-    expect(screen.getByText("Cumple")).toBeInTheDocument();
-    expect(document.body.textContent).not.toContain("GuidelineMatch");
-    // La interpretación en español es el texto principal; el verbatim de la guía queda como cita secundaria.
-    expect(screen.getAllByText("Texto original de la guía").length).toBeGreaterThan(0);
+    const exacCard = screen.getByText("Aumento de la tasa de exacerbaciones").closest('[class*="pv-card-hover"]') as HTMLElement;
+    await userEvent.click(within(exacCard).getByRole("button", { name: /¿por qué\?/i }));
+    expect(onWhy).toHaveBeenCalledOnce();
+    const explanation = onWhy.mock.calls[0][0];
+    expect(explanation.kindLabel).toBe("heurística experimental");
+    expect(explanation.source.kind).toBe("legacy_heuristic");
+  });
 
-    const [firstWhyButton] = screen.getAllByRole("button", { name: /por qué/i });
-    await userEvent.click(firstWhyButton);
+  it("'Ver recomendaciones' abre el detalle completo (estado Cumple/No cumple, texto original, fuerza, calidad) sin duplicarlo en la tarjeta, y cada recomendación conserva su propio '¿Por qué?'", async () => {
+    const onWhy = vi.fn();
+    render(<AlertsTab patient={p1} onWhy={onWhy} />);
+    // No visible por defecto en la tarjeta compacta.
+    expect(screen.queryByText("Texto original de la guía")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fuerte")).not.toBeInTheDocument();
+
+    const exacCard = screen.getByText("Aumento de la tasa de exacerbaciones").closest('[class*="pv-card-hover"]') as HTMLElement;
+    await userEvent.click(within(exacCard).getByRole("button", { name: /ver recomendaciones/i }));
+
+    // El modal sí muestra el detalle completo — mismo dato ya calculado, no una copia nueva.
+    expect(screen.getByText("Cumple")).toBeInTheDocument();
+    expect(screen.getAllByText("Texto original de la guía").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Fuerte").length).toBeGreaterThan(0);
+
+    const [firstModalWhyButton] = screen.getAllByRole("button", { name: /¿por qué\?/i }).slice(-1);
+    await userEvent.click(firstModalWhyButton);
     expect(onWhy).toHaveBeenCalledOnce();
     const explanation = onWhy.mock.calls[0][0];
     expect(explanation.source.kind).toBe("guideline");
@@ -632,9 +668,24 @@ describe("AlertsTab", () => {
     ]);
   });
 
-  it("Turning Points sigue mostrando su fuente legacy (no migrado en esta fase)", () => {
+  it("Momentos clave: tarjeta compacta con fecha y '¿Por qué?' marcado como interpretación interna — sin repetir el badge en la tarjeta", async () => {
+    const onWhy = vi.fn();
+    render(<AlertsTab patient={p1} onWhy={onWhy} />);
+    // El badge "Interpretación de PulmoVista" no se repite en la tarjeta compacta (vive en el modal '¿Por qué?').
+    expect(screen.queryByText("Interpretación de PulmoVista")).not.toBeInTheDocument();
+
+    const momentosSection = screen.getByText("Momentos clave").parentElement as HTMLElement;
+    expect(within(momentosSection).getAllByText(/^\d{2}\/\d{2}\/\d{4}$/).length).toBeGreaterThan(0);
+    const [firstWhyButton] = within(momentosSection).getAllByRole("button", { name: /¿por qué\?/i });
+    await userEvent.click(firstWhyButton);
+    expect(onWhy).toHaveBeenCalledOnce();
+    expect(onWhy.mock.calls[0][0].kindLabel).toBe("heurística experimental");
+  });
+
+  it("Oportunidades de revisión clínica usa una redacción que deja claro que habla de los datos disponibles, no de todo lo ocurrido", () => {
     render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
-    expect(screen.getAllByText("heurística experimental").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("No se ha identificado en los datos disponibles una revisión posterior de estrategia preventiva.").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/No consta posteriormente/)).not.toBeInTheDocument();
   });
 });
 

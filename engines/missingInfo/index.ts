@@ -101,7 +101,7 @@ export function computeReviewOpportunities(patient: Patient): ReviewOpportunity[
     title: "Posible punto para revisión",
     detail: tp.interpretation,
     evidence: tp.evidence,
-    note: "No consta posteriormente una valoración documentada de estrategia preventiva en la información introducida.",
+    note: "No se ha identificado en los datos disponibles una revisión posterior de estrategia preventiva.",
     action: "Revisar recomendación de guía",
     source: tp.source,
   }));

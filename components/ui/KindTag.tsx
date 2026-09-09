@@ -9,7 +9,9 @@ import { COLORS } from "@/utils/theme";
  * traduce aquí, en el único punto de presentación.
  */
 const MAP: Record<"heurística experimental" | "guideline" | "guideline_definition", { c: string; t: string; label: string }> = {
-  "heurística experimental": { c: COLORS.violet, t: COLORS.violetTint, label: "heurística experimental" },
+  // Etiqueta visible deliberadamente distinta del identificador interno "heurística experimental": ese nombre
+  // técnico no se muestra al médico — ver ¿Por qué? para la explicación de qué es y qué no es esta interpretación.
+  "heurística experimental": { c: COLORS.violet, t: COLORS.violetTint, label: "Interpretación de PulmoVista" },
   guideline: { c: COLORS.tealDeep, t: COLORS.tealTint, label: "guía clínica" },
   // Distinto de "guideline": es una definición/tabla de referencia de la guía, no una recomendación graduada.
   guideline_definition: { c: COLORS.slate, t: COLORS.paper, label: "referencia de guía (no es una recomendación)" },

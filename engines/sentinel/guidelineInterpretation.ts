@@ -28,7 +28,8 @@ import type { GuidelineMatch, GuidelineMatchStatus, GuidelineRecommendation } fr
 import type { ClinicalExplanation } from "@/types/evidence";
 import type { ObjectiveSentinelSignal, SentinelGuidelineInterpretation, SentinelStatusLabel } from "@/types/sentinel";
 
-export const NO_SUPPORT_MESSAGE = "No se ha encontrado soporte suficiente en las guías cargadas para interpretar clínicamente este hallazgo.";
+/** Etiqueta corta para la tarjeta compacta de Argos cuando no hay ninguna GuidelineRecommendation relacionada — ver utils/argosSupport.ts para el resto de estados de soporte. */
+export const NO_SUPPORT_MESSAGE = "Sin interpretación basada en guía disponible";
 
 /** Traducción a lenguaje clínico de GuidelineMatchStatus — la UI nunca muestra el término técnico "GuidelineMatch". */
 const STATUS_LABEL: Record<GuidelineMatchStatus, SentinelStatusLabel> = {
