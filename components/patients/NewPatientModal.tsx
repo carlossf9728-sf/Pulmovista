@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { ShieldAlert } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
-import { buildCandidateEvents } from "@/engines/extraction";
+import { buildClinicalCandidates } from "@/engines/extraction";
 import { scanPrivacyShield, redactText } from "@/engines/privacy";
 import { Modal } from "@/components/ui";
 import { PrivacyShieldModal } from "./PrivacyShieldModal";
@@ -38,19 +38,19 @@ export function NewPatientModal({ onClose, onCreate }: { onClose: () => void; on
   const [rawText, setRawText] = useState("");
   const [findings, setFindings] = useState<PrivacyFinding[] | null>(null);
   const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
+  const [unclassifiedSegments, setUnclassifiedSegments] = useState<string[]>([]);
 
-  function buildCandidates(cleanText: string): ReviewCandidate[] {
-    // Mismo criterio que AddClinicalInfoModal (ver buildCandidateEvents): un evento clínico
+  function goToReview(cleanText: string) {
+    // Mismo criterio que AddClinicalInfoModal (ver buildClinicalCandidates): un evento clínico
     // solo existe si el contenido permite identificarlo. Un alta sin texto clínico (o con texto
     // que no describe ninguna categoría reconocible) no produce ningún evento — ni una Consulta
     // de relleno. La demografía del paciente (este formulario) es independiente de que haya
-    // ocurrido o no una consulta: crear el expediente no la implica.
-    return buildCandidateEvents(cleanText, todayISO()).map((event) => ({ event, included: true }));
-  }
-
-  function goToReview(cleanText: string) {
+    // ocurrido o no una consulta: crear el expediente no la implica. Los fragmentos sin clasificar
+    // se conservan aparte para revisión, nunca se descartan.
+    const { events, unclassifiedSegments: leftover } = buildClinicalCandidates(cleanText, todayISO());
     setRawText(cleanText);
-    setCandidates(buildCandidates(cleanText));
+    setCandidates(events.map((event) => ({ event, included: true })));
+    setUnclassifiedSegments(leftover);
     setStep("review");
   }
 
@@ -145,7 +145,7 @@ export function NewPatientModal({ onClose, onCreate }: { onClose: () => void; on
           </>
         ) : (
           <>
-            <ClinicalCandidateReview candidates={candidates} onChange={setCandidates} />
+            <ClinicalCandidateReview candidates={candidates} onChange={setCandidates} unclassifiedSegments={unclassifiedSegments} />
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 18 }}>
               <button
                 onClick={() => setStep("form")}

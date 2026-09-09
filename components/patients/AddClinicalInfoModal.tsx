@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
-import { buildCandidateEvents } from "@/engines/extraction";
+import { buildClinicalCandidates } from "@/engines/extraction";
 import { scanPrivacyShield, redactText } from "@/engines/privacy";
 import { Modal } from "@/components/ui";
 import { PrivacyShieldModal } from "./PrivacyShieldModal";
@@ -31,16 +31,17 @@ export function AddClinicalInfoModal({ onClose, onAdd }: { onClose: () => void; 
   const [text, setText] = useState("");
   const [findings, setFindings] = useState<PrivacyFinding[] | null>(null);
   const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
-
-  function buildCandidates(cleanText: string): ReviewCandidate[] {
-    // Mismo criterio que NewPatientModal (ver buildCandidateEvents): un evento clínico
-    // solo existe si el contenido permite identificarlo — nunca una Consulta de relleno.
-    return buildCandidateEvents(cleanText, todayISO()).map((event) => ({ event, included: true }));
-  }
+  const [unclassifiedSegments, setUnclassifiedSegments] = useState<string[]>([]);
 
   function goToReview(cleanText: string) {
+    // Mismo criterio que NewPatientModal (ver buildClinicalCandidates): un evento clínico
+    // solo existe si el contenido permite identificarlo — nunca una Consulta de relleno. Los
+    // fragmentos que el pipeline no pudo clasificar en ninguna categoría se conservan aparte,
+    // nunca se descartan (ver ClinicalCandidateReview).
+    const { events, unclassifiedSegments: leftover } = buildClinicalCandidates(cleanText, todayISO());
     setText(cleanText);
-    setCandidates(buildCandidates(cleanText));
+    setCandidates(events.map((event) => ({ event, included: true })));
+    setUnclassifiedSegments(leftover);
     setStep("review");
   }
 
@@ -94,7 +95,7 @@ export function AddClinicalInfoModal({ onClose, onAdd }: { onClose: () => void; 
           </>
         ) : (
           <>
-            <ClinicalCandidateReview candidates={candidates} onChange={setCandidates} />
+            <ClinicalCandidateReview candidates={candidates} onChange={setCandidates} unclassifiedSegments={unclassifiedSegments} />
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 18 }}>
               <button
                 onClick={() => setStep("text")}

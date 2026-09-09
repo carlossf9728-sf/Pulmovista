@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, FileQuestion, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { GROUP_COLOR, GROUP_ICON } from "@/utils/eventGroupStyle";
 import { displayForEvent } from "@/domain/timeline";
-import { DataConfidenceBadge } from "@/components/ui";
+import { Card, DataConfidenceBadge } from "@/components/ui";
 import { CandidateFields } from "./CandidateFields";
 import type { ClinicalEvent } from "@/types/clinicalEvent";
 
@@ -45,7 +45,15 @@ function CandidateCard({ candidate, onToggle, onEdit }: { candidate: ReviewCandi
             </div>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: COLORS.ink, marginTop: 3 }}>{display.title}</div>
             {!editing && (
-              <div style={{ fontSize: 12.5, color: COLORS.slate, marginTop: 3, lineHeight: 1.45 }}>{display.detail}</div>
+              <>
+                <div style={{ fontSize: 12.5, color: COLORS.slate, marginTop: 3, lineHeight: 1.45 }}>{display.detail}</div>
+                {/* Fragmento fuente — solo cuando aporta algo distinto del resumen ya mostrado arriba (evita duplicar el mismo texto dos veces para los tipos que ya muestran su informe completo, p. ej. Analítica/Radiología). */}
+                {!!event.rawText && event.rawText !== display.detail && (
+                  <p className="pv-mono" style={{ fontSize: 11.5, fontStyle: "italic", color: COLORS.slateLight, margin: "5px 0 0", lineHeight: 1.5 }}>
+                    “{event.rawText}”
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -90,7 +98,16 @@ export function countIncluded(candidates: ReviewCandidate[]): number {
   return candidates.filter((c) => c.included).length;
 }
 
-export function ClinicalCandidateReview({ candidates, onChange }: { candidates: ReviewCandidate[]; onChange: (next: ReviewCandidate[]) => void }) {
+export function ClinicalCandidateReview({
+  candidates,
+  onChange,
+  unclassifiedSegments = [],
+}: {
+  candidates: ReviewCandidate[];
+  onChange: (next: ReviewCandidate[]) => void;
+  /** Fragmentos que el pipeline no pudo clasificar en ninguna categoría reconocida — ver engines/extraction/pipeline.ts. Nunca se descartan: se muestran aparte para que el médico decida si contienen algo relevante que capturar a mano. */
+  unclassifiedSegments?: string[];
+}) {
   const [collapsed, setCollapsed] = useState(false);
 
   const updateAt = (i: number, patch: Partial<ReviewCandidate>) => {
@@ -148,6 +165,24 @@ export function ClinicalCandidateReview({ candidates, onChange }: { candidates: 
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {!!unclassifiedSegments.length && (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+            <FileQuestion size={13} /> Contenido no clasificado
+          </div>
+          <div style={{ fontSize: 12, color: COLORS.slateLight, margin: "4px 0 8px", lineHeight: 1.5 }}>
+            PulmoVista no ha podido reconocer una categoría clínica en estos fragmentos — no se guardan como ningún tipo de evento, pero tampoco se descartan: revíselos por si contienen algo que capturar a mano.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {unclassifiedSegments.map((fragment, i) => (
+              <Card key={i} style={{ padding: "10px 14px" }}>
+                <p className="pv-mono" style={{ fontSize: 12.5, color: COLORS.slate, margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{fragment}</p>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
     </div>

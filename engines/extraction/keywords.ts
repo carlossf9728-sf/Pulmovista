@@ -13,6 +13,7 @@ export const TREATMENT_KEYWORDS = [
   "tobramicina",
   "ciprofloxacino",
   "colistina",
+  "ceftazidima",
   "prednisona",
   "corticoide oral",
   "oxígeno",
@@ -35,6 +36,17 @@ export const PROCEDURE_TRIGGER = /broncoscopia|toracocentesis|biopsia(\s*(pulmon
 /** Menciona una prueba funcional de esfuerzo (marcha, ergometría, desaturación provocada) — dispara la detección de un ExerciseTestEvent candidato, distinto de la función pulmonar en reposo (PULMONARY_FUNCTION). */
 export const EXERCISE_TEST_TRIGGER =
   /prueba\s*de\s*(esfuerzo|la\s*marcha|caminata)|test\s*de\s*(la\s*)?marcha|test\s*de\s*los?\s*6\s*minutos|6\s*mwt|6\s*minutos?\s*(de\s*)?marcha|ergometr[ií]a/i;
+
+/** Menciona algún dato de función pulmonar en reposo (FEV1/FVC/DLCO) — disparador léxico para classifySegment, no repite los regex de extracción exacta (ver engines/extraction/extractors/pulmonaryFunction.ts). */
+export const PFT_TRIGGER = /FEV1|FVC|DLCO/i;
+
+/** Combina ORGANISM_PATTERNS en un único regex para classifySegment — la extracción real sigue recorriendo la lista completa (ver extractors/microbiology.ts) para no perder qué organismo concreto es. */
+export const ORGANISM_TRIGGER = new RegExp(ORGANISM_PATTERNS.map((o) => o.split(" ")[0]).join("|"), "i");
+
+export const EXACERBATION_EXPLICIT_TRIGGER = /exacerbaci[oó]n(es)?|agudizaci[oó]n(es)?/i;
+export const EXACERBATION_SOFT_SIGNS_TRIGGER = /(aumento de expectoraci[oó]n|mayor disnea|empeoramiento respiratorio)/i;
+export const ANTIBIOTIC_MENTION_TRIGGER = /(antibi[oó]tico|ciprofloxacino|azitromicina|amoxicilina|ceftazidima|tobramicina|colistina)/i;
+export const HOSPITALIZATION_TRIGGER = /ingreso|hospitali/i;
 
 /**
  * Indica que el texto contiene narrativa clínica de consulta/evolución

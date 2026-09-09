@@ -201,3 +201,69 @@ describe("AddClinicalInfoModal — 'Consulta/evolución' solo con narrativa real
     expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(2);
   });
 });
+
+/**
+ * Bloque clínico largo y mixto con encabezados explícitos (el caso real
+ * que motivó el rediseño del pipeline — ver engines/extraction/pipeline.ts
+ * y tests/engines/extractionPipeline.test.ts para la cobertura a nivel
+ * de motor). Aquí solo se comprueba la integración con la UI de revisión:
+ * cada tarjeta separada, el fragmento fuente visible y acotado a su
+ * propia categoría, y el contenido sin clasificar mostrado aparte.
+ */
+describe("AddClinicalInfoModal — bloque clínico largo y mixto con encabezados", () => {
+  it("separa un bloque con Consulta + Función pulmonar + Microbiología + Tratamiento en tarjetas independientes, cada una con su propio fragmento", async () => {
+    const onAdd = vi.fn();
+    render(<AddClinicalInfoModal onClose={vi.fn()} onAdd={onAdd} />);
+    const text = `Consulta:
+Acude a consulta de revisión. Refiere estabilidad clínica.
+
+Función pulmonar:
+FEV1 68%. FVC 76%.
+
+Microbiología:
+Cultivo de esputo con Pseudomonas aeruginosa, sensible a ciprofloxacino.
+
+Tratamiento:
+Se inicia ciprofloxacino 750 mg/12 h durante 14 días.`;
+    await pasteRawAndContinue(text);
+
+    expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(4);
+
+    const consultaCard = cardFor(/^Consulta \/ evoluci[oó]n$/);
+    expect(within(consultaCard).getByText(/estabilidad clínica/)).toBeInTheDocument();
+    expect(within(consultaCard).queryByText(/FEV1|Pseudomonas|ciprofloxacino 750/)).not.toBeInTheDocument();
+
+    const pftCard = cardFor(/^FEV1 68%/);
+    expect(within(pftCard).queryByText(/consulta de revisión|Pseudomonas|Se inicia/)).not.toBeInTheDocument();
+
+    const microCard = cardFor(/^Cultivo: Pseudomonas aeruginosa$/);
+    expect(within(microCard).getByText(/Pseudomonas aeruginosa, sensible a ciprofloxacino/)).toBeInTheDocument();
+    expect(within(microCard).queryByText(/FEV1|consulta de revisión/)).not.toBeInTheDocument();
+
+    const treatmentCard = cardFor(/^Inicio: Ciprofloxacino$/);
+    expect(within(treatmentCard).queryByText(/FEV1|Pseudomonas aeruginosa,/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Guardar \d+ elementos?$/ }));
+    const saved: ClinicalEvent[] = onAdd.mock.calls[0][0];
+    expect(saved.map((e) => e.type).sort()).toEqual(["consultation", "microbiology", "pulmonary_function", "treatment_started"]);
+    // Ningún evento guardado contiene el bloque completo.
+    for (const e of saved) {
+      expect(e.rawText).not.toBe(text);
+    }
+  });
+
+  it("muestra el contenido que no pudo clasificarse en su propio bloque, sin descartarlo ni convertirlo en Consulta", async () => {
+    render(<AddClinicalInfoModal onClose={vi.fn()} onAdd={vi.fn()} />);
+    const text = `Observaciones administrativas sin relevancia clínica reconocible por el sistema.
+
+Analítica:
+Srm-Leucocitos 9.500/µL [4000 - 11000]`;
+    await pasteRawAndContinue(text);
+
+    expect(screen.getByText("Contenido no clasificado")).toBeInTheDocument();
+    expect(screen.getByText(/Observaciones administrativas/)).toBeInTheDocument();
+    expect(screen.queryByText("Consulta")).not.toBeInTheDocument();
+    // El contenido sin clasificar no es un candidato guardable — solo la analítica lo es.
+    expect(screen.getAllByTestId(/^candidate-/)).toHaveLength(1);
+  });
+});
