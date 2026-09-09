@@ -58,6 +58,8 @@ describe("computeMissingInfo (LEGACY)", () => {
     expect(group.title).toBe("Estudio etiológico de bronquiectasias incompleto");
     expect(group.missingComponents).toEqual(["Inmunoglobulinas / anticuerpos", "Estudio de ABPA", "Alfa-1-antitripsina"]);
     expect(group.explanation).not.toBeNull();
+    // kindLabel distinto de "guideline": es una definición/tabla de referencia, no una recomendación graduada.
+    expect(group.explanation?.kindLabel).toBe("guideline_definition");
     expect(group.explanation?.source).toMatchObject({
       kind: "guideline_definition",
       guidelineId: "separ-bronchiectasis-2018",

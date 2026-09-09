@@ -27,6 +27,11 @@ describe("KindTag / DataConfidenceBadge", () => {
     render(<KindTag kind="heurística experimental" />);
     expect(screen.getByText("heurística experimental")).toBeInTheDocument();
   });
+  it("KindTag distingue 'guideline_definition' (referencia de la guía) de 'guideline' (recomendación graduada) con una etiqueta propia", () => {
+    render(<KindTag kind="guideline_definition" />);
+    expect(screen.getByText(/referencia de guía/i)).toBeInTheDocument();
+    expect(screen.queryByText("guía clínica")).not.toBeInTheDocument();
+  });
   it("DataConfidenceBadge muestra siempre la señal simple 'Revisar' (nunca la taxonomía técnica ni un porcentaje), con el motivo como title", () => {
     render(<DataConfidenceBadge reason="motivo de ejemplo" />);
     expect(screen.getByText("Revisar")).toBeInTheDocument();

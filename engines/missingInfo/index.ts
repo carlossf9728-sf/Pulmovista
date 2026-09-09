@@ -37,7 +37,7 @@ function buildEtiologicalScreeningExplanation(): ClinicalExplanation | null {
   const document = KNOWLEDGE_BASE_DOCUMENTS.find((d) => d.guidelineId === definition.guidelineId);
   if (!document) return null;
   return {
-    kindLabel: "guideline",
+    kindLabel: "guideline_definition",
     source: {
       kind: "guideline_definition",
       guidelineId: definition.guidelineId,

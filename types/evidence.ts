@@ -94,7 +94,14 @@ export interface ClinicalExplanationCitation {
 
 /** Contenido estructurado del modal "¿Por qué?". */
 export interface ClinicalExplanation {
-  kindLabel: "heurística experimental" | "guideline";
+  /**
+   * "guideline_definition" es deliberadamente distinto de "guideline": el
+   * KindTag debe dejar claro en la propia etiqueta visual que la fuente es
+   * una definición/tabla de referencia de la guía, no una recomendación
+   * terapéutica graduada (fuerza/calidad de evidencia GRADE) — ver
+   * ClinicalSource.kind "guideline_definition" más abajo.
+   */
+  kindLabel: "heurística experimental" | "guideline" | "guideline_definition";
   source: ClinicalSource;
   sections: ClinicalExplanationSection[];
   evidence: EvidenceItem[];
