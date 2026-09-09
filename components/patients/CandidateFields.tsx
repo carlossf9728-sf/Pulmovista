@@ -121,8 +121,32 @@ export function CandidateFields({ event, onChange }: { event: ClinicalEvent; onC
     case "treatment_stopped":
       return <TextField label="Fármaco / soporte retirado" value={event.drug} onChange={(v) => onChange({ ...event, drug: v })} />;
 
-    case "imaging":
     case "lab_results":
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <TextField label="Etiqueta" value={event.label} onChange={(v) => onChange({ ...event, label: v })} />
+          <TextAreaField label="Texto del informe" value={event.text} onChange={(v) => onChange({ ...event, text: v })} />
+          {!!event.parameters?.length && (
+            <div style={{ fontSize: 11.5, color: COLORS.slate }}>
+              {event.parameters.length} parámetro{event.parameters.length === 1 ? "" : "s"} estructurado{event.parameters.length === 1 ? "" : "s"} automáticamente.
+            </div>
+          )}
+          {!!event.unparsedLines?.length && (
+            <div>
+              <span style={fieldLabel}>Líneas sin interpretar — revisar antes de guardar</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {event.unparsedLines.map((l, i) => (
+                  <div key={i} className="pv-mono" style={{ fontSize: 12, color: COLORS.slate, background: COLORS.paper, borderRadius: 6, padding: "5px 8px" }}>
+                    {l}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
+    case "imaging":
     case "exercise_test":
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

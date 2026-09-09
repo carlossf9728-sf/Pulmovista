@@ -121,6 +121,46 @@ describe("runExtractionEngine", () => {
     if (lab?.type === "lab_results") {
       expect(lab.label).toBe("Analítica");
       expect(lab.text).toContain("PCR 45 mg/L");
+      // Texto en prosa, sin formato de línea IANUS: no hay parámetros estructurados que inventar.
+      expect(lab.parameters ?? []).toEqual([]);
+    }
+  });
+
+  /**
+   * Bloque pegado tal cual desde IANUS (ver engines/extraction/labParameters.ts) — a diferencia del
+   * caso anterior (prosa de una frase), aquí el motor debe preferir la vía estructurada: conservar el
+   * bloque COMPLETO en `text` (nunca truncarlo en el primer punto decimal, que es el bug que tenía
+   * captureSentence con números como "11.1") y estructurar cada línea reconocible en `parameters`.
+   */
+  it("detecta un bloque de analítica estilo IANUS y lo estructura en parameters, conservando el texto completo sin truncar en los puntos decimales", () => {
+    const text = `Srm-Leucocitos 11.1 x10^3/µL [4 - 10] *
+Srm-Hemoglobina 11.8 g/dL [13.5 - 17.5] *
+Srm-PCR 18.4 mg/L [0 - 5] *
+Srm-Creatinina 0.92 mg/dL [0.7 - 1.2]`;
+    const events = runExtractionEngine(text, "2024-01-01");
+    const lab = events.find((e) => e.type === "lab_results");
+    expect(lab).toBeDefined();
+    if (lab?.type === "lab_results") {
+      expect(lab.text).toBe(text);
+      expect(lab.parameters).toHaveLength(4);
+      expect(lab.parameters?.map((p) => p.name)).toEqual(["Leucocitos", "Hemoglobina", "PCR", "Creatinina"]);
+      expect(lab.confidence).toBe("confirmado");
+      expect(lab.unparsedLines ?? null).toBeNull();
+    }
+  });
+
+  it("cuando el bloque IANUS trae líneas que no se pueden interpretar con seguridad, las conserva en unparsedLines y marca el evento como 'dato incompleto' en vez de descartarlas", () => {
+    const text = `INFORME DE LABORATORIO
+Srm-Leucocitos 11.1 x10^3/µL [4 - 10] *
+Comentario: se recomienda repetir en 2 semanas.`;
+    const events = runExtractionEngine(text, "2024-01-01");
+    const lab = events.find((e) => e.type === "lab_results");
+    expect(lab).toBeDefined();
+    if (lab?.type === "lab_results") {
+      expect(lab.parameters).toHaveLength(1);
+      expect(lab.unparsedLines).toEqual(["INFORME DE LABORATORIO", "Comentario: se recomienda repetir en 2 semanas."]);
+      expect(lab.confidence).toBe("dato incompleto");
+      expect(lab.confidenceReason).toMatch(/2 línea/);
     }
   });
 

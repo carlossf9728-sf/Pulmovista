@@ -33,6 +33,7 @@ import {
   RESPIRATORY_SUPPORT_KEYWORDS,
   TREATMENT_KEYWORDS,
 } from "./keywords";
+import { parseLabBlock } from "./labParameters";
 import type {
   ClinicalEvent,
   ConsultationEvent,
@@ -136,11 +137,35 @@ export function runExtractionEngine(text: string, date: string): ClinicalEvent[]
     );
   }
 
-  const lab = captureSentence(text, LAB_TRIGGER);
-  if (lab) {
+  // Bloque de analítica pegado tal cual desde IANUS (líneas "Prefijo-Nombre valor unidad [rango] *") —
+  // se prueba ANTES que la captura por frase de abajo, porque un bloque así no tiene puntos de frase
+  // reales (los puntos son decimales) y captureSentence lo truncaría mal en el primer "11.1". Si el
+  // bloque no aporta ningún parámetro estructurado (texto en prosa, sin líneas reconocibles), se cae
+  // al comportamiento antiguo de capturar solo la frase que menciona la analítica.
+  const labBlock = parseLabBlock(text);
+  if (labBlock.parameters.length) {
     events.push(
-      mkEvent<LabResultsEvent>(null, CLINICAL_EVENT_TYPES.LAB_RESULTS, date, { label: "Analítica", text: lab.sentence }, { ...common, confidence: "confirmado" }),
+      mkEvent<LabResultsEvent>(
+        null,
+        CLINICAL_EVENT_TYPES.LAB_RESULTS,
+        date,
+        { label: "Analítica", text, parameters: labBlock.parameters, unparsedLines: labBlock.unparsedLines.length ? labBlock.unparsedLines : null },
+        {
+          ...common,
+          confidence: labBlock.unparsedLines.length ? "dato incompleto" : "confirmado",
+          confidenceReason: labBlock.unparsedLines.length
+            ? `${labBlock.unparsedLines.length} línea(s) del bloque no se pudieron interpretar con seguridad y se conservan en texto libre para revisión.`
+            : null,
+        },
+      ),
     );
+  } else {
+    const lab = captureSentence(text, LAB_TRIGGER);
+    if (lab) {
+      events.push(
+        mkEvent<LabResultsEvent>(null, CLINICAL_EVENT_TYPES.LAB_RESULTS, date, { label: "Analítica", text: lab.sentence }, { ...common, confidence: "confirmado" }),
+      );
+    }
   }
 
   const exerciseTest = captureSentence(text, EXERCISE_TEST_TRIGGER);

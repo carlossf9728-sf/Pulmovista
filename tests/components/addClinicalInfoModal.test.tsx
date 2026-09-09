@@ -10,7 +10,7 @@
  * exactamente lo que se guarda.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AddClinicalInfoModal } from "@/components/patients/AddClinicalInfoModal";
 import type { ClinicalEvent } from "@/types/clinicalEvent";
@@ -21,6 +21,18 @@ const RICH_TEXT =
 
 async function pasteAndContinue(text: string) {
   await userEvent.type(screen.getByPlaceholderText(/desde la última revisión/i), text, { delay: null });
+  await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+}
+
+/**
+ * userEvent.type interpreta "[" y "*" como sintaxis especial de teclado (ver
+ * testing-library/user-event#keyboard), justo los caracteres que trae un
+ * bloque IANUS real (rangos entre corchetes, asterisco de fuera de rango).
+ * fireEvent.change simula fielmente un "pegar" real (Ctrl+V) sin pasar por
+ * ese parser de teclas — más realista para este caso, no menos.
+ */
+async function pasteRawAndContinue(text: string) {
+  fireEvent.change(screen.getByPlaceholderText(/desde la última revisión/i), { target: { value: text } });
   await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
 }
 
@@ -86,6 +98,37 @@ describe("AddClinicalInfoModal", () => {
     const saved: ClinicalEvent[] = onAdd.mock.calls[0][0];
     const exac = saved.find((e) => e.type === "exacerbation");
     expect(exac).toMatchObject({ severity: "Moderada" });
+  });
+
+  it("un bloque de analítica pegado tal cual desde IANUS se estructura en parameters, y las líneas sin interpretar se muestran para revisión antes de guardar", async () => {
+    const onAdd = vi.fn();
+    render(<AddClinicalInfoModal onClose={vi.fn()} onAdd={onAdd} />);
+    const ianusText =
+      "INFORME DE LABORATORIO\nSrm-Leucocitos 11.1 x10^3/µL [4 - 10] *\nSrm-Hemoglobina 11.8 g/dL [13.5 - 17.5] *\nComentario: se recomienda repetir en 2 semanas.";
+    await pasteRawAndContinue(ianusText);
+
+    // Confianza "dato incompleto" (hay líneas sin interpretar) → el badge "Revisar" es visible sin entrar a corregir.
+    // "Analítica" aparece dos veces en su propia tarjeta (categoría + etiqueta, ver otro test de este archivo);
+    // basta con partir de cualquiera de las dos coincidencias para llegar a la tarjeta.
+    const labCard = screen.getAllByText("Analítica")[0].closest('[data-testid^="candidate-"]') as HTMLElement;
+    expect(within(labCard).getByText("Revisar")).toBeInTheDocument();
+
+    await userEvent.click(within(labCard).getByRole("button", { name: /corregir/i }));
+    expect(within(labCard).getByText(/2 parámetros estructurados/)).toBeInTheDocument();
+    expect(within(labCard).getByText(/Líneas sin interpretar/i)).toBeInTheDocument();
+    expect(within(labCard).getByText("INFORME DE LABORATORIO")).toBeInTheDocument();
+    expect(within(labCard).getByText("Comentario: se recomienda repetir en 2 semanas.")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Guardar \d+ elementos?$/ }));
+    const saved: ClinicalEvent[] = onAdd.mock.calls[0][0];
+    const lab = saved.find((e) => e.type === "lab_results");
+    expect(lab).toBeDefined();
+    if (lab?.type === "lab_results") {
+      expect(lab.parameters).toHaveLength(2);
+      expect(lab.unparsedLines).toEqual(["INFORME DE LABORATORIO", "Comentario: se recomienda repetir en 2 semanas."]);
+      // El texto completo se conserva tal cual, no se pierde nada aunque se haya estructurado parte.
+      expect(lab.text).toBe(ianusText);
+    }
   });
 
   it("un texto con datos identificativos pasa primero por el Escudo de privacidad antes de llegar a la revisión", async () => {

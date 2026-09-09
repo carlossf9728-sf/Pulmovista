@@ -178,6 +178,14 @@ export interface LabReferenceRange {
  */
 export interface LabParameter {
   name: string;
+  /**
+   * Nombre EXACTO tal como aparecía en el informe original, antes de
+   * normalizar (p. ej. "Srm-Leucocitos", "Hb") — se conserva para
+   * trazabilidad cuando `name` es el resultado de una normalización (ver
+   * engines/extraction/labParameters.ts). null cuando el parámetro se
+   * introdujo manualmente y no hay un nombre "crudo" distinto que guardar.
+   */
+  rawName?: string | null;
   valueText: string;
   numericValue?: number | null;
   unit?: string | null;
@@ -200,6 +208,15 @@ export interface LabResultsEvent extends ClinicalEventBase {
   label: string;
   text: string;
   parameters?: LabParameter[] | null;
+  /**
+   * Líneas del bloque original que ExtractionEngine no pudo interpretar
+   * con seguridad como un parámetro estructurado (ver
+   * engines/extraction/labParameters.ts) — se conservan tal cual, nunca
+   * se descartan, para que el médico las revise. `text` ya contiene el
+   * bloque completo; este campo solo señala qué fragmentos de ese mismo
+   * texto quedaron sin estructurar.
+   */
+  unparsedLines?: string[] | null;
 }
 
 /** Prueba funcional/de esfuerzo (test de la marcha, prueba de esfuerzo con desaturación…) — mismo formato libre que ImagingEvent/LabResultsEvent, categoría propia porque no es ni función pulmonar en reposo (PulmonaryFunctionEvent) ni una analítica. */
