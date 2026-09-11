@@ -356,3 +356,75 @@ Durante el ingreso: se añade ceftazidima IV.`;
     expect(treatment.episodeId).toBe(exac.id);
   });
 });
+
+describe("Pipeline de extracción — resolución temporal (datePrecision/dateSource/temporalExpression)", () => {
+  it("un bloque con varias transiciones temporales produce eventos con fechas distintas, no todos la fecha de importación", () => {
+    const text = `Consulta inicial. Tos y expectoración purulenta.
+
+Control a las 3 semanas: mejoría clínica, se realiza espirometría. FEV1 72%, FVC 80%.
+
+Tres meses después: nueva agudización, requiere ingreso hospitalario para tratamiento IV.
+
+Alta hospitalaria tras 5 días: paciente estable.
+
+Dos meses después del alta: revisión en consulta, FEV1 68%.`;
+
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const dates = events.map((e) => e.date);
+    expect(new Set(dates).size).toBeGreaterThan(1);
+
+    const pfts = byType(events, "pulmonary_function");
+    expect(pfts.map((p) => p.date)).toEqual(["2026-10-02", "2027-03-07"]);
+    expect(pfts.every((p) => p.datePrecision === "derived" && p.dateSource === "relative_offset")).toBe(true);
+
+    const exac = byType(events, "exacerbation")[0];
+    expect(exac.date).toBe("2027-01-02");
+    expect(exac.temporalExpression).toBe("Tres meses después");
+  });
+
+  it("el primer segmento (sin transición) se marca 'derived'/'import_anchor', nunca 'documented' — no es una fecha que el texto declare", () => {
+    const { events } = buildClinicalCandidates("Consulta de seguimiento. Estable, sin cambios.", "2026-09-11");
+    expect(events[0].datePrecision).toBe("derived");
+    expect(events[0].dateSource).toBe("import_anchor");
+    expect(events[0].temporalExpression).toBeNull();
+  });
+
+  it("una fecha explícita documentada en el texto ('en marzo de 2027') se marca 'documented'/'explicit_date'", () => {
+    const text = `Consulta inicial.
+
+En marzo de 2027: revisión anual, estable.`;
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const later = events.find((e) => e.date === "2027-03-01");
+    expect(later).toBeDefined();
+    expect(later?.datePrecision).toBe("documented");
+    expect(later?.dateSource).toBe("explicit_date");
+  });
+
+  it("'al alta' sin duración explícita produce un evento con datePrecision 'unresolved' y confidence rebajada, explicando la expresión temporal no resuelta", () => {
+    const text = `Ingreso hospitalario por agudización grave, se inicia antibiótico IV.
+
+Al alta: paciente estable, se retira oxígeno suplementario.`;
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const unresolvedEvent = events.find((e) => e.temporalExpression === "Al alta");
+    expect(unresolvedEvent).toBeDefined();
+    expect(unresolvedEvent?.datePrecision).toBe("unresolved");
+    expect(unresolvedEvent?.confidence).not.toBe("confirmado");
+    expect(unresolvedEvent?.confidenceReason).toMatch(/no se ha podido resolver.*fecha.*"Al alta"/i);
+  });
+
+  it("cuando un motivo de baja confianza específico de la categoría YA existe (exacerbación 'posible'), la rebaja por fecha no resuelta se concatena en vez de sustituirlo", () => {
+    // "Posteriormente" no tiene cantidad reconocible → queda unresolved. El propio extractor de
+    // exacerbación, por su lado, marca "posible" porque el texto no usa el término "exacerbación"
+    // explícitamente (solo signos + antibiótico) — ambos motivos deben conservarse, ninguno debe tapar al otro.
+    const text = `Consulta inicial. Estable.
+
+Posteriormente: empeoramiento respiratorio, se inicia ciprofloxacino.`;
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const exac = byType(events, "exacerbation").find((e) => e.temporalExpression === "Posteriormente");
+    expect(exac).toBeDefined();
+    expect(exac?.datePrecision).toBe("unresolved");
+    expect(exac?.confidence).toBe("posible");
+    expect(exac?.confidenceReason).toMatch(/no utiliza explícitamente el término "exacerbación"/i);
+    expect(exac?.confidenceReason).toMatch(/no se ha podido resolver.*"Posteriormente"/i);
+  });
+});

@@ -16,6 +16,7 @@
  * cultivo, no a que el organismo haya desaparecido) — se deja fuera
  * hasta que el modelo pueda registrar un resultado negativo explícito.
  */
+import { isDateReliable } from "./selectors";
 import type { MicrobiologyEvent } from "@/types/clinicalEvent";
 
 export type MicrobiologyObjectiveChange = "Nuevo aislamiento" | "Persistencia" | null;
@@ -23,12 +24,22 @@ export type MicrobiologyObjectiveChange = "Nuevo aislamiento" | "Persistencia" |
 /**
  * `allSorted` — todos los MicrobiologyEvent del paciente, ordenados por
  * fecha ascendente (ver domain/selectors.ts#selectMicrobiology).
+ *
+ * null también cuando `current` tiene `datePrecision: "unresolved"`, o
+ * comparándolo solo contra aislamientos con fecha fiable (ver
+ * isDateReliable): con una fecha no resuelta, "Nuevo aislamiento" frente
+ * a "Persistencia" dependería de una posición cronológica que no
+ * sabemos si es correcta — mejor no afirmar ninguna de las dos que
+ * afirmar la que no toca. El cultivo en sí sigue viéndose igual en
+ * Microbiología/Cronología, solo desaparece esta etiqueta.
  */
 export function microbiologyObjectiveChange(current: MicrobiologyEvent, allSorted: MicrobiologyEvent[]): MicrobiologyObjectiveChange {
-  const priorSameOrganism = allSorted.filter((m) => m.organism === current.organism && m.date < current.date);
+  if (!isDateReliable(current)) return null;
+  const reliable = allSorted.filter(isDateReliable);
+  const priorSameOrganism = reliable.filter((m) => m.organism === current.organism && m.date < current.date);
   if (priorSameOrganism.length === 0) return "Nuevo aislamiento";
 
-  const priorAny = allSorted.filter((m) => m.date < current.date).slice(-1)[0];
+  const priorAny = reliable.filter((m) => m.date < current.date).slice(-1)[0];
   const followsGap = priorAny != null && priorAny.organism !== current.organism;
   if (followsGap) return "Nuevo aislamiento";
 

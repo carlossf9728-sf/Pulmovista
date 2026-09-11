@@ -32,3 +32,27 @@ export function yearOf(iso: string): number {
 export function sortByDate<T extends { date: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
+
+export interface DateOffset {
+  days?: number;
+  weeks?: number;
+  months?: number;
+  years?: number;
+}
+
+/**
+ * Suma un desfase de calendario a una fecha ISO (yyyy-mm-dd), devolviendo
+ * otra fecha ISO. Meses/años usan aritmética de calendario real
+ * (Date#setMonth/#setFullYear, con el mismo desbordamiento de fin de mes
+ * que ya asume el resto de JavaScript) — nunca la aproximación de 30.44
+ * días que usa `monthsBetween` para comparar, que no sirve para calcular
+ * una fecha nueva. Semanas se convierten a días naturales (×7).
+ */
+export function addToDate(iso: string, offset: DateOffset): string {
+  const d = new Date(iso + "T00:00:00");
+  if (offset.years) d.setFullYear(d.getFullYear() + offset.years);
+  if (offset.months) d.setMonth(d.getMonth() + offset.months);
+  if (offset.weeks) d.setDate(d.getDate() + offset.weeks * 7);
+  if (offset.days) d.setDate(d.getDate() + offset.days);
+  return d.toISOString().slice(0, 10);
+}

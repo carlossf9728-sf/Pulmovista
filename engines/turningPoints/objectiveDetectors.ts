@@ -20,7 +20,7 @@ import { uid } from "@/utils/id";
 import { formatDate, sortByDate, yearOf } from "@/utils/date";
 import { cap } from "@/utils/text";
 import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
-import { exacerbationsByYear, selectExacerbations, selectMicrobiology, selectPFTWithFEV1, selectPFTWithFVC } from "@/domain/selectors";
+import { exacerbationsByYear, isDateReliable, selectExacerbations, selectMicrobiology, selectPFTWithFEV1, selectPFTWithFVC } from "@/domain/selectors";
 import type { Patient } from "@/types/patient";
 import type { EvidenceItem } from "@/types/evidence";
 import type { ObjectiveTurningPoint } from "@/types/turningPoints";
@@ -39,9 +39,11 @@ export function detectObjectiveTurningPoints(patient: Patient): ObjectiveTurning
   const points: ObjectiveTurningPoint[] = [];
   const years = exacerbationsByYear(patient);
   const pftSorted = selectPFTWithFEV1(patient.events);
-  const micro = selectMicrobiology(patient.events);
-  const support = sortByDate(patient.events.filter(isRespiratorySupport));
-  const exacs = selectExacerbations(patient.events);
+  // Fecha fiable en ambas: una posición cronológica equivocada podría inventar un "2º aislamiento"
+  // o una "1ª hospitalización" que en realidad no lo son — ver domain/selectors.ts#isDateReliable.
+  const micro = selectMicrobiology(patient.events).filter(isDateReliable);
+  const support = sortByDate(patient.events.filter(isRespiratorySupport).filter(isDateReliable));
+  const exacs = selectExacerbations(patient.events).filter(isDateReliable);
 
   // 1) salto en tasa de exacerbaciones
   for (let i = 1; i < years.length; i++) {

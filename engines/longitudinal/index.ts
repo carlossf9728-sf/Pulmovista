@@ -9,12 +9,19 @@
 import { uid } from "@/utils/id";
 import { monthsBetween } from "@/utils/date";
 import { formatDate } from "@/utils/date";
-import { selectConsultations, selectPFT, getStateAsOf } from "@/domain/selectors";
+import { selectConsultations, selectPFT, getStateAsOf, isDateReliable } from "@/domain/selectors";
 import type { Patient } from "@/types/patient";
 import type { ChangeKind, ChangesSinceLastVisit, DataContradiction } from "@/types/longitudinal";
 
+/**
+ * "Última consulta" / "consulta anterior" solo se eligen entre las de
+ * fecha fiable (ver domain/selectors.ts#isDateReliable) — con una fecha
+ * "unresolved" podríamos estar comparando en el orden equivocado, y el
+ * propio sentido de "qué ha cambiado desde la última visita" depende
+ * por completo de que ese orden sea correcto.
+ */
 export function computeChangesSinceLastVisit(patient: Patient): ChangesSinceLastVisit | null {
-  const consults = selectConsultations(patient.events);
+  const consults = selectConsultations(patient.events).filter(isDateReliable);
   if (consults.length < 2) return null;
   const prevDate = consults[consults.length - 2].date;
   const lastDate = consults[consults.length - 1].date;
@@ -80,9 +87,14 @@ export function computeChangesSinceLastVisit(patient: Patient): ChangesSinceLast
  *
  * `note` es un aviso fijo (LEGACY): pendiente de sustituir por una
  * recomendación derivada de GuidelineEngine en la siguiente fase.
+ *
+ * Solo compara pares con fecha fiable (ver isDateReliable): una
+ * "contradicción" detectada entre dos pruebas donde alguna tiene fecha
+ * "unresolved" sería una falsa alarma — el orden/intervalo en que se
+ * comparan podría no ser el real.
  */
 export function detectContradictions(patient: Patient): DataContradiction[] {
-  const pfts = selectPFT(patient.events);
+  const pfts = selectPFT(patient.events).filter(isDateReliable);
   const findings: DataContradiction[] = [];
   for (let i = 1; i < pfts.length; i++) {
     const a = pfts[i - 1];

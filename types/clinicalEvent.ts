@@ -9,6 +9,44 @@
 export type EventSource = "seed_demo" | "extraction_simulated" | "manual";
 
 /**
+ * Cuán fiable es `date` como fecha clínica real — independiente de
+ * `confidence` (que mide el dato clínico en sí, no cuándo ocurrió).
+ *
+ * - "documented": el propio texto la declara — una fecha explícita
+ *   ("15/03/2027", "en marzo de 2027") o una fecha calculada con una
+ *   fórmula sin ambigüedad a partir de otra fecha documentada.
+ * - "derived": se ha calculado a partir de una expresión temporal
+ *   relativa ("tres meses después", "al día siguiente", "al alta" con
+ *   duración) aplicada sobre un ancla resoluble, o — cuando el texto no
+ *   trae ninguna fecha — la fecha de importación usada como ancla
+ *   operativa. Nunca se llama "documented": ninguna de las dos procede
+ *   de una fecha que el texto declare para ESE evento en concreto.
+ * - "unresolved": no hay ancla suficiente para resolver la expresión
+ *   temporal (p. ej. "posteriormente" sin cantidad, o "al alta" sin
+ *   duración ni ingreso previo). `date` conserva la última fecha
+ *   resuelta conocida solo por compatibilidad técnica (ordenar listas,
+ *   etc.) — ver domain/selectors.ts#isDateReliable: ningún motor de
+ *   tendencia longitudinal (Argos, Turning Points, microbiología,
+ *   PFR, comparaciones entre visitas) debe tratarla como si fuera una
+ *   fecha real al decidir un antes/después.
+ */
+export type DatePrecision = "documented" | "derived" | "unresolved";
+
+/**
+ * De dónde procede `date` — complementa a `datePrecision` (cuánto nos
+ * fiamos) con la procedencia concreta.
+ *
+ * - "explicit_date": una fecha de calendario tal cual aparece en el texto.
+ * - "relative_offset": calculada aplicando una expresión temporal
+ *   relativa a un ancla (otra fecha ya resuelta del mismo episodio).
+ * - "import_anchor": el texto no traía ninguna fecha ni expresión
+ *   temporal — se ha usado la fecha en la que se pegó el texto como
+ *   ancla operativa. NUNCA implica que esa sea la fecha clínica real
+ *   del evento — ver `datePrecision` ("derived", nunca "documented").
+ */
+export type DateSource = "explicit_date" | "relative_offset" | "import_anchor";
+
+/**
  * Nivel de confianza del dato. NO es un juicio clínico: refleja cuánto se
  * apoya el dato en texto explícito frente a inferencia del motor de
  * extracción (hoy simulado).
@@ -45,6 +83,12 @@ export interface ClinicalEventBase {
   rawText: string | null;
   confidence: ConfidenceLevel;
   confidenceReason: string | null;
+  /** Cuán fiable es `date` como fecha clínica real — ver DatePrecision. */
+  datePrecision: DatePrecision;
+  /** Procedencia concreta de `date` — ver DateSource. */
+  dateSource: DateSource;
+  /** Expresión temporal original tal cual aparece en el texto ("tres meses después", "al alta"...) — null si el evento no procede de una transición temporal relativa. Se conserva siempre, incluso cuando la resolución es exitosa, para trazabilidad. */
+  temporalExpression: string | null;
   /**
    * Identificador de episodio/visita, para agrupar en la Cronología
    * varios ClinicalEvent que pertenecen al mismo encuentro clínico —

@@ -47,6 +47,21 @@ function isTreatmentStart(e: ClinicalEvent): e is TreatmentStartedEvent | Respir
 }
 
 /**
+ * ¿Puede `date` tratarse como una fecha clínica real al ordenar o
+ * comparar en el tiempo? false cuando `datePrecision` es "unresolved"
+ * (ver types/clinicalEvent.ts) — el evento sigue siendo válido y visible
+ * en listados y Cronología, pero ningún motor de TENDENCIA longitudinal
+ * (Argos, Turning Points, microbiología, PFR, comparaciones entre
+ * visitas) debe usar su fecha para decidir un antes/después: la fecha
+ * "unresolved" solo se conserva por compatibilidad técnica (ordenar sin
+ * romper), nunca como base de una comparación cuyo resultado dependa de
+ * que sea correcta.
+ */
+export function isDateReliable(e: ClinicalEvent): boolean {
+  return e.datePrecision !== "unresolved";
+}
+
+/**
  * ERS define "severe exacerbation" (ers-def-severe-exacerbation) como la
  * que requiere hospitalización o antibiótico intravenoso. `hospitalization`
  * es el campo directo; el texto de `severity` conteniendo "grave" se usa
@@ -68,18 +83,25 @@ export function selectPFT(events: ClinicalEvent[]): PulmonaryFunctionEvent[] {
   return sortByDate(events.filter(isPulmonaryFunction));
 }
 
-/** Igual que selectPFT, pero acotado a pruebas con FEV1Percent presente (helper de tipado reutilizado por Sentinel y Turning Points). */
+/**
+ * Igual que selectPFT, pero acotado a pruebas con FEV1Percent presente
+ * Y con fecha fiable (helper de tendencia reutilizado por Sentinel y
+ * Turning Points para comparar consecutivas — ver isDateReliable: una
+ * prueba con datePrecision "unresolved" sigue viéndose en Cronología/
+ * pestaña Función pulmonar (que usan selectPFT sin filtrar), pero no
+ * puede formar parte de una tendencia cuyo orden dependa de su fecha).
+ */
 export function selectPFTWithFEV1(events: ClinicalEvent[]): (PulmonaryFunctionEvent & { FEV1Percent: number })[] {
-  return selectPFT(events).filter(
-    (p): p is PulmonaryFunctionEvent & { FEV1Percent: number } => p.FEV1Percent != null,
-  );
+  return selectPFT(events)
+    .filter(isDateReliable)
+    .filter((p): p is PulmonaryFunctionEvent & { FEV1Percent: number } => p.FEV1Percent != null);
 }
 
-/** Igual que selectPFT, pero acotado a pruebas con FVCPercent presente (usado por el detector de descenso restrictivo de Turning Points). */
+/** Igual que selectPFTWithFEV1, pero acotado a FVCPercent (usado por el detector de descenso restrictivo de Turning Points). */
 export function selectPFTWithFVC(events: ClinicalEvent[]): (PulmonaryFunctionEvent & { FVCPercent: number })[] {
-  return selectPFT(events).filter(
-    (p): p is PulmonaryFunctionEvent & { FVCPercent: number } => p.FVCPercent != null,
-  );
+  return selectPFT(events)
+    .filter(isDateReliable)
+    .filter((p): p is PulmonaryFunctionEvent & { FVCPercent: number } => p.FVCPercent != null);
 }
 
 export function selectMicrobiology(events: ClinicalEvent[]): MicrobiologyEvent[] {
@@ -182,12 +204,22 @@ export function getStateAsOf(patient: Patient, dateStr: string): PatientStateAsO
   };
 }
 
+/**
+ * Bucketing por año — base de la tendencia de exacerbaciones de Argos y
+ * Turning Points. Excluye exacerbaciones con fecha "unresolved" (ver
+ * isDateReliable): un año equivocado por una fecha no resuelta podría
+ * convertir un aumento o descenso real en uno falso. La exacerbación
+ * sigue existiendo y visible en selectExacerbations/Cronología sin
+ * filtrar — solo no cuenta para esta tendencia por año.
+ */
 export function exacerbationsByYear(patient: Patient): ExacerbationYearCount[] {
   const byYear: Record<number, number> = {};
-  selectExacerbations(patient.events).forEach((e) => {
-    const y = yearOf(e.date);
-    byYear[y] = (byYear[y] || 0) + 1;
-  });
+  selectExacerbations(patient.events)
+    .filter(isDateReliable)
+    .forEach((e) => {
+      const y = yearOf(e.date);
+      byYear[y] = (byYear[y] || 0) + 1;
+    });
   return Object.entries(byYear)
     .map(([year, count]) => ({ year: parseInt(year, 10), count }))
     .sort((a, b) => a.year - b.year);

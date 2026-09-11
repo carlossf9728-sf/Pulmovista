@@ -20,7 +20,7 @@
 import { formatDate, sortByDate } from "@/utils/date";
 import { cap } from "@/utils/text";
 import { CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
-import { exacerbationsByYear, selectMicrobiology, selectPFTWithFEV1 } from "@/domain/selectors";
+import { exacerbationsByYear, isDateReliable, selectMicrobiology, selectPFTWithFEV1 } from "@/domain/selectors";
 import type { Patient } from "@/types/patient";
 import type { ObjectiveSentinelSignal } from "@/types/sentinel";
 import type { RespiratorySupportEvent } from "@/types/clinicalEvent";
@@ -62,7 +62,8 @@ export function detectObjectiveSentinelSignals(patient: Patient): ObjectiveSenti
   }
 
   // 3) aislamiento microbiológico persistente (mismo organismo ≥2 veces), una señal por organismo
-  const micro = selectMicrobiology(patient.events);
+  // Solo fecha fiable (ver domain/selectors.ts#isDateReliable): las fechas de evidencia mostradas aquí no deben parecer más precisas de lo que son.
+  const micro = selectMicrobiology(patient.events).filter(isDateReliable);
   const counts: Record<string, number> = {};
   micro.forEach((m) => {
     counts[m.organism] = (counts[m.organism] || 0) + 1;
@@ -79,8 +80,8 @@ export function detectObjectiveSentinelSignals(patient: Patient): ObjectiveSenti
       });
     });
 
-  // 4) inicio de soporte respiratorio
-  const support = sortByDate(patient.events.filter(isRespiratorySupport));
+  // 4) inicio de soporte respiratorio — solo fecha fiable: "inicio" es una afirmación de primera vez.
+  const support = sortByDate(patient.events.filter(isRespiratorySupport).filter(isDateReliable));
   if (support.length) {
     const first = support[0];
     signals.push({

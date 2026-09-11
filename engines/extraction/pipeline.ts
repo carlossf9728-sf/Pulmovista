@@ -26,6 +26,7 @@
 import { mkEvent, CLINICAL_EVENT_TYPES } from "@/domain/clinicalEvent";
 import { segmentClinicalText } from "./segment";
 import { classifySegment } from "./classify";
+import { resolveSegmentDates } from "./resolveDates";
 import { extractConsultation } from "./extractors/consultation";
 import { extractPulmonaryFunction } from "./extractors/pulmonaryFunction";
 import { extractMicrobiology } from "./extractors/microbiology";
@@ -78,46 +79,75 @@ function sortByPriority(categories: SegmentCategory[]): SegmentCategory[] {
   return [...categories].sort((a, b) => CATEGORY_PRIORITY.indexOf(a) - CATEGORY_PRIORITY.indexOf(b));
 }
 
+type ConfidenceFields = { confidence: ConfidenceLevel; confidenceReason: string | null };
+
+/** Combina dos motivos de revisión sin que uno tape al otro: si ambos rebajan la confianza, se quedan los dos motivos concatenados; "confirmado" nunca gana sobre una rebaja real. */
+function combineConfidence(primary: ConfidenceFields, extra: ConfidenceFields | null): ConfidenceFields {
+  if (!extra) return primary;
+  if (primary.confidence === "confirmado") return extra;
+  if (extra.confidence === "confirmado") return primary;
+  return { confidence: primary.confidence, confidenceReason: [primary.confidenceReason, extra.confidenceReason].filter(Boolean).join(" ") };
+}
+
 export function runExtractionPipeline(text: string, date: string): ExtractionPipelineResult {
   const segments = segmentClinicalText(text);
+  const resolvedDates = resolveSegmentDates(segments, date);
   const events: ClinicalEvent[] = [];
   const unclassifiedSegments: string[] = [];
   let currentEpisodeId: string | null = null;
 
-  for (const segment of segments) {
+  segments.forEach((segment, segmentIndex) => {
     // Una transición temporal que cierra episodio siempre lo cierra, aunque este segmento en concreto no abra uno nuevo.
     if (segment.startsNewEpisode) currentEpisodeId = null;
 
     const categories = classifySegment(segment);
     if (!categories.length) {
       unclassifiedSegments.push(segment.text);
-      continue;
+      return;
     }
+
+    const resolved = resolvedDates[segmentIndex];
+    const segmentDate = resolved.date;
 
     const isHeader = segment.headerCategory != null;
     // Sin encabezado ni transición que delimite el segmento, y mezclando varias categorías a la vez:
     // la frontera entre lo que pertenece a cada evento es menos segura — se marca para revisión.
     const uncertain = !isHeader && !segment.temporalLabel && categories.length > 1;
-    const fallbackConfidence: { confidence: ConfidenceLevel; confidenceReason: string | null } = uncertain
+    const baseConfidence: ConfidenceFields = uncertain
       ? {
           confidence: "probable",
           confidenceReason: "Este fragmento mezcla varias categorías sin un encabezado o transición temporal que las delimite con claridad — revisar antes de guardar.",
         }
       : { confidence: "confirmado", confidenceReason: null };
+    // Una fecha "unresolved" nunca debe parecer una fecha clínica fiable — se marca para revisión igual que
+    // cualquier otro motivo de baja confianza, sin tapar un motivo ya existente (ver combineConfidence).
+    const dateConfidence: ConfidenceFields | null =
+      resolved.datePrecision === "unresolved"
+        ? {
+            confidence: "probable",
+            confidenceReason: `No se ha podido resolver con seguridad la fecha de la expresión temporal "${resolved.temporalExpression}" — se conserva la última fecha conocida como referencia técnica, revisar antes de confirmar.`,
+          }
+        : null;
+    const fallbackConfidence = combineConfidence(baseConfidence, dateConfidence);
 
     let exacerbationHandledHospitalization = false;
-    const common = { source: "extraction_simulated" as const };
+    const common = {
+      source: "extraction_simulated" as const,
+      datePrecision: resolved.datePrecision,
+      dateSource: resolved.dateSource,
+      temporalExpression: resolved.temporalExpression,
+    };
 
     for (const category of sortByPriority(categories)) {
       switch (category) {
         case "exacerbacion": {
           const r = extractExacerbation(segment.text);
           if (!r) break;
-          const specific = r.confidence === "posible" ? { confidence: "posible" as ConfidenceLevel, confidenceReason: r.confidenceReason } : fallbackConfidence;
+          const specific = r.confidence === "posible" ? combineConfidence({ confidence: "posible", confidenceReason: r.confidenceReason }, dateConfidence) : fallbackConfidence;
           const exac: ExacerbationEvent = mkEvent<ExacerbationEvent>(
             null,
             CLINICAL_EVENT_TYPES.EXACERBATION,
-            date,
+            segmentDate,
             { severity: r.severity, hospitalization: r.hospitalization },
             { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...specific },
           );
@@ -132,30 +162,30 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
         case "ingreso": {
           const proc = extractProcedure(segment.text);
           if (proc) {
-            events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, date, { procedureLabel: proc.procedureLabel }, { ...common, rawText: proc.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+            events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, segmentDate, { procedureLabel: proc.procedureLabel }, { ...common, rawText: proc.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
           }
           if (!exacerbationHandledHospitalization) {
             const hosp = extractHospitalizationFallback(segment.text);
             if (hosp) {
-              events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, date, {}, { ...common, rawText: hosp.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+              events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, segmentDate, {}, { ...common, rawText: hosp.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
             }
           }
           break;
         }
         case "procedimiento": {
           const r = extractProcedure(segment.text);
-          if (r) events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, date, { procedureLabel: r.procedureLabel }, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+          if (r) events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, segmentDate, { procedureLabel: r.procedureLabel }, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
           break;
         }
         case "consulta":
         case "alta": {
           const r = extractConsultation(segment.text, isHeader);
-          if (r) events.push(mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, date, r.vitals, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+          if (r) events.push(mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, segmentDate, r.vitals, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
           break;
         }
         case "funcion_pulmonar": {
           const r = extractPulmonaryFunction(segment.text);
-          if (r) events.push(mkEvent<PulmonaryFunctionEvent>(null, CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, date, r.payload, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+          if (r) events.push(mkEvent<PulmonaryFunctionEvent>(null, CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, segmentDate, r.payload, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
           break;
         }
         case "microbiologia": {
@@ -164,7 +194,7 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
               mkEvent<MicrobiologyEvent>(
                 null,
                 CLINICAL_EVENT_TYPES.MICROBIOLOGY,
-                date,
+                segmentDate,
                 { sampleType: r.sampleType, organism: r.organism, sensitivity: r.sensitivity, resistance: r.resistance },
                 { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence },
               ),
@@ -176,16 +206,19 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
           const r = extractLabResults(segment.text, isHeader);
           if (r) {
             const specific = r.unparsedLines.length
-              ? {
-                  confidence: "dato incompleto" as ConfidenceLevel,
-                  confidenceReason: `${r.unparsedLines.length} línea(s) del bloque no se pudieron interpretar con seguridad y se conservan en texto libre para revisión.`,
-                }
+              ? combineConfidence(
+                  {
+                    confidence: "dato incompleto",
+                    confidenceReason: `${r.unparsedLines.length} línea(s) del bloque no se pudieron interpretar con seguridad y se conservan en texto libre para revisión.`,
+                  },
+                  dateConfidence,
+                )
               : fallbackConfidence;
             events.push(
               mkEvent<LabResultsEvent>(
                 null,
                 CLINICAL_EVENT_TYPES.LAB_RESULTS,
-                date,
+                segmentDate,
                 { label: "Analítica", text: r.fragment, parameters: r.parameters.length ? r.parameters : null, unparsedLines: r.unparsedLines.length ? r.unparsedLines : null },
                 { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...specific },
               ),
@@ -195,12 +228,12 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
         }
         case "radiologia": {
           const r = extractImaging(segment.text, isHeader);
-          if (r) events.push(mkEvent<ImagingEvent>(null, CLINICAL_EVENT_TYPES.IMAGING, date, { label: r.label, text: r.fragment }, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+          if (r) events.push(mkEvent<ImagingEvent>(null, CLINICAL_EVENT_TYPES.IMAGING, segmentDate, { label: r.label, text: r.fragment }, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
           break;
         }
         case "prueba_esfuerzo": {
           const r = extractExerciseTest(segment.text, isHeader);
-          if (r) events.push(mkEvent<ExerciseTestEvent>(null, CLINICAL_EVENT_TYPES.EXERCISE_TEST, date, { label: r.label, text: r.fragment }, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+          if (r) events.push(mkEvent<ExerciseTestEvent>(null, CLINICAL_EVENT_TYPES.EXERCISE_TEST, segmentDate, { label: r.label, text: r.fragment }, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
           break;
         }
         case "tratamiento": {
@@ -210,13 +243,13 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
                 mkEvent<TreatmentStartedEvent | RespiratorySupportEvent>(
                   null,
                   r.isRespiratorySupport ? CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT : CLINICAL_EVENT_TYPES.TREATMENT_STARTED,
-                  date,
+                  segmentDate,
                   { drug: r.drug, dose: r.dose, schedule: r.schedule, frequency: r.frequency, duration: r.duration, changeNote: r.changeNote },
                   { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence },
                 ),
               );
             } else {
-              events.push(mkEvent<TreatmentStoppedEvent>(null, CLINICAL_EVENT_TYPES.TREATMENT_STOPPED, date, { drug: r.drug }, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+              events.push(mkEvent<TreatmentStoppedEvent>(null, CLINICAL_EVENT_TYPES.TREATMENT_STOPPED, segmentDate, { drug: r.drug }, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
             }
           }
           break;
@@ -225,7 +258,7 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
           break;
       }
     }
-  }
+  });
 
   return { events, unclassifiedSegments };
 }

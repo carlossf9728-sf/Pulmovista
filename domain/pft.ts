@@ -88,9 +88,18 @@ function compareMetric(opts: MetricComparisonInput): string | null {
  * z-score si lo trae, ya se muestran en el título de la propia entrada
  * (ver domain/timeline.ts#displayForEvent), no hace falta repetirlos
  * aquí sin nada que comparar.
+ *
+ * Tampoco compara si `current` o `previous` tienen `datePrecision:
+ * "unresolved"` (ver domain/selectors.ts#isDateReliable): un antes/
+ * después calculado sobre una fecha no resuelta podría estar
+ * comparando con la prueba equivocada — mejor no mostrar ninguna línea
+ * de cambio que mostrar una tendencia que podría no ser real. La
+ * propia prueba PFR sigue viéndose igual en Cronología/pestaña Función
+ * pulmonar, solo desaparece su línea de comparación.
  */
 export function comparePft(current: PulmonaryFunctionEvent, previous: PulmonaryFunctionEvent | null): string[] {
   if (!previous) return [];
+  if (current.datePrecision === "unresolved" || previous.datePrecision === "unresolved") return [];
   const lines = [
     compareMetric({
       label: "FEV1",

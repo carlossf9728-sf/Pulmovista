@@ -63,6 +63,7 @@ export const TEMPORAL_TRANSITIONS: { pattern: RegExp; resetsEpisode: boolean }[]
   { pattern: /dos meses despu[eé]s/i, resetsEpisode: true },
   { pattern: /un mes despu[eé]s/i, resetsEpisode: true },
   { pattern: /\d+\s*(meses|semanas|d[ií]as|a[ñn]os)\s*despu[eé]s/i, resetsEpisode: true },
+  { pattern: /(?:control|revisi[oó]n)\s+a\s+las?\s+\d+\s*(?:semanas|meses|d[ií]as|a[ñn]os)/i, resetsEpisode: true },
   { pattern: /posteriormente/i, resetsEpisode: true },
   { pattern: /en la siguiente revisi[oó]n/i, resetsEpisode: true },
   {

@@ -4,6 +4,8 @@ import {
   type ClinicalEvent,
   type ClinicalEventPayload,
   type ConfidenceLevel,
+  type DatePrecision,
+  type DateSource,
   type EventSource,
 } from "@/types/clinicalEvent";
 
@@ -29,6 +31,12 @@ export interface MkEventOptions {
   confidenceReason?: string | null;
   /** Vincula el evento a un episodio compartido — ver ClinicalEventBase#episodeId y domain/episode.ts. */
   episodeId?: string | null;
+  /** Ver types/clinicalEvent.ts#DatePrecision. Por defecto "documented": la mayoría de llamadas (datos demo, manual, tests) reciben directamente una fecha ya conocida, no pasan por resolución temporal — ver engines/extraction/resolveDates.ts para el único llamador que sí necesita declarar "derived"/"unresolved". */
+  datePrecision?: DatePrecision;
+  /** Ver types/clinicalEvent.ts#DateSource. Por defecto "explicit_date", en línea con datePrecision. */
+  dateSource?: DateSource;
+  /** Expresión temporal original ("tres meses después"...) cuando `date` procede de resolver una — ver types/clinicalEvent.ts#ClinicalEventBase. */
+  temporalExpression?: string | null;
 }
 
 /**
@@ -55,6 +63,9 @@ export function mkEvent<T extends ClinicalEvent>(
     confidence: opts.confidence || "confirmado",
     confidenceReason: opts.confidenceReason || null,
     episodeId: opts.episodeId ?? null,
+    datePrecision: opts.datePrecision || "documented",
+    dateSource: opts.dateSource || "explicit_date",
+    temporalExpression: opts.temporalExpression ?? null,
     ...payload,
   } as unknown as T;
 }

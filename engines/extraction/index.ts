@@ -23,10 +23,11 @@
  * pipeline.ts) para que la revisión pueda mostrarlos — AddClinicalInfoModal
  * y NewPatientModal deben usar esta en vez de buildCandidateEvents.
  *
- * Limitación conocida (no corregida — es del prototipo original): todos
- * los eventos detectados en un mismo texto se fechan con la fecha de la
- * consulta; no se interpretan fechas relativas ("en febrero", "en enero
- * de 2025") mencionadas dentro del propio texto.
+ * Resolución temporal: cada segmento se fecha con resolveSegmentDates()
+ * (ver resolveDates.ts) a partir de su transición temporal relativa
+ * ("tres meses después", "al alta", "Control a las 3 semanas"...), no
+ * con la fecha de importación fija para todo el texto — ver
+ * ClinicalEventBase#datePrecision/dateSource/temporalExpression.
  */
 import { runExtractionPipeline } from "./pipeline";
 import type { ExtractionPipelineResult } from "./pipeline";
@@ -35,6 +36,8 @@ import type { ClinicalEvent } from "@/types/clinicalEvent";
 export { hasConsultationNarrative } from "./consultationNarrative";
 export { segmentClinicalText } from "./segment";
 export { classifySegment } from "./classify";
+export { resolveSegmentDates } from "./resolveDates";
+export type { ResolvedSegmentDate } from "./resolveDates";
 export type { SegmentCategory, TextSegment } from "./segmentPatterns";
 export type { ExtractionPipelineResult } from "./pipeline";
 
