@@ -3,10 +3,29 @@ import { formatZScore } from "./pft";
 import { classifyRadiologyTrend } from "./radiologyTrend";
 import { isSevereExacerbation } from "./selectors";
 import { CLINICAL_EVENT_TYPES } from "./clinicalEvent";
-import type { ClinicalEvent, ExacerbationEvent } from "@/types/clinicalEvent";
+import type { ClinicalEvent, ConsultationEvent, ExacerbationEvent } from "@/types/clinicalEvent";
 import type { ClinicalTrend } from "@/types/clinicalTrend";
 import type { TimelineEntry } from "@/types/timeline";
 import type { TurningPointCriterion } from "@/types/turningPoints";
+
+/**
+ * Resumen corto y legible de las constantes vitales estructuradas de
+ * una consulta (ver ConsultationEvent) — null si no hay ninguna. Solo
+ * compone lo que el evento ya trae extraído, nunca interpreta esos
+ * valores ni añade ningún juicio clínico sobre ellos.
+ */
+export function consultationVitalsSummary(e: ConsultationEvent): string | null {
+  const parts: string[] = [];
+  if (e.oxygenSaturationPercent != null) parts.push(`SatO₂ ${e.oxygenSaturationPercent}%`);
+  if (e.respiratoryRate != null) parts.push(`FR ${e.respiratoryRate} rpm`);
+  if (e.heartRate != null) parts.push(`FC ${e.heartRate} lpm`);
+  if (e.temperatureCelsius != null) parts.push(`Tª ${e.temperatureCelsius}°C`);
+  if (e.bloodPressure) parts.push(`TA ${e.bloodPressure}`);
+  if (e.oxygenTherapy) parts.push(e.oxygenTherapy);
+  if (e.afebrile) parts.push("Afebril");
+  if (e.hemodynamicallyStable) parts.push("Hemodinámicamente estable");
+  return parts.length ? parts.join(" · ") : null;
+}
 
 /** Traduce un ClinicalEvent a su representación en la línea de tiempo. Réplica exacta de `displayForEvent()`. */
 export function displayForEvent(e: ClinicalEvent): TimelineEntry {

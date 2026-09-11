@@ -248,6 +248,86 @@ describe("runExtractionEngine", () => {
     });
   });
 
+  describe("extractConsultation — constantes vitales de la exploración, sin perderlas del fragmento", () => {
+    it("bug reportado: SatO₂, FR, FC y 'afebril' no se pierden del rawText ni de los campos estructurados", () => {
+      const text =
+        "Consulta de seguimiento por aumento de tos y expectoración purulenta de 6 días de evolución. " +
+        "Refiere disnea algo mayor de la habitual. SatO₂ 91% basal, FR 22 rpm, FC 96 lpm. Afebril.";
+      const events = runExtractionEngine(text, "2024-01-01");
+      const consulta = events.find((e) => e.type === "consultation");
+      expect(consulta).toBeDefined();
+      // Regla fundamental: el fragmento conserva las constantes, no se corta antes de ellas.
+      expect(consulta!.rawText).toBe(text);
+      expect(consulta).toMatchObject({
+        oxygenSaturationPercent: 91,
+        respiratoryRate: 22,
+        heartRate: 96,
+        temperatureCelsius: null,
+        bloodPressure: null,
+        oxygenTherapy: null,
+        afebrile: true,
+        hemodynamicallyStable: null,
+      });
+    });
+
+    it("temperatura (Tª) y TA (tensión arterial), sin confundir una con la otra", () => {
+      const text = "Refiere buena tolerancia al tratamiento. Tª 38.2°C, TA 130/85 mmHg.";
+      const events = runExtractionEngine(text, "2024-01-01");
+      const consulta = events.find((e) => e.type === "consultation");
+      expect(consulta).toMatchObject({ temperatureCelsius: 38.2, bloodPressure: "130/85 mmHg" });
+    });
+
+    it("oxigenoterapia mencionada en la exploración, cuando aparece", () => {
+      const text = "Refiere empeoramiento progresivo. Precisa oxigenoterapia con gafas nasales a 2 lpm durante la consulta.";
+      const events = runExtractionEngine(text, "2024-01-01");
+      const consulta = events.find((e) => e.type === "consultation");
+      expect(consulta!.rawText).toContain("oxigenoterapia");
+      if (consulta?.type === "consultation") {
+        expect(consulta.oxygenTherapy).toMatch(/oxigenoterapia/i);
+      }
+    });
+
+    it("'hemodinámicamente estable' se recoge como constante estructurada", () => {
+      const text = "Acude por cuadro de disnea de instauración brusca. Hemodinámicamente estable, sin otros hallazgos.";
+      const events = runExtractionEngine(text, "2024-01-01");
+      const consulta = events.find((e) => e.type === "consultation");
+      expect(consulta).toMatchObject({ hemodynamicallyStable: true });
+    });
+
+    it("un encabezado explícito 'Consulta:' también extrae las constantes de su propio segmento", () => {
+      const events = runExtractionEngine("Consulta:\nRefiere estabilidad clínica. SatO₂ 96%, FC 78 lpm.", "2024-01-01");
+      const consulta = events.find((e) => e.type === "consultation");
+      expect(consulta).toMatchObject({ oxygenSaturationPercent: 96, heartRate: 78 });
+    });
+
+    it("no inventa constantes ausentes: una consulta sin ninguna mención de constantes las deja todas en null", () => {
+      const events = runExtractionEngine("Acude a consulta de revisión. Se mantiene clínicamente estable.", "2024-01-01");
+      const consulta = events.find((e) => e.type === "consultation");
+      expect(consulta).toMatchObject({
+        oxygenSaturationPercent: null,
+        respiratoryRate: null,
+        heartRate: null,
+        temperatureCelsius: null,
+        bloodPressure: null,
+        oxygenTherapy: null,
+        afebrile: null,
+        hemodynamicallyStable: null,
+      });
+    });
+
+    it("las constantes de la consulta no se filtran a un evento de otro dominio en la misma frase mixta", () => {
+      const text = "Refiere aumento de disnea. SatO₂ 90% basal, FC 100 lpm. FEV1 60%. Cultivo con Pseudomonas aeruginosa.";
+      const events = runExtractionEngine(text, "2024-01-01");
+      const consulta = events.find((e) => e.type === "consultation");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      const micro = events.find((e) => e.type === "microbiology");
+      expect(consulta).toMatchObject({ oxygenSaturationPercent: 90, heartRate: 100 });
+      expect(consulta!.rawText).not.toMatch(/FEV1|Pseudomonas/);
+      expect(pft!.rawText).not.toMatch(/SatO|FC 100/);
+      expect(micro!.rawText).not.toMatch(/SatO|FC 100/);
+    });
+  });
+
   it("fecha todos los eventos detectados con la fecha de la consulta (limitación conocida)", () => {
     const events = runExtractionEngine("FEV1 78%. Exacerbación en enero de 2023.", "2024-06-01");
     expect(events.every((e) => e.date === "2024-06-01")).toBe(true);

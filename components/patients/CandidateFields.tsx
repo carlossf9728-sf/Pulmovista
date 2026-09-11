@@ -67,7 +67,23 @@ function splitList(v: string): string[] {
 export function CandidateFields({ event, onChange }: { event: ClinicalEvent; onChange: (updated: ClinicalEvent) => void }) {
   switch (event.type) {
     case "consultation":
-      return <TextAreaField label="Texto de la consulta" value={event.rawText ?? ""} onChange={(v) => onChange({ ...event, rawText: v })} />;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <TextAreaField label="Texto de la consulta" value={event.rawText ?? ""} onChange={(v) => onChange({ ...event, rawText: v })} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <NumberField label="SatO₂ (%)" value={event.oxygenSaturationPercent} onChange={(v) => onChange({ ...event, oxygenSaturationPercent: v })} />
+            <NumberField label="FR (rpm)" value={event.respiratoryRate} onChange={(v) => onChange({ ...event, respiratoryRate: v })} />
+            <NumberField label="FC (lpm)" value={event.heartRate} onChange={(v) => onChange({ ...event, heartRate: v })} />
+            <NumberField label="Temperatura (°C)" value={event.temperatureCelsius} onChange={(v) => onChange({ ...event, temperatureCelsius: v })} />
+            <TextField label="TA" value={event.bloodPressure ?? ""} onChange={(v) => onChange({ ...event, bloodPressure: v || null })} />
+            <TextField label="Oxigenoterapia" value={event.oxygenTherapy ?? ""} onChange={(v) => onChange({ ...event, oxygenTherapy: v || null })} />
+          </div>
+          <div style={{ display: "flex", gap: 16 }}>
+            <CheckboxField label="Afebril" checked={!!event.afebrile} onChange={(v) => onChange({ ...event, afebrile: v || null })} />
+            <CheckboxField label="Hemodinámicamente estable" checked={!!event.hemodynamicallyStable} onChange={(v) => onChange({ ...event, hemodynamicallyStable: v || null })} />
+          </div>
+        </div>
+      );
 
     case "pulmonary_function":
       return (

@@ -61,6 +61,26 @@ export interface ClinicalEventBase {
 
 export interface ConsultationEvent extends ClinicalEventBase {
   type: "consultation";
+  /**
+   * Constantes vitales y hallazgos de la exploración mencionados
+   * EXPLÍCITAMENTE en el texto de la consulta — null cuando el dato no
+   * aparece, nunca inferido ni calculado a partir de otro campo (p. ej.
+   * `afebrile` solo es true si el texto dice literalmente "afebril";
+   * ausencia de mención de fiebre no implica afebril). Estructuran lo
+   * que antes solo vivía como prosa suelta dentro de `rawText`, para
+   * que Sentinel/Argos y futuros motores puedan leerlas sin volver a
+   * analizar texto libre.
+   */
+  oxygenSaturationPercent?: number | null;
+  respiratoryRate?: number | null;
+  heartRate?: number | null;
+  temperatureCelsius?: number | null;
+  /** Tensión arterial tal cual aparece en el texto (p. ej. "120/80 mmHg") — no se separan sistólica/diastólica en campos propios. */
+  bloodPressure?: string | null;
+  /** Mención textual de oxigenoterapia durante la consulta (p. ej. "gafas nasales a 2 lpm") — no es un TreatmentStartedEvent: aquí solo se registra lo que la exploración describe, no se interpreta como un tratamiento iniciado. */
+  oxygenTherapy?: string | null;
+  afebrile?: boolean | null;
+  hemodynamicallyStable?: boolean | null;
 }
 
 export interface PulmonaryFunctionEvent extends ClinicalEventBase {

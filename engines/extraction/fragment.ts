@@ -53,21 +53,28 @@ export function captureFragmentSpanningMarkers(text: string, markers: RegExp[]):
 }
 
 /**
- * Como `captureFragmentSpanningMarkers`, pero para un único patrón que
- * puede aparecer VARIAS veces en el mismo segmento (p. ej. narrativa de
- * consulta repartida en dos frases: "Refiere aumento de disnea. (...)
- * Se mantiene estable."). Capta desde la primera aparición hasta el
- * final de frase de la ÚLTIMA — nunca el segmento completo cuando solo
- * una parte de él es realmente narrativa. `null` si el patrón no
- * aparece.
+ * Como `captureFragmentSpanningMarkers`, pero para uno o varios
+ * patrones que pueden aparecer VARIAS veces cada uno en el mismo
+ * segmento (p. ej. narrativa de consulta repartida en dos frases:
+ * "Refiere aumento de disnea. (...) Se mantiene estable."; o esa misma
+ * narrativa seguida de constantes vitales sueltas — "SatO₂ 91%, FR 22
+ * rpm" — que no llevan ningún verbo narrativo propio pero pertenecen al
+ * mismo relato de consulta, ver extractors/consultation.ts). Capta
+ * desde la primera aparición de cualquiera de los patrones hasta el
+ * final de frase de la ÚLTIMA aparición de cualquiera de ellos — nunca
+ * el segmento completo cuando solo una parte de él es realmente
+ * narrativa. `null` si ningún patrón aparece.
  */
-export function captureFragmentSpanningAllMatches(text: string, trigger: RegExp): string | null {
-  const global = new RegExp(trigger.source, trigger.flags.includes("g") ? trigger.flags : `${trigger.flags}g`);
+export function captureFragmentSpanningAllMatches(text: string, trigger: RegExp | RegExp[]): string | null {
+  const triggers = Array.isArray(trigger) ? trigger : [trigger];
   const indices: number[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = global.exec(text))) {
-    indices.push(m.index);
-    if (global.lastIndex === m.index) global.lastIndex += 1;
+  for (const t of triggers) {
+    const global = new RegExp(t.source, t.flags.includes("g") ? t.flags : `${t.flags}g`);
+    let m: RegExpExecArray | null;
+    while ((m = global.exec(text))) {
+      indices.push(m.index);
+      if (global.lastIndex === m.index) global.lastIndex += 1;
+    }
   }
   if (!indices.length) return null;
   const start = Math.min(...indices);

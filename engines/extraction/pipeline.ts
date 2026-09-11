@@ -150,7 +150,7 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
         case "consulta":
         case "alta": {
           const r = extractConsultation(segment.text, isHeader);
-          if (r) events.push(mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, date, {}, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+          if (r) events.push(mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, date, r.vitals, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
           break;
         }
         case "funcion_pulmonar": {

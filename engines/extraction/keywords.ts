@@ -70,3 +70,33 @@ export const HOSPITALIZATION_TRIGGER = /ingreso|hospitali/i;
  */
 export const CONSULTATION_NARRATIVE_TRIGGER =
   /acude\s*(a\s*consulta|por)|consulta\s*de\s*(revisi[oó]n|seguimiento|control)|revisi[oó]n\s*(anual|cl[ií]nica|peri[oó]dica|de\s*\w+)|valoraci[oó]n\s*(inicial|en\s*la\s*unidad)|seguimiento\s*cl[ií]nico|primera\s*valoraci[oó]n|refiere|relata|manifiesta|cuenta\s*que|aumento\s*de\s*(disnea|expectoraci[oó]n|tos)|empeoramiento\s*(respiratorio|cl[ií]nico)|se\s*mantiene\s*(cl[ií]nicamente\s*)?estable|sin\s*cambios\s*cl[ií]nicos|evoluci[oó]n\s*(favorable|t[oó]rpida|cl[ií]nica)/i;
+
+/**
+ * Constantes vitales explícitas en la exploración de una consulta —
+ * cada patrón exige su propia etiqueta (SatO2/FR/FC/Tª/TA) pegada a un
+ * valor con forma plausible, nunca se infiere ninguna a partir de otro
+ * dato. Se usan tanto para decidir hasta dónde llega el fragmento de la
+ * consulta (una frase de constantes sin ningún verbo narrativo propio
+ * no debe cortarse del resto del relato — ver extractors/consultation.ts)
+ * como para la extracción estructurada en sí.
+ */
+export const OXYGEN_SATURATION_PATTERN = /sat\s*o[₂2]\s*[:\s]*(\d{1,3})\s*%/i;
+export const RESPIRATORY_RATE_PATTERN = /(?:\bFR\b|frecuencia\s+respiratoria)\s*[:\s]*(\d{1,3})\s*(?:rpm|resp)?/i;
+export const HEART_RATE_PATTERN = /(?:\bFC\b|frecuencia\s+card[ií]aca)\s*[:\s]*(\d{1,3})\s*(?:lpm|ppm)?/i;
+/** Requiere "temperatura" o "Tª"/"Tº" (con el símbolo ordinal) — nunca "TA" sola, para no confundirse con tensión arterial. */
+export const TEMPERATURE_PATTERN = /(?:temperatura|t[ªº])\s*[:\s]*(\d{2}(?:[.,]\d)?)\s*°?\s*c?\b/i;
+export const BLOOD_PRESSURE_PATTERN = /\bTA\b\s*[:\s]*(\d{2,3}\s*\/\s*\d{2,3}(?:\s*mmHg)?)/i;
+export const OXYGEN_THERAPY_PATTERN = /oxigenoterapia[^.,;]{0,40}|gafas\s*nasales[^.,;]{0,40}|mascarilla\s*(?:de\s*)?(?:reservorio|venturi)[^.,;]{0,40}/i;
+export const AFEBRILE_PATTERN = /\bafebril\b/i;
+export const HEMODYNAMICALLY_STABLE_PATTERN = /hemodin[aá]micamente\s*estable/i;
+
+export const VITAL_SIGNS_TRIGGERS = [
+  OXYGEN_SATURATION_PATTERN,
+  RESPIRATORY_RATE_PATTERN,
+  HEART_RATE_PATTERN,
+  TEMPERATURE_PATTERN,
+  BLOOD_PRESSURE_PATTERN,
+  OXYGEN_THERAPY_PATTERN,
+  AFEBRILE_PATTERN,
+  HEMODYNAMICALLY_STABLE_PATTERN,
+];
