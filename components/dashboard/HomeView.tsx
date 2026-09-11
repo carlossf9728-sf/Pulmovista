@@ -31,6 +31,7 @@ export function HomeView() {
   const stats = {
     total: patients.length,
     estables: statuses.filter((s) => s === "estable").length,
+    sinTendencia: statuses.filter((s) => s === "sin_tendencia").length,
     revision: statuses.filter((s) => s === "revision").length,
     sentinel: statuses.filter((s) => s === "deterioro").length,
   };
@@ -42,7 +43,7 @@ export function HomeView() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
 
-  const order: Record<PatientStatus, number> = { deterioro: 0, revision: 1, estable: 2 };
+  const order: Record<PatientStatus, number> = { deterioro: 0, revision: 1, sin_tendencia: 2, estable: 3 };
   const sorted = [...patients].sort((a, b) => order[patientStatus(a)] - order[patientStatus(b)]);
 
   const handleSearch = () => {
@@ -75,11 +76,12 @@ export function HomeView() {
         Detecta cambios relevantes en la evolución de la enfermedad a partir de la historia clínica de cada paciente.
       </p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
         {(
           [
             ["Pacientes", stats.total, COLORS.navy],
             ["Estables", stats.estables, COLORS.green],
+            ["Sin tendencia evaluable", stats.sinTendencia, COLORS.slate],
             ["Requieren revisión", stats.revision, COLORS.orange],
             [STATUS.deterioro.label, stats.sentinel, COLORS.red],
           ] as const

@@ -196,10 +196,10 @@ describe("buildGuidelineInterpretations — vínculo señal objetiva -> Guidelin
 describe("computeSentinelFindings / patientStatus — pacientes sintéticos existentes", () => {
   const [p1, p2, p3] = buildDemoPatients();
 
-  it("paciente sin eventos: 'estable', sin hallazgos", () => {
+  it("paciente sin eventos: 'sin_tendencia' (nunca 'estable' por ausencia de hallazgos, sin historia que comparar)", () => {
     const empty = basePatient([]);
     expect(computeSentinelFindings(empty)).toEqual([]);
-    expect(patientStatus(empty)).toBe("estable");
+    expect(patientStatus(empty)).toBe("sin_tendencia");
   });
 
   it("p1 (bronquiectasias, PA persistente, exacerbaciones al alza): 'deterioro', con interpretación 'Cumple' respaldada por ERS", () => {
@@ -254,5 +254,68 @@ describe("computeSentinelFindings / patientStatus — pacientes sintéticos exis
     const fev1Finding = findings.find((f) => f.signalId === "fev1-trend-decline");
     expect(fev1Finding?.interpretation).toBe("Descenso longitudinal objetivo de FEV1. Requiere revisión.");
     expect(fev1Finding?.explanation.kindLabel).toBe("heurística experimental");
+  });
+});
+
+/* ==========================================================================
+   patientStatus — semántica de "estable" (regla: "no detectar deterioro" !=
+   "paciente estable"). "estable" solo cuando hay historia longitudinal
+   suficiente para comparar Y no hay ningún hallazgo relevante; sin esa
+   historia, el estado es "sin_tendencia", nunca "estable" por defecto.
+   ========================================================================== */
+describe("patientStatus — 'estable' nunca es el valor por defecto ante la ausencia de hallazgos", () => {
+  it("paciente con 0 eventos: 'sin_tendencia'", () => {
+    expect(patientStatus(basePatient([]))).toBe("sin_tendencia");
+  });
+
+  it("paciente con una única fecha clínica: 'sin_tendencia' — no hay nada con qué comparar, aunque no se detecte ningún hallazgo", () => {
+    const patient = basePatient([
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-01-01", { FEV1Percent: 78 }),
+    ]);
+    expect(computeSentinelFindings(patient)).toEqual([]);
+    expect(patientStatus(patient)).toBe("sin_tendencia");
+  });
+
+  it("paciente con 2+ fechas pero SIN datos suficientes para ningún detector de tendencia (p. ej. solo consultas, sin PFR/exacerbaciones/microbiología): 'sin_tendencia', no 'estable'", () => {
+    const patient = basePatient([
+      mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2023-06-01", {}, { rawText: "Consulta de revisión. Estable." }),
+      mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-01-01", {}, { rawText: "Consulta de revisión. Estable." }),
+    ]);
+    expect(computeSentinelFindings(patient)).toEqual([]);
+    expect(patientStatus(patient)).toBe("sin_tendencia");
+  });
+
+  it("paciente con 2+ fechas y datos suficientes para un detector de tendencia, sin cambios relevantes: 'estable'", () => {
+    // 3 PFT (mínimo del detector fev1-trend-decline) sin descenso — hay historia suficiente para comparar y no hay nada que señalar.
+    const patient = basePatient([
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2023-01-01", { FEV1Percent: 80 }),
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2023-07-01", { FEV1Percent: 82 }),
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-01-01", { FEV1Percent: 81 }),
+    ]);
+    expect(computeSentinelFindings(patient)).toEqual([]);
+    expect(patientStatus(patient)).toBe("estable");
+  });
+
+  it("paciente con empeoramiento detectado: sigue siendo 'deterioro'/'revisión' — el chequeo de historia suficiente nunca oculta un hallazgo real", () => {
+    // p1 (data/demoPatients.ts) tiene exacerbaciones al alza con soporte de guía "Cumple".
+    const [p1] = buildDemoPatients();
+    expect(patientStatus(p1)).toBe("deterioro");
+
+    // Un caso más simple: 3 PFT en descenso consecutivo (fev1-trend-decline, sin soporte de guía en el alcance actual) → 'revisión', nunca 'sin_tendencia' ni 'estable'.
+    const declining = basePatient([
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2023-01-01", { FEV1Percent: 80 }),
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2023-07-01", { FEV1Percent: 72 }),
+      mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-01-01", { FEV1Percent: 65 }),
+    ]);
+    expect(patientStatus(declining)).toBe("revision");
+  });
+
+  it("paciente con información insuficiente (varias consultas, ningún dato objetivo de ningún detector): 'sin_tendencia', igual que con una sola fecha — más fechas no equivalen a suficiente información", () => {
+    const patient = basePatient([
+      mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2022-01-01", {}, { rawText: "Primera valoración." }),
+      mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2022-06-01", {}, { rawText: "Revisión." }),
+      mkEvent("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2023-01-01", {}, { rawText: "Revisión." }),
+    ]);
+    expect(patientStatus(patient)).toBe("sin_tendencia");
   });
 });

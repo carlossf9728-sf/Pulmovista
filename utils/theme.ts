@@ -27,5 +27,6 @@ export const STATUS: Record<PatientStatus, { label: string; color: string; tint:
   deterioro: { label: "Deterioro reciente", color: COLORS.red, tint: COLORS.redTint },
   revision: { label: "Requiere revisión", color: COLORS.orange, tint: COLORS.orangeTint },
   estable: { label: "Estable", color: COLORS.green, tint: COLORS.greenTint },
+  sin_tendencia: { label: "Sin tendencia longitudinal evaluable", color: COLORS.slate, tint: COLORS.line },
 };
 

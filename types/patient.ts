@@ -17,11 +17,17 @@ export interface Patient {
 
 /**
  * Estado agregado del paciente para la UI (pill de estado, orden del
- * listado). Hoy depende únicamente de SentinelEngine — ver nota LEGACY en
- * domain/patientStatus.ts sobre su desalineación conocida con el badge de
- * alertas (que también suma Turning Points y contradicciones).
+ * listado). Hoy depende únicamente de SentinelEngine — ver
+ * `patientStatus()` en engines/sentinel/index.ts, incluida la nota
+ * LEGACY sobre su desalineación conocida con el badge de alertas (que
+ * también suma Turning Points y contradicciones).
+ *
+ * "sin_tendencia": sin historia longitudinal suficiente para comparar
+ * (0 eventos, una sola fecha clínica, o datos por debajo del mínimo de
+ * cualquier detector de tendencia) — nunca se infiere "estable" por la
+ * mera ausencia de un hallazgo objetivo.
  */
-export type PatientStatus = "estable" | "revision" | "deterioro";
+export type PatientStatus = "estable" | "revision" | "deterioro" | "sin_tendencia";
 
 /**
  * Datos demográficos del formulario "Nuevo paciente" — sin el texto
