@@ -39,6 +39,91 @@ describe("runExtractionEngine", () => {
     expect(pft).toMatchObject({ FEV1FVCzScore: -1.2, FEV1zScore: null, FVCzScore: null });
   });
 
+  describe("extractPulmonaryFunction — valor absoluto (L) y % predicho en la misma frase", () => {
+    it("1) coma decimal, con paréntesis: extrae FEV1 absoluto+%, FVC absoluto+% y el cociente, sin perder ninguno", () => {
+      const events = runExtractionEngine("FEV1 1,58 L (62%), FVC 2,41 L (73%), FEV1/FVC 65%.", "2024-01-01");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      expect(pft).toMatchObject({
+        FEV1Liters: 1.58,
+        FEV1Percent: 62,
+        FVCLiters: 2.41,
+        FVCPercent: 73,
+        FEV1FVCRatio: 65,
+      });
+    });
+
+    it("2) el mismo formato con punto decimal", () => {
+      const events = runExtractionEngine("FEV1 1.58 L (62%), FVC 2.41 L (73%), FEV1/FVC 65%.", "2024-01-01");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      expect(pft).toMatchObject({
+        FEV1Liters: 1.58,
+        FEV1Percent: 62,
+        FVCLiters: 2.41,
+        FVCPercent: 73,
+        FEV1FVCRatio: 65,
+      });
+    });
+
+    it("3) PFR en varias líneas: cada etiqueta en su propia línea, sin que una cláusula invada la siguiente", () => {
+      const text = "FEV1: 1,58 L (62%)\nFVC: 2,41 L (73%)\nFEV1/FVC: 65%";
+      const events = runExtractionEngine(text, "2024-01-01");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      expect(pft).toMatchObject({
+        FEV1Liters: 1.58,
+        FEV1Percent: 62,
+        FVCLiters: 2.41,
+        FVCPercent: 73,
+        FEV1FVCRatio: 65,
+      });
+    });
+
+    it("4) PFR incompleta: solo trae FEV1 — no inventa FVC ni el cociente, quedan null", () => {
+      const events = runExtractionEngine("FEV1 1,58 L (62%).", "2024-01-01");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      expect(pft).toMatchObject({
+        FEV1Liters: 1.58,
+        FEV1Percent: 62,
+        FVCLiters: null,
+        FVCPercent: null,
+        FEV1FVCRatio: null,
+      });
+    });
+
+    it("5) valores con z-score además del absoluto y el % predicho, para FEV1, FVC y el cociente", () => {
+      const text = "FEV1 1,58 L (62%, z-score -1.9), FVC 2,41 L (73%, z-score -0.8), FEV1/FVC 65% (z-score -1.2).";
+      const events = runExtractionEngine(text, "2024-01-01");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      expect(pft).toMatchObject({
+        FEV1Liters: 1.58,
+        FEV1Percent: 62,
+        FEV1zScore: -1.9,
+        FVCLiters: 2.41,
+        FVCPercent: 73,
+        FVCzScore: -0.8,
+        FEV1FVCRatio: 65,
+        FEV1FVCzScore: -1.2,
+      });
+    });
+
+    it("tolera 'FEV1 / FVC' con espacios alrededor de la barra", () => {
+      const events = runExtractionEngine("FEV1 1,58 L (62%), FVC 2,41 L (73%), FEV1 / FVC 65%.", "2024-01-01");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      expect(pft).toMatchObject({ FEV1Percent: 62, FVCPercent: 73, FEV1FVCRatio: 65 });
+    });
+
+    it("tolera 'Cociente FEV1/FVC'", () => {
+      const events = runExtractionEngine("FEV1 1,58 L (62%), FVC 2,41 L (73%), Cociente FEV1/FVC 65%.", "2024-01-01");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      expect(pft).toMatchObject({ FEV1Percent: 62, FVCPercent: 73, FEV1FVCRatio: 65 });
+    });
+
+    it("tolera el % del predicho antes del valor absoluto (orden invertido)", () => {
+      const events = runExtractionEngine("FEV1 62% (1,58 L), FVC 73% (2,41 L).", "2024-01-01");
+      const pft = events.find((e) => e.type === "pulmonary_function");
+      expect(pft).toMatchObject({ FEV1Liters: 1.58, FEV1Percent: 62, FVCLiters: 2.41, FVCPercent: 73 });
+    });
+  });
+
   it("extrae un microorganismo con sensibilidad", () => {
     const events = runExtractionEngine("Cultivo de esputo con Pseudomonas aeruginosa, sensible a ciprofloxacino.", "2024-01-01");
     const micro = events.find((e) => e.type === "microbiology");
