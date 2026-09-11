@@ -7,16 +7,9 @@ import { Eyebrow } from "./Eyebrow";
 import { KindTag } from "./KindTag";
 import type { ClinicalExplanation } from "@/types/evidence";
 
-/**
- * Modal "¿Por qué?": acepta un `ClinicalExplanation` estructurado (nunca
- * texto plano suelto), para que cualquier mensaje clínico futuro —legacy
- * hoy, respaldado por guía mañana— pueda enlazar dato -> interpretación
- * -> recomendación -> fuente sin rediseñar este componente.
- */
-export function WhyModal({ data, onClose }: { data: ClinicalExplanation | null; onClose: () => void }) {
-  if (!data) return null;
+function ExplanationBlock({ data }: { data: ClinicalExplanation }) {
   return (
-    <Modal title="¿Por qué?" onClose={onClose} width={540}>
+    <>
       {data.kindLabel && (
         <div style={{ marginBottom: 14 }}>
           <KindTag kind={data.kindLabel} />
@@ -41,6 +34,42 @@ export function WhyModal({ data, onClose }: { data: ClinicalExplanation | null; 
           </p>
         </div>
       )}
+    </>
+  );
+}
+
+/**
+ * Modal "¿Por qué?": acepta uno o varios `ClinicalExplanation`
+ * estructurados (nunca texto plano suelto), para que cualquier mensaje
+ * clínico futuro —legacy hoy, respaldado por guía mañana— pueda enlazar
+ * dato -> interpretación -> recomendación -> fuente sin rediseñar este
+ * componente.
+ *
+ * Un array llega cuando "Qué revisar hoy" (Resumen) agrupa por
+ * PRESENTACIÓN varias guías que coinciden en la misma acción clínica
+ * (ver SummaryTab.tsx#computeTodayPriorities y
+ * engines/guidelines/match.ts#actionGroupKeyFor): un único botón "¿Por
+ * qué?", pero cada guía conserva aquí su propio bloque completo
+ * (criterio, texto original, fuerza, calidad, fuente) — la
+ * deduplicación nunca fusiona ni descarta trazabilidad, solo evita
+ * repetir la fila en la lista.
+ */
+export function WhyModal({ data, onClose }: { data: ClinicalExplanation | ClinicalExplanation[] | null; onClose: () => void }) {
+  if (!data) return null;
+  const items = Array.isArray(data) ? data : [data];
+  if (!items.length) return null;
+  return (
+    <Modal title="¿Por qué?" onClose={onClose} width={540}>
+      {items.map((item, i) => (
+        <div key={i} style={i < items.length - 1 ? { marginBottom: 20, paddingBottom: 20, borderBottom: `1px solid ${COLORS.line}` } : undefined}>
+          {items.length > 1 && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.slateLight, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+              {item.citation ? `${item.citation.society} ${item.citation.year}` : `Fuente ${i + 1}`}
+            </div>
+          )}
+          <ExplanationBlock data={item} />
+        </div>
+      ))}
       {/*
         Sin bloque "Evidencias": la lista cruda de eventos (data.evidence)
         se conserva en el objeto para trazabilidad interna — y para un

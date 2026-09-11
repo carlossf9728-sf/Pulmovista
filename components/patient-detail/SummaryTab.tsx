@@ -12,7 +12,7 @@ import { computeChangesSinceLastVisit } from "@/engines/longitudinal";
 import { computeTurningPoints, shortTurningPointLabel } from "@/engines/turningPoints";
 import { computeSentinelFindings } from "@/engines/sentinel";
 import { computeMissingInfo } from "@/engines/missingInfo";
-import { matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
+import { actionGroupKeyFor, matchPatientToGuidelines, SUPPORTED_DIAGNOSIS_CATEGORIES } from "@/engines/guidelines/match";
 import { findRecommendationById } from "@/engines/guidelines/knowledge";
 import { buildGuidelineMatchExplanation, patientDatumLines } from "@/engines/guidelines/explain";
 import { Card, Eyebrow, TrendBadge, Val, WhyButton } from "@/components/ui";
@@ -47,26 +47,87 @@ function rankedChanges(changes: ClinicalChange[], window: { fromDate: string; to
   return changes.map((change) => ({ change, trend: changeTrend(change, window) })).sort((a, b) => changeTrendRank(a.trend) - changeTrendRank(b.trend));
 }
 
-interface TodayPriority {
-  key: string;
+/** Candidato SIN agrupar — una recomendación de UNA guía, exactamente como se evaluó (sin fusionar nada). Exportado para poder probar groupPrioritiesForDisplay() de forma aislada, sin depender de que un paciente real dispare una combinación concreta de guías. */
+export interface RawPriority {
+  recommendationId: string;
   /** Título clínico corto — el `topic` ya clasificado de la recomendación (p. ej. "Antibióticos inhalados"), nunca el texto verbatim de la guía. */
-  title: string;
+  topic: string;
   statusLabel: string;
   /** Motivo clínico resumido en una línea — mismo resumen del dato del paciente que ya usa el modal "¿Por qué?" (patientDatumLines), no un texto nuevo. */
   motivo: string;
+  /** "ERS 2025" / "SEPAR 2018" — se lee de la propia cita de `explanation`, nunca de un mapeo nuevo. */
+  source: string;
   explanation: ClinicalExplanation;
 }
 
-function buildTodayPriority(patient: Patient, match: GuidelineMatch, statusLabel: string, explanation: ClinicalExplanation): TodayPriority | null {
+function buildRawPriority(patient: Patient, match: GuidelineMatch, statusLabel: string, explanation: ClinicalExplanation): RawPriority | null {
   const recommendation = findRecommendationById(match.recommendationId);
   if (!recommendation) return null;
   return {
-    key: match.recommendationId,
-    title: cap(recommendation.topic) ?? recommendation.topic,
+    recommendationId: match.recommendationId,
+    topic: cap(recommendation.topic) ?? recommendation.topic,
     statusLabel,
     motivo: patientDatumLines(patient, match, recommendation.applicability).join(" · "),
+    source: explanation.citation ? `${explanation.citation.society} ${explanation.citation.year}` : recommendation.guidelineId,
     explanation,
   };
+}
+
+export interface TodayPriority {
+  key: string;
+  title: string;
+  statusLabel: string;
+  motivo: string;
+  /** Más de una cuando varias guías coinciden en la misma acción clínica — ver agrupación en groupPrioritiesForDisplay(). */
+  sources: string[];
+  explanations: ClinicalExplanation[];
+}
+
+/**
+ * Agrupa candidatos EQUIVALENTES por presentación — nunca fusiona nada
+ * en el motor de matching, solo evita repetir la misma fila cuando dos
+ * guías expresan la misma acción clínica. Dos candidatos solo se
+ * agrupan cuando coinciden EN AMBAS cosas:
+ *   1. la misma clave de acción clínica (ver
+ *      engines/guidelines/match.ts#actionGroupKeyFor — un registro
+ *      curado, deliberadamente más preciso que `topic`, que solo
+ *      declara equivalentes las recomendaciones que de verdad lo son;
+ *      sin ese registro, cada recommendationId es su propio grupo, así
+ *      que nunca se agrupan dos actuaciones distintas por accidente);
+ *   2. el mismo `statusLabel` — si las guías DISCREPAN (una "Cumple",
+ *      otra con otro estado), eso es información clínica real y se
+ *      muestra como filas separadas, nunca oculta tras un único estado.
+ * Cada fuente conserva su propio `explanation` completo dentro del
+ * grupo — "¿Por qué?" los muestra todos, nunca solo el primero.
+ */
+export function groupPrioritiesForDisplay(raw: RawPriority[]): TodayPriority[] {
+  const order: string[] = [];
+  const groups = new Map<string, RawPriority[]>();
+  for (const r of raw) {
+    const actionKey = actionGroupKeyFor(r.recommendationId) ?? r.recommendationId;
+    const mergeKey = `${actionKey}::${r.statusLabel}`;
+    if (!groups.has(mergeKey)) {
+      groups.set(mergeKey, []);
+      order.push(mergeKey);
+    }
+    groups.get(mergeKey)!.push(r);
+  }
+  return order.map((mergeKey) => {
+    const items = groups.get(mergeKey)!;
+    const [first] = items;
+    // El título más específico (la clave de acción curada, p. ej. "Erradicación de Pseudomonas") solo
+    // sustituye al topic cuando de verdad hay algo que agrupar — una única fuente sigue mostrando su
+    // topic de siempre, sin cambiar de texto por el mero hecho de estar en el alcance de los 5 temas.
+    const actionKey = items.length > 1 ? actionGroupKeyFor(first.recommendationId) : null;
+    return {
+      key: mergeKey,
+      title: actionKey ? cap(actionKey)! : first.topic,
+      statusLabel: first.statusLabel,
+      motivo: first.motivo,
+      sources: items.map((i) => i.source),
+      explanations: items.map((i) => i.explanation),
+    };
+  });
 }
 
 /**
@@ -77,9 +138,15 @@ function buildTodayPriority(patient: Patient, match: GuidelineMatch, statusLabel
  *     (dato objetivo de deterioro + guía que ya confirma una recomendación).
  *  2. Recomendaciones de matchPatientToGuidelines con estado "applies"
  *     no cubiertas ya por el punto 1, hasta completar 3.
+ * La selección de candidatos (qué recomendaciones cuentan, cuántas
+ * como máximo) es exactamente la de siempre; el agrupamiento por
+ * acción clínica equivalente (ver groupPrioritiesForDisplay) ocurre
+ * DESPUÉS, solo para no repetir en pantalla dos guías que dicen lo
+ * mismo — por eso el resultado final puede tener menos de 3 filas
+ * aunque se hayan seleccionado 3 candidatos.
  */
 function computeTodayPriorities(patient: Patient): TodayPriority[] {
-  const priorities: TodayPriority[] = [];
+  const raw: RawPriority[] = [];
   const seen = new Set<string>();
   const matches = matchPatientToGuidelines(patient, todayISO());
   const matchById = new Map(matches.map((m) => [m.recommendationId, m]));
@@ -89,27 +156,27 @@ function computeTodayPriorities(patient: Patient): TodayPriority[] {
       if (gi.statusLabel !== "Cumple" || seen.has(gi.recommendationId)) continue;
       const match = matchById.get(gi.recommendationId);
       if (!match) continue;
-      const priority = buildTodayPriority(patient, match, gi.statusLabel, gi.explanation);
+      const priority = buildRawPriority(patient, match, gi.statusLabel, gi.explanation);
       if (priority) {
         seen.add(gi.recommendationId);
-        priorities.push(priority);
+        raw.push(priority);
       }
     }
   }
 
-  if (priorities.length < 3) {
+  if (raw.length < 3) {
     for (const match of matches) {
-      if (priorities.length >= 3) break;
+      if (raw.length >= 3) break;
       if (match.status !== "applies" || seen.has(match.recommendationId)) continue;
-      const priority = buildTodayPriority(patient, match, "Aplica", buildGuidelineMatchExplanation(patient, match));
+      const priority = buildRawPriority(patient, match, "Aplica", buildGuidelineMatchExplanation(patient, match));
       if (priority) {
         seen.add(match.recommendationId);
-        priorities.push(priority);
+        raw.push(priority);
       }
     }
   }
 
-  return priorities.slice(0, 3);
+  return groupPrioritiesForDisplay(raw.slice(0, 3));
 }
 
 function sortTurningPointsByDateDesc(points: TurningPoint[]): TurningPoint[] {
@@ -129,7 +196,7 @@ function EmptyNote({ text }: { text: string }) {
   return <div style={{ fontSize: 13, color: COLORS.slateLight }}>{text}</div>;
 }
 
-export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (explanation: ClinicalExplanation) => void }) {
+export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (explanation: ClinicalExplanation | ClinicalExplanation[]) => void }) {
   const pft = selectPFT(patient.events).slice(-1)[0];
   const years = exacerbationsByYear(patient);
   const lastYear = years.length ? years[years.length - 1] : null;
@@ -241,8 +308,9 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
                     {p.title} — <span style={{ color: COLORS.green }}>{p.statusLabel}</span>
                   </div>
                   {p.motivo && <div style={{ fontSize: 12.5, color: COLORS.slate, marginTop: 3 }}>Motivo: {p.motivo}</div>}
+                  {p.sources.length > 1 && <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 3 }}>Fuentes: {p.sources.join(" · ")}</div>}
                 </div>
-                <WhyButton onClick={() => onWhy(p.explanation)} />
+                <WhyButton onClick={() => onWhy(p.explanations)} />
               </div>
             ))}
           </div>

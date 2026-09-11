@@ -506,6 +506,31 @@ const SUPPORTED_RECOMMENDATION_IDS: Record<string, readonly string[]> = {
 
 export const SUPPORTED_TOPICS = Object.keys(SUPPORTED_RECOMMENDATION_IDS);
 
+/** Inverso de SUPPORTED_RECOMMENDATION_IDS: de un recommendationId a la clave de acción clínica que lo agrupa. */
+const ACTION_GROUP_BY_RECOMMENDATION_ID = new Map<string, string>(
+  Object.entries(SUPPORTED_RECOMMENDATION_IDS).flatMap(([groupKey, ids]) => ids.map((id) => [id, groupKey] as const)),
+);
+
+/**
+ * De un recommendationId a la clave de acción clínica que lo agrupa con
+ * su(s) equivalente(s) en otra guía (ver SUPPORTED_RECOMMENDATION_IDS)
+ * — pensado para deduplicar por PRESENTACIÓN cuando dos guías coinciden
+ * en la misma acción (ver SummaryTab.tsx#computeTodayPriorities), sin
+ * tocar en ningún momento la evaluación de GuidelineMatch ni fusionar
+ * nada dentro de este motor.
+ *
+ * Deliberadamente NO se usa `topic` (GuidelineTopic) para esto: es
+ * demasiado ancho — un mismo topic puede agrupar varias actuaciones
+ * clínicamente distintas (p. ej. "paciente que se deteriora" cubre ~8
+ * sub-recomendaciones separadas del ERS, cada una una actuación propia).
+ * Solo se agrupa lo que este registro ya curado declaró equivalente
+ * entre guías. `null` si el recommendationId no está en el alcance de
+ * los 5 temas soportados.
+ */
+export function actionGroupKeyFor(recommendationId: string): string | null {
+  return ACTION_GROUP_BY_RECOMMENDATION_ID.get(recommendationId) ?? null;
+}
+
 /**
  * Categorías de diagnóstico (domain/diagnosis.ts) con una base de
  * conocimiento real conectada a GuidelineMatch. Hoy solo bronquiectasias;

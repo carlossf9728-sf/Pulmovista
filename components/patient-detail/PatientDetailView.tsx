@@ -50,7 +50,7 @@ export function PatientDetailView({ patient }: { patient: Patient }) {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
   const [tab, setTab] = useState<TabKey>(isTabKey(initialTab) ? initialTab : "resumen");
-  const [why, setWhy] = useState<ClinicalExplanation | null>(null);
+  const [why, setWhy] = useState<ClinicalExplanation | ClinicalExplanation[] | null>(null);
   const [showAddClinicalInfo, setShowAddClinicalInfo] = useState(false);
 
   const status = patientStatus(patient);
