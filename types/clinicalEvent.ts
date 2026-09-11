@@ -130,6 +130,24 @@ export interface TreatmentStartedEvent extends ClinicalEventBase {
   drug: string;
   dose?: string | null;
   schedule?: string | null;
+  /** Frecuencia expresada como intervalo ("cada 12 horas", "cada 8 h") — distinto de `schedule` (días concretos de la semana). */
+  frequency?: string | null;
+  /**
+   * Duración prevista del tratamiento cuando el texto la menciona
+   * explícitamente ("durante 14 días"). Nunca se deriva de aquí una
+   * fecha de fin: el único cierre real de un tratamiento es un
+   * TreatmentStoppedEvent, que solo existe cuando el texto describe una
+   * retirada — una duración prevista no es una retirada confirmada.
+   */
+  duration?: string | null;
+  /**
+   * Cuando el fragmento describe un cambio sobre un tratamiento ya en
+   * marcha (p. ej. "se intensifica fisioterapia respiratoria", "se
+   * aumenta la dosis de azitromicina") en vez de un inicio nuevo — null
+   * si es un inicio o no se menciona ningún cambio. Nunca se infiere:
+   * solo se rellena cuando el texto lo dice explícitamente.
+   */
+  changeNote?: string | null;
 }
 
 export interface RespiratorySupportEvent extends ClinicalEventBase {
@@ -137,6 +155,9 @@ export interface RespiratorySupportEvent extends ClinicalEventBase {
   drug: string;
   dose?: string | null;
   schedule?: string | null;
+  frequency?: string | null;
+  duration?: string | null;
+  changeNote?: string | null;
 }
 
 export interface TreatmentStoppedEvent extends ClinicalEventBase {

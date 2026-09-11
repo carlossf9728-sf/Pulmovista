@@ -131,9 +131,12 @@ export function selectTreatments(events: ClinicalEvent[]): TreatmentSummary[] {
     );
     if (stop) usedStops.add(stop.id);
     const base = cap(s.drug) ?? s.drug;
-    // Con dose, el formato ya existente no cambia ("Fármaco dosis (pauta)"). Sin dose pero con schedule (antes se
-    // perdía en silencio), se muestra igual entre paréntesis en vez de descartarlo.
-    const label = s.dose ? `${base} ${s.dose}${s.schedule ? " (" + s.schedule + ")" : ""}` : s.schedule ? `${base} (${s.schedule})` : base;
+    // Dosis y frecuencia van pegadas al nombre ("Fármaco 750 mg cada 12 horas"); duración, pauta de días
+    // concretos y el motivo de un cambio (intensificación, ajuste de dosis...) van entre paréntesis, sin
+    // descartar ninguno en silencio cuando faltan los demás.
+    const inline = [s.dose, s.frequency].filter((v): v is string => !!v).join(" ");
+    const parenthetical = [s.changeNote, s.duration, s.schedule].filter((v): v is string => !!v).join(" · ");
+    const label = `${base}${inline ? " " + inline : ""}${parenthetical ? ` (${parenthetical})` : ""}`;
     return {
       id: s.id,
       name: label,

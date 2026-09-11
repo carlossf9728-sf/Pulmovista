@@ -24,6 +24,18 @@ export const TREATMENT_KEYWORDS = [
 
 export const RESPIRATORY_SUPPORT_KEYWORDS = ["oxígeno", "ventilación no invasiva"] as const;
 
+/**
+ * Terapias NO farmacológicas que el extractor de tratamientos reconoce
+ * como su propio "fármaco" (drug) — mismo evento (TreatmentStartedEvent)
+ * que un antibiótico, nunca confundido con uno: no se le busca dosis en
+ * mg, y domain/selectors.ts (NON_PHARMACOLOGICAL_KEYWORDS) ya la
+ * clasifica como "No farmacológico" en la pestaña Tratamientos por el
+ * mismo criterio léxico. Cada entrada trae su propio patrón (no una
+ * palabra suelta de TREATMENT_KEYWORDS) porque "fisioterapia" debe
+ * reconocerse con o sin el calificativo "respiratoria".
+ */
+export const NON_PHARMACOLOGICAL_TREATMENTS = [{ pattern: /fisioterapia(\s+respiratoria)?/i }] as const;
+
 /** Menciona una prueba de imagen torácica — dispara la detección de un ImagingEvent candidato. */
 export const IMAGING_TRIGGER = /TC\s*(de\s*)?t[oó]rax|TAC(\s*tor[aá]cico)?|radiograf[ií]a(\s*(simple|de))?\s*(de\s*)?t[oó]rax|Rx\s*(de\s*)?t[oó]rax|ecograf[ií]a\s*tor[aá]cica/i;
 

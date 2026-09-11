@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
 import { displayForEvent, episodeKeyForEvent, episodeSummary, exacerbationOwnTrend, groupTimelineRows, isNotableEvent, trendForRow, turningPointTrend } from "@/domain/timeline";
-import type { DiagnosisEvent, ExacerbationEvent, HospitalizationEvent, ImagingEvent, MicrobiologyEvent, PulmonaryFunctionEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
+import type {
+  DiagnosisEvent,
+  ExacerbationEvent,
+  HospitalizationEvent,
+  ImagingEvent,
+  MicrobiologyEvent,
+  PulmonaryFunctionEvent,
+  RespiratorySupportEvent,
+  TreatmentStartedEvent,
+} from "@/types/clinicalEvent";
 
 describe("displayForEvent", () => {
   it("representa un evento de función pulmonar", () => {
@@ -50,6 +59,28 @@ describe("displayForEvent", () => {
     const display = displayForEvent(ev);
     expect(display.group).toBe("Consulta");
     expect(display.detail).toBe("Texto libre");
+  });
+
+  it("representa el inicio de un tratamiento con dosis, frecuencia y duración, todo visible", () => {
+    const ev = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-01-01", {
+      drug: "ciprofloxacino",
+      dose: "750 mg",
+      frequency: "cada 12 horas",
+      duration: "durante 14 días",
+    });
+    const display = displayForEvent(ev);
+    expect(display.title).toBe("Inicio: Ciprofloxacino");
+    expect(display.detail).toBe("Dosis: 750 mg cada 12 horas · durante 14 días");
+  });
+
+  it("un cambio (intensificación, ajuste de dosis) nunca se titula 'Inicio' — usa el propio changeNote", () => {
+    const ev = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-01-01", {
+      drug: "fisioterapia respiratoria",
+      changeNote: "intensificación",
+    });
+    const display = displayForEvent(ev);
+    expect(display.title).toBe("Intensificación: Fisioterapia respiratoria");
+    expect(display.detail).toBe("En curso");
   });
 
   it("representa un diagnóstico con su propio label, sin grupo dedicado (usa Consulta)", () => {

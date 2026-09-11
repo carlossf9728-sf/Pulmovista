@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
 import { computeMissingInfo, computeReviewOpportunities } from "@/engines/missingInfo";
-import type { LabResultsEvent, MicrobiologyEvent, RespiratorySupportEvent } from "@/types/clinicalEvent";
+import type { ConsultationEvent, LabResultsEvent, MicrobiologyEvent, RespiratorySupportEvent, TreatmentStartedEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 function basePatient(primaryDiagnosis: string, events: Patient["events"] = []): Patient {
@@ -36,6 +36,22 @@ describe("computeMissingInfo (LEGACY)", () => {
     ]);
     const result = computeMissingInfo(patient);
     expect(result.items).not.toContain("No consta microbiología reciente.");
+  });
+
+  it("'No consta revisión de fisioterapia respiratoria' revisa la NARRATIVA de consulta, no si existe un TreatmentStartedEvent de fisioterapia — un tratamiento de fisioterapia ya pautado no basta para dar por hecho que se revisó en consulta", () => {
+    const patient = basePatient("Bronquiectasias no FQ", [
+      mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-01-01", { drug: "fisioterapia respiratoria" }),
+    ]);
+    const result = computeMissingInfo(patient);
+    expect(result.items).toContain("No consta revisión de fisioterapia respiratoria.");
+  });
+
+  it("deja de señalar la revisión de fisioterapia cuando la CONSULTA (no el tratamiento) la menciona", () => {
+    const patient = basePatient("Bronquiectasias no FQ", [
+      mkEvent<ConsultationEvent>("p1", CLINICAL_EVENT_TYPES.CONSULTATION, "2024-01-01", {}, { rawText: "Se revisa la técnica de fisioterapia respiratoria, correcta." }),
+    ]);
+    const result = computeMissingInfo(patient);
+    expect(result.items).not.toContain("No consta revisión de fisioterapia respiratoria.");
   });
 
   it("usa el checklist General para diagnósticos no reconocidos", () => {

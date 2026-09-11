@@ -112,9 +112,14 @@ export function CandidateFields({ event, onChange }: { event: ClinicalEvent; onC
     case "respiratory_support":
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <TextField label="Fármaco / soporte" value={event.drug} onChange={(v) => onChange({ ...event, drug: v })} />
-          <TextField label="Dosis" value={event.dose ?? ""} onChange={(v) => onChange({ ...event, dose: v || null })} />
-          <TextField label="Pauta" value={event.schedule ?? ""} onChange={(v) => onChange({ ...event, schedule: v || null })} />
+          <TextField label="Fármaco / tratamiento" value={event.drug} onChange={(v) => onChange({ ...event, drug: v })} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <TextField label="Dosis" value={event.dose ?? ""} onChange={(v) => onChange({ ...event, dose: v || null })} />
+            <TextField label="Frecuencia" value={event.frequency ?? ""} onChange={(v) => onChange({ ...event, frequency: v || null })} />
+            <TextField label="Duración" value={event.duration ?? ""} onChange={(v) => onChange({ ...event, duration: v || null })} />
+            <TextField label="Pauta (días de la semana)" value={event.schedule ?? ""} onChange={(v) => onChange({ ...event, schedule: v || null })} />
+          </div>
+          <TextField label="Cambio (si no es un inicio nuevo)" value={event.changeNote ?? ""} onChange={(v) => onChange({ ...event, changeNote: v || null })} />
         </div>
       );
 

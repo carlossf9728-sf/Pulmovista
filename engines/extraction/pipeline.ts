@@ -211,7 +211,7 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
                   null,
                   r.isRespiratorySupport ? CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT : CLINICAL_EVENT_TYPES.TREATMENT_STARTED,
                   date,
-                  { drug: r.drug, dose: r.dose, schedule: r.schedule },
+                  { drug: r.drug, dose: r.dose, schedule: r.schedule, frequency: r.frequency, duration: r.duration, changeNote: r.changeNote },
                   { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence },
                 ),
               );

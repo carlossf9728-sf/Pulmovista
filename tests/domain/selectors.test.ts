@@ -131,6 +131,27 @@ describe("selectores derivados", () => {
     expect(treatment.name).toBe("Prednisona oral (pauta descendente, 5 días)");
   });
 
+  it("selectTreatments compone dosis+frecuencia pegadas al nombre, y duración entre paréntesis", () => {
+    const ev = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-01-01", {
+      drug: "ciprofloxacino",
+      dose: "750 mg",
+      frequency: "cada 12 horas",
+      duration: "durante 14 días",
+    });
+    const [treatment] = selectTreatments([ev]);
+    expect(treatment.name).toBe("Ciprofloxacino 750 mg cada 12 horas (durante 14 días)");
+  });
+
+  it("selectTreatments clasifica fisioterapia respiratoria como 'No farmacológico' y refleja el cambio (intensificación) en el nombre, sin dosis", () => {
+    const ev = mkEvent<TreatmentStartedEvent>("p1", CLINICAL_EVENT_TYPES.TREATMENT_STARTED, "2024-01-01", {
+      drug: "fisioterapia respiratoria",
+      changeNote: "intensificación",
+    });
+    const [treatment] = selectTreatments([ev]);
+    expect(treatment.category).toBe("No farmacológico");
+    expect(treatment.name).toBe("Fisioterapia respiratoria (intensificación)");
+  });
+
   it("exacerbationsByYear agrupa por año", () => {
     expect(exacerbationsByYear(patient)).toEqual([
       { year: 2023, count: 1 },

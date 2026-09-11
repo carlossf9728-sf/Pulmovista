@@ -184,6 +184,70 @@ describe("runExtractionEngine", () => {
     expect(events.some((e) => e.type === "treatment_stopped")).toBe(true);
   });
 
+  describe("extractTreatments — farmacológico y no farmacológico, nunca mezclados", () => {
+    it("inicio de antibiótico: dosis, frecuencia y duración, todo capturado sin perder ninguno", () => {
+      const events = runExtractionEngine("Se inicia ciprofloxacino 750 mg cada 12 horas durante 14 días.", "2024-01-01");
+      const treatment = events.find((e) => e.type === "treatment_started");
+      expect(treatment).toMatchObject({
+        drug: "ciprofloxacino",
+        dose: "750 mg",
+        frequency: "cada 12 horas",
+        duration: "durante 14 días",
+        changeNote: null,
+      });
+    });
+
+    it("cambio de dosis: no es un 'inicio' — captura la nueva dosis y deja constancia del cambio", () => {
+      const events = runExtractionEngine("Se aumenta la dosis de azitromicina a 500 mg.", "2024-01-01");
+      const treatment = events.find((e) => e.type === "treatment_started");
+      expect(treatment).toMatchObject({ drug: "azitromicina", dose: "500 mg", changeNote: "aumento de dosis" });
+    });
+
+    it("suspensión: sigue generando treatment_stopped, sin dosis/frecuencia/duración (el tipo no las tiene)", () => {
+      const events = runExtractionEngine("Se suspende el tratamiento con ciprofloxacino por intolerancia digestiva.", "2024-01-01");
+      const treatment = events.find((e) => e.type === "treatment_stopped");
+      expect(treatment).toMatchObject({ drug: "ciprofloxacino" });
+    });
+
+    it("tratamiento crónico/de mantenimiento: inicio válido, y sin fecha de fin inventada al no haber 'durante N...'", () => {
+      const events = runExtractionEngine(
+        "Se inicia azitromicina 250 mg cada 24 horas como tratamiento supresor crónico, sin fecha de fin prevista.",
+        "2024-01-01",
+      );
+      const treatment = events.find((e) => e.type === "treatment_started");
+      expect(treatment).toMatchObject({ drug: "azitromicina", dose: "250 mg", frequency: "cada 24 horas", duration: null });
+    });
+
+    it("fisioterapia respiratoria: tratamiento no farmacológico propio, nunca tratado como fármaco (sin dosis)", () => {
+      const events = runExtractionEngine("Se intensifica fisioterapia respiratoria.", "2024-01-01");
+      expect(events).toHaveLength(1);
+      const treatment = events[0];
+      expect(treatment).toMatchObject({ type: "treatment_started", drug: "fisioterapia respiratoria", dose: null, changeNote: "intensificación" });
+    });
+
+    it("combinación farmacológico + no farmacológico en la misma frase: dos eventos separados, cada uno con su propio fragmento", () => {
+      const text = "Se inicia ciprofloxacino 750 mg cada 12 horas durante 14 días y se intensifica fisioterapia respiratoria.";
+      const events = runExtractionEngine(text, "2024-01-01");
+      const treatments = events.filter((e) => e.type === "treatment_started");
+      expect(treatments).toHaveLength(2);
+
+      const antibiotic = treatments.find((t) => t.drug === "ciprofloxacino")!;
+      const physio = treatments.find((t) => t.drug === "fisioterapia respiratoria")!;
+      expect(antibiotic).toBeDefined();
+      expect(physio).toBeDefined();
+
+      expect(antibiotic).toMatchObject({ dose: "750 mg", frequency: "cada 12 horas", duration: "durante 14 días", changeNote: null });
+      expect(physio).toMatchObject({ dose: null, frequency: null, duration: null, changeNote: "intensificación" });
+
+      // Ni el fragmento propio ni el del documento completo se comparten entre farmacológico y no farmacológico.
+      expect(antibiotic.rawText).not.toBe(text);
+      expect(physio.rawText).not.toBe(text);
+      expect(antibiotic.rawText).not.toContain("fisioterapia");
+      expect(physio.rawText).not.toContain("ciprofloxacino");
+      expect(physio.rawText).not.toContain("750 mg");
+    });
+  });
+
   it("fecha todos los eventos detectados con la fecha de la consulta (limitación conocida)", () => {
     const events = runExtractionEngine("FEV1 78%. Exacerbación en enero de 2023.", "2024-06-01");
     expect(events.every((e) => e.date === "2024-06-01")).toBe(true);

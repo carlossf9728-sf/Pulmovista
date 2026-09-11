@@ -24,6 +24,7 @@ import {
   HOSPITALIZATION_TRIGGER,
   IMAGING_TRIGGER,
   LAB_TRIGGER,
+  NON_PHARMACOLOGICAL_TREATMENTS,
   ORGANISM_TRIGGER,
   PFT_TRIGGER,
   PROCEDURE_TRIGGER,
@@ -67,7 +68,9 @@ function fallbackCategories(text: string): SegmentCategory[] {
   if (EXERCISE_TEST_TRIGGER.test(text)) categories.push("prueba_esfuerzo");
   if (PROCEDURE_TRIGGER.test(text)) categories.push("procedimiento");
   if (HOSPITALIZATION_TRIGGER.test(text)) categories.push("ingreso");
-  if (TREATMENT_KEYWORDS.some((t) => new RegExp(t, "i").test(text))) categories.push("tratamiento");
+  if (TREATMENT_KEYWORDS.some((t) => new RegExp(t, "i").test(text)) || NON_PHARMACOLOGICAL_TREATMENTS.some((t) => t.pattern.test(text))) {
+    categories.push("tratamiento");
+  }
 
   if (exacerbationDetected) categories.push("exacerbacion");
 

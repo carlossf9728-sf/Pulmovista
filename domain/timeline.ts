@@ -51,12 +51,13 @@ export function displayForEvent(e: ClinicalEvent): TimelineEntry {
     case CLINICAL_EVENT_TYPES.EXERCISE_TEST:
       return { group: "Prueba funcional", title: e.label, detail: e.text };
     case CLINICAL_EVENT_TYPES.TREATMENT_STARTED:
-    case CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT:
-      return {
-        group: "Tratamiento",
-        title: `Inicio: ${cap(e.drug)}`,
-        detail: e.dose ? `Dosis: ${e.dose}${e.schedule ? " · " + e.schedule : ""}` : "En curso",
-      };
+    case CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT: {
+      // Un cambio sobre un tratamiento ya en marcha (intensificación, ajuste de dosis...) nunca se titula "Inicio" — ver TreatmentStartedEvent.changeNote.
+      const title = e.changeNote ? `${cap(e.changeNote)}: ${cap(e.drug)}` : `Inicio: ${cap(e.drug)}`;
+      const doseLine = [e.dose, e.frequency].filter(Boolean).join(" ");
+      const parts = [doseLine ? `Dosis: ${doseLine}` : null, e.duration, e.schedule].filter((p): p is string => !!p);
+      return { group: "Tratamiento", title, detail: parts.length ? parts.join(" · ") : "En curso" };
+    }
     case CLINICAL_EVENT_TYPES.TREATMENT_STOPPED:
       return { group: "Tratamiento", title: `Finalizado: ${cap(e.drug)}`, detail: "Tratamiento retirado" };
     case CLINICAL_EVENT_TYPES.DIAGNOSIS:
