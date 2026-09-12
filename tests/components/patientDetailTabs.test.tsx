@@ -56,18 +56,30 @@ describe("SummaryTab", () => {
   });
 
   it("'Qué revisar hoy' muestra título corto + estado + motivo en una línea, nunca el texto verbatim completo de la guía", () => {
-    render(<SummaryTab patient={p1} onWhy={() => {}} />);
-    const card = screen.getByText("Qué revisar hoy").parentElement!;
-    // Título clínico corto (topic ya clasificado), no el recommendationText verbatim.
-    expect(within(card).getByText(/Antibióticos inhalados/)).toBeInTheDocument();
-    expect(within(card).getByText(/Aclaramiento mucociliar/)).toBeInTheDocument();
-    expect(within(card).getByText("Cumple")).toBeInTheDocument();
-    expect(within(card).getByText("Aplica")).toBeInTheDocument();
-    // Motivo resumido en una línea (mismo resumen que patientDatumLines ya usa en el modal).
-    expect(within(card).getByText(/4 exacerbaciones en el último año, incluida 1 grave con ingreso hospitalario\./)).toBeInTheDocument();
-    // El texto verbatim de la guía queda fuera de la vista principal — solo en el modal "¿Por qué?".
-    expect(within(card).queryByText(/patients with bronchiectasis should be taught airway clearance techniques/i)).not.toBeInTheDocument();
-    expect(within(card).queryByText("Texto original de la guía")).not.toBeInTheDocument();
+    // SummaryTab evalúa las guías con matchPatientToGuidelines(patient, todayISO()) — la ventana de
+    // "exacerbaciones en el último año" de p1 (fechas fijas en demoPatients.ts) depende del reloj real
+    // en el momento de ejecutar el test, no solo del contenido de la aserción. Se fija el reloj del
+    // sistema a una fecha dentro del margen en que las 4 exacerbaciones de p1 (2025-09-10, 2026-02-05,
+    // 2026-05-18, 2026-07-01) caen en la ventana de 365 días — sin tocar todayISO() ni ningún otro
+    // código de producción — para que el test no dependa de cuándo se ejecute.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-01T00:00:00Z"));
+    try {
+      render(<SummaryTab patient={p1} onWhy={() => {}} />);
+      const card = screen.getByText("Qué revisar hoy").parentElement!;
+      // Título clínico corto (topic ya clasificado), no el recommendationText verbatim.
+      expect(within(card).getByText(/Antibióticos inhalados/)).toBeInTheDocument();
+      expect(within(card).getByText(/Aclaramiento mucociliar/)).toBeInTheDocument();
+      expect(within(card).getByText("Cumple")).toBeInTheDocument();
+      expect(within(card).getByText("Aplica")).toBeInTheDocument();
+      // Motivo resumido en una línea (mismo resumen que patientDatumLines ya usa en el modal).
+      expect(within(card).getByText(/4 exacerbaciones en el último año, incluida 1 grave con ingreso hospitalario\./)).toBeInTheDocument();
+      // El texto verbatim de la guía queda fuera de la vista principal — solo en el modal "¿Por qué?".
+      expect(within(card).queryByText(/patients with bronchiectasis should be taught airway clearance techniques/i)).not.toBeInTheDocument();
+      expect(within(card).queryByText("Texto original de la guía")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("'Momentos clave' usa una formulación corta y directa, sin la cláusula explicativa larga", () => {
