@@ -31,6 +31,11 @@ describe("mentionsHospitalization", () => {
   it("'sin fiebre, ingreso por agudización' sigue contando el ingreso: la negación no es de la propia mención", () => {
     expect(mentionsHospitalization("Sin fiebre, ingreso por agudización de bronquiectasias.")).toBe(true);
   });
+
+  it("'manejo ambulatorio'/'tratamiento ambulatorio' nunca activan una hospitalización: no contienen 'ingres'/'hospitali', así que no hace falta negarlos aparte", () => {
+    expect(mentionsHospitalization("Exacerbación leve, manejo ambulatorio con ciprofloxacino.")).toBe(false);
+    expect(mentionsHospitalization("Agudización tratada de forma ambulatoria, sin precisar ingreso.")).toBe(false);
+  });
 });
 
 describe("captureHospitalizationFragment", () => {

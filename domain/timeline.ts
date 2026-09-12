@@ -27,6 +27,22 @@ export function consultationVitalsSummary(e: ConsultationEvent): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
+/**
+ * "2 exacerbaciones previas · 0 ingresos previos" — antecedente AGREGADO
+ * (ver ConsultationEvent#priorExacerbationCount/priorHospitalizationCount
+ * y engines/extraction/extractors/exacerbation.ts#extractAggregateExacerbationHistory),
+ * nunca un episodio fechado. Se muestra por separado de
+ * consultationVitalsSummary (constantes de la exploración) porque es un
+ * dato de otra naturaleza: un recuento histórico, no un hallazgo de esta
+ * visita. null cuando el texto no menciona ningún recuento agregado.
+ */
+export function consultationHistorySummary(e: ConsultationEvent): string | null {
+  if (e.priorExacerbationCount == null) return null;
+  const parts = [`${e.priorExacerbationCount} exacerbación(es) previa(s)`];
+  if (e.priorHospitalizationCount != null) parts.push(`${e.priorHospitalizationCount} ingreso(s) previo(s)`);
+  return parts.join(" · ");
+}
+
 /** Traduce un ClinicalEvent a su representación en la línea de tiempo. Réplica exacta de `displayForEvent()`. */
 export function displayForEvent(e: ClinicalEvent): TimelineEntry {
   switch (e.type) {

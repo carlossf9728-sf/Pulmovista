@@ -101,21 +101,80 @@ Durante el ingreso: se objetiva empeoramiento respiratorio con fiebre, se ajusta
   });
 });
 
-describe("6) Antecedentes agregados no crean eventos individuales", () => {
-  it("'2 exacerbaciones en el último año' no genera ningún ExacerbationEvent fechado — el dato se conserva como narrativa de consulta", () => {
+describe("6) Antecedentes agregados no crean eventos individuales — pero SÍ se conservan como recuento estructurado", () => {
+  it("'2 exacerbaciones en el último año, sin ingresos previos' no genera ningún ExacerbationEvent fechado, y se conserva como priorExacerbationCount=2 / priorHospitalizationCount=0 en la Consulta", () => {
     const text = "Refiere 2 exacerbaciones tratadas con antibiótico en el último año, sin ingresos previos.";
     const { events } = buildClinicalCandidates(text, "2026-09-11");
     expect(byType(events, "exacerbation")).toHaveLength(0);
-    // El dato no se pierde: sigue constando en la narrativa de la Consulta.
-    const consult = byType(events, "consultation");
-    expect(consult.length).toBeGreaterThan(0);
-    expect(consult.some((c) => c.rawText?.includes("2 exacerbaciones"))).toBe(true);
+    const [consult] = byType(events, "consultation");
+    expect(consult).toBeDefined();
+    expect(consult.rawText).toContain("2 exacerbaciones");
+    expect(consult.priorExacerbationCount).toBe(2);
+    // "sin ingresos previos" es una negación EXPLÍCITA — se distingue de "no consta" (null): aquí sabemos que fueron 0.
+    expect(consult.priorHospitalizationCount).toBe(0);
   });
 
-  it("un número mayor y otra redacción ('tres agudizaciones... previas') tampoco genera eventos individuales", () => {
+  it("un número mayor y otra redacción ('tres agudizaciones... previas') tampoco genera eventos individuales, y registra el recuento correcto", () => {
     const text = "Antecedente de tres agudizaciones previas tratadas de forma ambulatoria, sin ingresos.";
     const { events } = buildClinicalCandidates(text, "2026-09-11");
     expect(byType(events, "exacerbation")).toHaveLength(0);
+    const [consult] = byType(events, "consultation");
+    expect(consult?.priorExacerbationCount).toBe(3);
+    expect(consult?.priorHospitalizationCount).toBe(0);
+  });
+
+  it("cuando el segmento no trae ninguna narrativa de consulta propia (sin verbo como 'refiere'), igualmente se conserva el recuento en una Consulta mínima — nunca se descarta en silencio por falta de categoría", () => {
+    const text = "Antecedente: 2 agudizaciones el año previo, sin ingresos.";
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    expect(byType(events, "exacerbation")).toHaveLength(0);
+    const consult = byType(events, "consultation");
+    expect(consult.length).toBeGreaterThan(0);
+    expect(consult[0].priorExacerbationCount).toBe(2);
+    expect(consult[0].priorHospitalizationCount).toBe(0);
+  });
+
+  it("cuando el texto no menciona ingresos en absoluto, priorHospitalizationCount es null (no consta), nunca 0 por defecto", () => {
+    const text = "Refiere 2 exacerbaciones tratadas con antibiótico en el último año.";
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const [consult] = byType(events, "consultation");
+    expect(consult.priorExacerbationCount).toBe(2);
+    expect(consult.priorHospitalizationCount).toBeNull();
+  });
+
+  it("un antecedente agregado y un episodio real DISTINTO en el mismo bloque conservan ambos datos, sin mezclarlos", () => {
+    const text = `Antecedentes: refiere 3 agudizaciones en el último año tratadas ambulatoriamente, sin ingresos previos.
+
+Ingreso hospitalario por agudización grave de bronquiectasias, se inicia antibiótico IV.`;
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const exacs = byType(events, "exacerbation");
+    expect(exacs).toHaveLength(1);
+    expect(exacs[0].hospitalization).toBe(true);
+    const consultWithHistory = byType(events, "consultation").find((c) => c.priorExacerbationCount != null);
+    expect(consultWithHistory?.priorExacerbationCount).toBe(3);
+    expect(consultWithHistory?.priorHospitalizationCount).toBe(0);
+  });
+});
+
+describe("Caso de regresión explícito: antecedente agregado seguido de un episodio real 3 meses después", () => {
+  it("produce exactamente: 1 Consulta con el recuento agregado (2 previas, 0 ingresos), 1 ExacerbationEvent hospitalizado, y 1 hospitalización total", () => {
+    const text = `Refiere 2 exacerbaciones tratadas con antibiótico en el último año, sin ingresos previos.
+
+Tres meses después presenta nueva agudización e ingresa durante 7 días.`;
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+
+    const consults = byType(events, "consultation");
+    expect(consults).toHaveLength(1);
+    expect(consults[0].priorExacerbationCount).toBe(2);
+    expect(consults[0].priorHospitalizationCount).toBe(0);
+
+    const exacs = byType(events, "exacerbation");
+    expect(exacs).toHaveLength(1);
+    expect(exacs[0].hospitalization).toBe(true);
+    expect(exacs[0].episodeId).toBe(exacs[0].id);
+    expect(exacs[0].date).not.toBe(consults[0].date); // episodios en fechas distintas, no fusionados
+
+    expect(byType(events, "hospitalization")).toHaveLength(0);
+    expect(selectHospitalizationCount(events, null)).toBe(1);
   });
 });
 

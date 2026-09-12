@@ -48,7 +48,7 @@ import { extractMicrobiology } from "./extractors/microbiology";
 import { extractLabResults } from "./extractors/labResults";
 import { extractImaging } from "./extractors/imaging";
 import { extractExerciseTest } from "./extractors/exerciseTest";
-import { extractExacerbation } from "./extractors/exacerbation";
+import { extractAggregateExacerbationHistory, extractExacerbation } from "./extractors/exacerbation";
 import { extractProcedure, extractHospitalizationFallback } from "./extractors/hospitalization";
 import { extractTreatments } from "./extractors/treatments";
 import type { SegmentCategory, TextSegment } from "./segmentPatterns";
@@ -151,6 +151,13 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
     const fallbackConfidence = combineConfidence(baseConfidence, dateConfidence);
 
     let exacerbationHandledHospitalization = false;
+    // Antecedente agregado ("2 exacerbaciones... en el último año", ver extractAggregateExacerbationHistory)
+    // — un dato DISTINTO de un episodio fechado, que nunca debe perderse en silencio. Si este segmento
+    // también produce una Consulta (caso habitual: la propia frase "Refiere..."), se adjunta a ESE
+    // evento (ver case "consulta"); si no hay ninguna Consulta en este segmento, el case "exacerbacion"
+    // crea una Consulta mínima solo para conservarlo — nunca se descarta por falta de categoría.
+    const aggregateHistory = extractAggregateExacerbationHistory(segment.text);
+    const willCreateConsultation = categories.includes("consulta");
     const common = {
       source: "extraction_simulated" as const,
       datePrecision: resolved.datePrecision,
@@ -162,7 +169,24 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
       switch (category) {
         case "exacerbacion": {
           const r = extractExacerbation(segment.text);
-          if (!r) break;
+          if (!r) {
+            // El único motivo por el que "exacerbacion" no produce un evento es un antecedente
+            // agregado (ver hasGenuineExplicitExacerbation) — se conserva aquí SOLO si este segmento
+            // no va a producir ya una Consulta propia (case "consulta"/"alta"), que es donde se
+            // adjunta normalmente: nunca dos eventos por el mismo antecedente.
+            if (aggregateHistory && !willCreateConsultation) {
+              events.push(
+                mkEvent<ConsultationEvent>(
+                  null,
+                  CLINICAL_EVENT_TYPES.CONSULTATION,
+                  segmentDate,
+                  { priorExacerbationCount: aggregateHistory.priorExacerbationCount, priorHospitalizationCount: aggregateHistory.priorHospitalizationCount },
+                  { ...common, rawText: aggregateHistory.fragment, episodeId: currentEpisodeId, ...fallbackConfidence },
+                ),
+              );
+            }
+            break;
+          }
           if (continuesOpenEpisode) break; // ver continuesOpenEpisode arriba: mismo episodio ya abierto, nunca un segundo ExacerbationEvent
           const specific = r.confidence === "posible" ? combineConfidence({ confidence: "posible", confidenceReason: r.confidenceReason }, dateConfidence) : fallbackConfidence;
           const exac: ExacerbationEvent = mkEvent<ExacerbationEvent>(
@@ -204,7 +228,12 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
         case "consulta":
         case "alta": {
           const r = extractConsultation(segment.text, isHeader);
-          if (r) events.push(mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, segmentDate, r.vitals, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+          if (r) {
+            const payload = aggregateHistory
+              ? { ...r.vitals, priorExacerbationCount: aggregateHistory.priorExacerbationCount, priorHospitalizationCount: aggregateHistory.priorHospitalizationCount }
+              : r.vitals;
+            events.push(mkEvent<ConsultationEvent>(null, CLINICAL_EVENT_TYPES.CONSULTATION, segmentDate, payload, { ...common, rawText: r.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
+          }
           break;
         }
         case "funcion_pulmonar": {

@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { formatDate } from "@/utils/date";
 import { selectConsultations } from "@/domain/selectors";
-import { consultationVitalsSummary } from "@/domain/timeline";
+import { consultationHistorySummary, consultationVitalsSummary } from "@/domain/timeline";
 import { Card } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 
@@ -21,6 +21,7 @@ export function ConsultsTab({ patient, onAddClinicalInfo }: { patient: Patient; 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {rows.map((v) => {
           const vitals = consultationVitalsSummary(v);
+          const history = consultationHistorySummary(v);
           return (
             <Card key={v.id}>
               <div className="pv-mono" style={{ fontSize: 12, color: COLORS.teal, fontWeight: 700, marginBottom: 6 }}>
@@ -30,6 +31,11 @@ export function ConsultsTab({ patient, onAddClinicalInfo }: { patient: Patient; 
               {!!vitals && (
                 <div className="pv-mono" style={{ fontSize: 12, color: COLORS.slate, marginTop: 8, fontWeight: 600 }}>
                   Constantes: {vitals}
+                </div>
+              )}
+              {!!history && (
+                <div className="pv-mono" style={{ fontSize: 12, color: COLORS.slate, marginTop: 4, fontWeight: 600 }}>
+                  Antecedentes: {history}
                 </div>
               )}
             </Card>

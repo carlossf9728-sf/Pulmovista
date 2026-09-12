@@ -125,6 +125,23 @@ export interface ConsultationEvent extends ClinicalEventBase {
   oxygenTherapy?: string | null;
   afebrile?: boolean | null;
   hemodynamicallyStable?: boolean | null;
+  /**
+   * Antecedente AGREGADO de exacerbaciones mencionado en la consulta
+   * ("Refiere 2 exacerbaciones... en el último año") — un recuento
+   * histórico, nunca un ExacerbationEvent fechado individual: no hay una
+   * fecha propia por episodio que lo justifique. null cuando el texto no
+   * menciona ningún recuento agregado (distinto de 0: nunca se infiere
+   * un recuento que el texto no declara).
+   */
+  priorExacerbationCount?: number | null;
+  /**
+   * Ingresos previos mencionados en el MISMO antecedente agregado — 0
+   * solo cuando el texto los niega explícitamente ("sin ingresos
+   * previos"), null cuando no se menciona en absoluto (nunca se asume 0
+   * por defecto: la ausencia de mención no es lo mismo que "ninguno").
+   * Ver engines/extraction/extractors/exacerbation.ts#extractAggregateExacerbationHistory.
+   */
+  priorHospitalizationCount?: number | null;
 }
 
 export interface PulmonaryFunctionEvent extends ClinicalEventBase {

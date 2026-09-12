@@ -613,6 +613,23 @@ describe("ConsultsTab", () => {
     await userEvent.click(screen.getByRole("button", { name: /añadir información clínica/i }));
     expect(onAdd).toHaveBeenCalledOnce();
   });
+
+  it("muestra el antecedente agregado (priorExacerbationCount/priorHospitalizationCount) como una línea 'Antecedentes' propia, distinta de 'Constantes'", () => {
+    const patient = basePatient({
+      events: [
+        mkEvent<ConsultationEvent>(
+          "p-timeline",
+          CLINICAL_EVENT_TYPES.CONSULTATION,
+          "2026-01-01",
+          { priorExacerbationCount: 2, priorHospitalizationCount: 0 },
+          { rawText: "Refiere 2 exacerbaciones tratadas con antibiótico en el último año, sin ingresos previos." },
+        ),
+      ],
+    });
+    render(<ConsultsTab patient={patient} onAddClinicalInfo={() => {}} />);
+    expect(screen.getByText(/Antecedentes:/)).toBeInTheDocument();
+    expect(screen.getByText(/2 exacerbación\(es\) previa\(s\) · 0 ingreso\(s\) previo\(s\)/)).toBeInTheDocument();
+  });
 });
 
 describe("AlertsTab", () => {

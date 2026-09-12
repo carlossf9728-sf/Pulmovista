@@ -1,5 +1,5 @@
 import { captureFragment, indexOfSentenceEnd } from "../fragment";
-import { mentionsHospitalization } from "../negation";
+import { containsHospitalizationWord, mentionsHospitalization, sentenceContaining } from "../negation";
 import { AGGREGATE_EXACERBATION_HISTORY_TRIGGER, ANTIBIOTIC_MENTION_TRIGGER, EXACERBATION_EXPLICIT_TRIGGER, EXACERBATION_SOFT_SIGNS_TRIGGER } from "../keywords";
 
 export interface ExacerbationExtraction {
@@ -8,21 +8,6 @@ export interface ExacerbationExtraction {
   fragment: string;
   confidence: "confirmado" | "posible";
   confidenceReason: string | null;
-}
-
-/** Frase completa (no solo desde `index` hasta el final: también hacia atrás, hasta el punto anterior) que contiene la posición `index` — misma noción de "fin de frase" que fragment.ts#indexOfSentenceEnd (un "." entre dígitos es decimal, no separador). */
-function sentenceContaining(text: string, index: number): string {
-  let start = 0;
-  for (let i = index - 1; i >= 0; i--) {
-    if (text[i] !== ".") continue;
-    const prev = text[i - 1];
-    const next = text[i + 1];
-    if (prev != null && next != null && /\d/.test(prev) && /\d/.test(next)) continue;
-    start = i + 1;
-    break;
-  }
-  const relEnd = indexOfSentenceEnd(text, index);
-  return text.slice(start, relEnd === -1 ? text.length : relEnd + 1);
 }
 
 /**
@@ -90,5 +75,53 @@ export function extractExacerbation(segmentText: string): ExacerbationExtraction
     };
   }
 
+  return null;
+}
+
+export interface AggregateExacerbationHistory {
+  /** null cuando el disparador es "varias"/"múltiples" (sin cifra concreta) — nunca se inventa un número que el texto no da. */
+  priorExacerbationCount: number | null;
+  /** 0 solo cuando el texto niega explícitamente ingresos previos en la MISMA frase ("sin ingresos previos"); null cuando no se menciona en absoluto — nunca 0 por defecto. */
+  priorHospitalizationCount: number | null;
+  fragment: string;
+}
+
+const SPANISH_COUNT_WORDS: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+
+/** "2 exacerbaciones", "tres agudizaciones"... — la cifra que acompaña al recuento agregado (ver AGGREGATE_EXACERBATION_HISTORY_TRIGGER). null para "varias"/"múltiples" (no dan cifra) o si el patrón no aparece. */
+function parseAggregateCount(sentence: string): number | null {
+  const m = sentence.match(/\b(\d+|dos|tres|cuatro|cinco|seis|siete|ocho|varias|m[uú]ltiples)\s+(exacerbaciones|agudizaciones)\b/i);
+  if (!m) return null;
+  const raw = m[1].toLowerCase();
+  if (/^\d+$/.test(raw)) return parseInt(raw, 10);
+  return SPANISH_COUNT_WORDS[raw] ?? null;
+}
+
+/**
+ * Antecedente AGREGADO de exacerbaciones ("Refiere 2 exacerbaciones
+ * tratadas con antibiótico en el último año, sin ingresos previos") —
+ * el dato que extractExacerbation deliberadamente NO convierte en un
+ * ExacerbationEvent fechado (ver hasGenuineExplicitExacerbation). Se
+ * conserva aquí como recuento histórico estructurado (ver
+ * ConsultationEvent#priorExacerbationCount/priorHospitalizationCount en
+ * types/clinicalEvent.ts) para que pipeline.ts nunca lo descarte en
+ * silencio: episodios clínicos fechados y antecedentes agregados sin
+ * fecha individual son datos DISTINTOS, ambos con representación propia.
+ * Busca la primera frase agregada del segmento (nunca el segmento
+ * completo: el mismo segmento puede combinar, en frases distintas, un
+ * antecedente agregado y un episodio real). `null` si ninguna frase del
+ * segmento es un recuento agregado.
+ */
+export function extractAggregateExacerbationHistory(segmentText: string): AggregateExacerbationHistory | null {
+  const global = new RegExp(EXACERBATION_EXPLICIT_TRIGGER.source, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = global.exec(segmentText))) {
+    const sentence = sentenceContaining(segmentText, m.index);
+    if (AGGREGATE_EXACERBATION_HISTORY_TRIGGER.test(sentence)) {
+      const priorHospitalizationCount = containsHospitalizationWord(sentence) && !mentionsHospitalization(sentence) ? 0 : null;
+      return { priorExacerbationCount: parseAggregateCount(sentence), priorHospitalizationCount, fragment: sentence.trim() };
+    }
+    if (global.lastIndex === m.index) global.lastIndex += 1;
+  }
   return null;
 }
