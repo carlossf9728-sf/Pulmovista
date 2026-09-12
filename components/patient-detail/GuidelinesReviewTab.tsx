@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Info } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Info } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { todayISO } from "@/utils/date";
 import { guidelineShortLabel } from "@/utils/guidelineLabels";
@@ -225,6 +226,12 @@ export function GuidelinesReviewTab({ patient, onWhy }: { patient: Patient; onWh
           inhalados, erradicación de Pseudomonas, corticoides inhalados y fisioterapia/aclaramiento de vía aérea —
           contra los datos estructurados de este paciente. ERS y SEPAR se muestran siempre por separado.
         </p>
+        <Link
+          href="/guias"
+          style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 8, fontSize: 12, fontWeight: 600, color: COLORS.tealDeep, textDecoration: "none" }}
+        >
+          Ver base de conocimiento <ChevronRight size={13} />
+        </Link>
       </div>
 
       {!matches.length && <NoCompatibleGuideline patient={patient} />}

@@ -739,6 +739,11 @@ describe("AlertsTab", () => {
 });
 
 describe("GuidelinesReviewTab", () => {
+  it("ofrece un enlace 'Ver base de conocimiento' hacia /guias, el acceso secundario tras sacar Guías del sidebar", () => {
+    render(<GuidelinesReviewTab patient={p1} onWhy={vi.fn()} />);
+    expect(screen.getByRole("link", { name: /Ver base de conocimiento/i })).toHaveAttribute("href", "/guias");
+  });
+
   it("agrupa las recomendaciones en 3 bloques por bucket y permite abrir '¿Por qué?' con trazabilidad completa en el modal", async () => {
     const onWhy = vi.fn();
     render(<GuidelinesReviewTab patient={p1} onWhy={onWhy} />);

@@ -1,6 +1,7 @@
 "use client";
 
-import { CircleAlert } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, CircleAlert, ChevronRight } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { Card, Eyebrow } from "@/components/ui";
 
@@ -23,6 +24,20 @@ export function SettingsView() {
           </div>
         </div>
       </Card>
+      <Link href="/guias" style={{ display: "block", maxWidth: 620, marginTop: 14, textDecoration: "none", color: "inherit" }}>
+        <Card style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <BookOpen size={18} color={COLORS.tealDeep} style={{ flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>Base de conocimiento</div>
+              <div style={{ fontSize: 12.5, color: COLORS.slate, marginTop: 2 }}>
+                Guías clínicas estructuradas (ERS 2025, SEPAR 2018) que PulmoVista usa para revisar los datos del paciente.
+              </div>
+            </div>
+          </div>
+          <ChevronRight size={16} color={COLORS.slateLight} style={{ flexShrink: 0 }} />
+        </Card>
+      </Link>
       <Card style={{ maxWidth: 620, marginTop: 14 }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Puntos de integración futuros</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
