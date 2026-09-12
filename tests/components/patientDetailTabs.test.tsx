@@ -719,19 +719,22 @@ describe("AlertsTab", () => {
     expect(onWhy.mock.calls[0][0].kindLabel).toBe("heurística experimental");
   });
 
-  it("Oportunidades de revisión clínica usa una redacción que deja claro que habla de los datos disponibles, no de todo lo ocurrido", () => {
+  it("ya no existe la sección 'Oportunidades de revisión clínica': era una segunda lista derivada 1:1 de Momentos clave, sin datos propios", () => {
     render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
-    expect(screen.getAllByText("No se ha identificado en los datos disponibles una revisión posterior de estrategia preventiva.").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/No consta posteriormente/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Oportunidades de revisión clínica")).not.toBeInTheDocument();
+    expect(screen.queryByText("Posible punto para revisión")).not.toBeInTheDocument();
   });
 
-  it("Oportunidades de revisión clínica sigue citando la guía de bronquiectasias aunque conste solo como diagnóstico SECUNDARIO (no solo primaryDiagnosis)", () => {
-    // p2 (EPOC como principal) tiene sus propios momentos clave/oportunidades de revisión ya
-    // presentes en los datos demo — aquí solo se añade bronquiectasias como secundario para
-    // comprobar que la cita de guía relacionada deja de depender únicamente del diagnóstico principal.
-    const patientWithSecondaryBx: Patient = { ...p2, secondaryDiagnoses: "Bronquiectasias por tracción" };
-    render(<AlertsTab patient={patientWithSecondaryBx} onWhy={vi.fn()} />);
-    expect(screen.getAllByText(/ERS Bronchiectasis Guidelines/).length).toBeGreaterThan(0);
+  it("una tarjeta con soporte de guía integra la acción a revisar ('Revisar: <acción>') directamente, sin necesitar una tarjeta aparte", () => {
+    render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
+    const exacCard = screen.getByText("Aumento de la tasa de exacerbaciones").closest('[class*="pv-card-hover"]') as HTMLElement;
+    expect(within(exacCard).getByText(/^Revisar:/)).toBeInTheDocument();
+  });
+
+  it("una tarjeta sin soporte de guía (FEV1) nunca muestra la línea 'Revisar:' — no hay acción de guía que sugerir", () => {
+    render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
+    const fev1Card = screen.getByText("Tendencia descendente de FEV1").closest('[class*="pv-card-hover"]') as HTMLElement;
+    expect(within(fev1Card).queryByText(/^Revisar:/)).not.toBeInTheDocument();
   });
 });
 

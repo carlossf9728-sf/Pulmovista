@@ -4,14 +4,14 @@ import { useState } from "react";
 import { CircleAlert, GitCommit, ListChecks } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { formatDate } from "@/utils/date";
+import { cap } from "@/utils/text";
 import { EVIDENCE_QUALITY_LABEL, guidelineShortLabel, STRENGTH_LABEL } from "@/utils/guidelineLabels";
 import { ARGOS_SUPPORT_LABEL, argosSupportLevel } from "@/utils/argosSupport";
 import { computeSentinelFindings } from "@/engines/sentinel";
 import { computeTurningPoints } from "@/engines/turningPoints";
-import { computeMissingInfo, computeReviewOpportunities } from "@/engines/missingInfo";
+import { computeMissingInfo } from "@/engines/missingInfo";
 import { detectContradictions } from "@/engines/longitudinal";
-import { GUIDELINES } from "@/engines/guidelines";
-import { activeProblemCategories } from "@/domain/diagnosis";
+import { actionGroupKeyFor } from "@/engines/guidelines/match";
 import { ArgosMark, Card, Eyebrow, GuidelineRecommendationText, KindTag, Modal, Val, WhyButton } from "@/components/ui";
 import type { ArgosSupportLevel } from "@/utils/argosSupport";
 import type { Patient } from "@/types/patient";
@@ -36,6 +36,23 @@ import type { SentinelFinding, SentinelStatusLabel } from "@/types/sentinel";
  *      bajo interacción ("Ver recomendaciones"/"¿Por qué?"), no se
  *      duplican aquí ni se recalculan: es la misma `guidelineInterpretations`
  *      que ya produce engines/sentinel/guidelineInterpretation.ts.
+ *   4. Acción a revisar (`argosActionLabel`) — SOLO cuando hay soporte de
+ *      guía: qué actuación concreta está en juego (p. ej. "Erradicación
+ *      de Pseudomonas"), reutilizando el mismo agrupador de acción
+ *      clínica que ya usa SummaryTab ("Qué revisar hoy" — ver
+ *      engines/guidelines/match.ts#actionGroupKeyFor), nunca una frase
+ *      nueva inventada aquí.
+ *
+ * Ya NO existe una sección aparte "Oportunidades de revisión clínica":
+ * derivaba 1:1 de Turning Points con un título y una nota fijos e
+ * idénticos para cualquier hallazgo ("Posible punto para revisión..."),
+ * sin aportar nada que "Momentos clave" no mostrara ya con su propia
+ * fecha, antes/después y "¿Por qué?" — y citaba además el catálogo de
+ * guías SIMULADO (engines/guidelines/data.ts), no el real que ya usa
+ * esta misma pestaña. La acción a revisar de cada hallazgo vive ahora
+ * DENTRO de su propia tarjeta (punto 4 arriba); "Momentos clave" sigue
+ * siendo la única lista de hitos temporales, sin una segunda lista
+ * paralela repitiendo los mismos eventos.
  *
  * Nada de esto cambia criterios clínicos, umbrales ni reglas de guía —
  * es solo una reorganización visual de datos que los motores ya
@@ -59,6 +76,20 @@ function sentinelCardAccent(f: SentinelFinding): string {
   if (f.guidelineInterpretations.some((gi) => gi.statusLabel === "Cumple")) return COLORS.red;
   if (f.guidelineInterpretations.length) return COLORS.orange;
   return COLORS.slateLight;
+}
+
+/**
+ * "Erradicación de Pseudomonas", "Antibióticos inhalados"... — la(s)
+ * acción(es) clínica(s) a la(s) que se refieren las recomendaciones
+ * relacionadas con este hallazgo, agrupando ERS/SEPAR bajo el mismo
+ * nombre cuando coinciden (mismo criterio ya usado por
+ * SummaryTab.tsx#computeTodayPriorities, nunca una etiqueta nueva). null
+ * cuando no hay ninguna recomendación relacionada — ahí la tarjeta ya
+ * muestra el mensaje "sin soporte de guía", sin necesidad de una acción.
+ */
+function argosActionLabel(finding: SentinelFinding): string | null {
+  const keys = new Set(finding.guidelineInterpretations.map((gi) => actionGroupKeyFor(gi.recommendationId)).filter((k): k is string => k != null));
+  return keys.size ? [...keys].map((k) => cap(k)).join(" · ") : null;
 }
 
 function SupportPill({ level }: { level: ArgosSupportLevel }) {
@@ -162,6 +193,7 @@ function SentinelFindingCard({
 }) {
   const level = argosSupportLevel(finding.guidelineInterpretations);
   const guidelineLabels = Array.from(new Set(finding.guidelineInterpretations.map((gi) => guidelineShortLabel(gi.society, gi.year))));
+  const action = argosActionLabel(finding);
 
   return (
     <Card accent={sentinelCardAccent(finding)} style={{ padding: "14px 16px" }}>
@@ -173,6 +205,10 @@ function SentinelFindingCard({
       </div>
 
       <div style={{ marginTop: 5, fontSize: 13, color: COLORS.ink, lineHeight: 1.45 }}>{finding.interpretation}</div>
+
+      {/* Acción a revisar — solo cuando hay soporte de guía: integra aquí lo que antes vivía como
+          tarjeta aparte en "Oportunidades de revisión clínica", ya eliminada (ver docstring del archivo). */}
+      {!!action && <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 700, color: COLORS.orange }}>Revisar: {action}</div>}
 
       <div style={{ marginTop: 10 }}>
         {level === "sin_soporte" ? (
@@ -186,7 +222,7 @@ function SentinelFindingCard({
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <SupportPill level={level} />
             <span className="pv-mono" style={{ fontSize: 11, color: COLORS.slateLight }}>
-              {guidelineLabels.join(" · ")} · recomendaciones relacionadas disponibles
+              {guidelineLabels.join(" · ")}
             </span>
           </div>
         )}
@@ -204,13 +240,7 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
   const findings = computeSentinelFindings(patient);
   const turningPoints = computeTurningPoints(patient);
   const missing = computeMissingInfo(patient);
-  const opportunities = computeReviewOpportunities(patient);
   const contradictions = detectContradictions(patient);
-  // Igual que el resto de motores (ver domain/diagnosis.ts#activeProblemCategories): un problema
-  // clínico puede constar como diagnóstico secundario, no solo como principal — nunca se lee
-  // patient.primaryDiagnosis a pelo para decidir qué categoría diagnóstica aplica.
-  const activeCategories: string[] = activeProblemCategories(patient);
-  const relatedGuidelines = GUIDELINES.filter((g) => activeCategories.includes(g.definition.disease));
   const [recommendationsFor, setRecommendationsFor] = useState<SentinelFinding | null>(null);
 
   return (
@@ -308,29 +338,6 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
                     {c}: no consta
                   </div>
                 ))}
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <Eyebrow color={COLORS.orange}>Oportunidades de revisión clínica</Eyebrow>
-        {!opportunities.length && <div style={{ fontSize: 13, color: COLORS.slateLight, marginTop: 8 }}>Sin oportunidades de revisión identificadas.</div>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
-          {opportunities.map((o) => (
-            <Card key={o.id} accent={COLORS.orange} style={{ padding: "14px 16px" }}>
-              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{o.title}</div>
-              <div style={{ fontSize: 13, color: COLORS.ink, margin: "6px 0" }}>{o.detail}</div>
-              <div style={{ fontSize: 12, color: COLORS.slateLight, fontStyle: "italic", marginBottom: 10 }}>{o.note}</div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: COLORS.orange, background: COLORS.orangeTint, padding: "4px 10px", borderRadius: 20 }}>{o.action}</span>
-                {relatedGuidelines.map((g) => (
-                  <span key={g.definition.guidelineId} className="pv-mono" style={{ fontSize: 10.5, color: COLORS.slateLight }}>
-                    {g.definition.source.title} ({g.definition.source.year})
-                  </span>
-                ))}
-                {!relatedGuidelines.length && <span style={{ fontSize: 11, color: COLORS.slateLight, fontStyle: "italic" }}>No se dispone de una recomendación validada para esta situación.</span>}
               </div>
             </Card>
           ))}

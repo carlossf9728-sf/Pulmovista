@@ -1,12 +1,12 @@
-import type { ClinicalExplanation, ClinicalSource, EvidenceItem } from "./evidence";
+import type { ClinicalExplanation, ClinicalSource } from "./evidence";
 
 /**
- * MissingInfoEngine / ReviewOpportunities — LEGACY / EXPERIMENTAL.
+ * MissingInfoEngine — LEGACY / EXPERIMENTAL.
  *
- * Ambos tipos ya incluyen `source` para que, cuando existan checklists
- * derivados de guías reales (datos mínimos exigidos por una guía para un
- * diagnóstico dado), puedan sustituir el contenido sin cambiar la forma
- * que consume AlertsTab.
+ * Incluye `source` para que, cuando existan checklists derivados de
+ * guías reales (datos mínimos exigidos por una guía para un diagnóstico
+ * dado), puedan sustituir el contenido sin cambiar la forma que consume
+ * AlertsTab.
  */
 
 /**
@@ -31,15 +31,5 @@ export interface MissingInfoResult {
   items: string[];
   /** Bloques agrupados con posible trazabilidad "¿Por qué?" — ver MissingInfoGroup. [] si ninguno aplica. */
   groups: MissingInfoGroup[];
-  source: ClinicalSource;
-}
-
-export interface ReviewOpportunity {
-  id: string;
-  title: string;
-  detail: string;
-  evidence: EvidenceItem[];
-  note: string;
-  action: string;
   source: ClinicalSource;
 }

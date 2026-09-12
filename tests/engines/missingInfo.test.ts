@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLINICAL_EVENT_TYPES, mkEvent } from "@/domain/clinicalEvent";
-import { computeMissingInfo, computeReviewOpportunities } from "@/engines/missingInfo";
-import type { ConsultationEvent, LabResultsEvent, MicrobiologyEvent, RespiratorySupportEvent, TreatmentStartedEvent } from "@/types/clinicalEvent";
+import { computeMissingInfo } from "@/engines/missingInfo";
+import type { ConsultationEvent, LabResultsEvent, MicrobiologyEvent, TreatmentStartedEvent } from "@/types/clinicalEvent";
 import type { Patient } from "@/types/patient";
 
 function basePatient(primaryDiagnosis: string, events: Patient["events"] = []): Patient {
@@ -184,23 +184,5 @@ describe("computeMissingInfo (LEGACY)", () => {
   it("no genera el grupo de cribado etiológico para categorías diagnósticas distintas de Bronquiectasias", () => {
     const result = computeMissingInfo(basePatient("EPOC (GOLD III)"));
     expect(result.groups).toEqual([]);
-  });
-});
-
-describe("computeReviewOpportunities (LEGACY)", () => {
-  it("deriva una oportunidad de revisión por cada turning point, con la nota fija", () => {
-    const patient = basePatient("EPOC (GOLD III)", [
-      mkEvent<RespiratorySupportEvent>("p1", CLINICAL_EVENT_TYPES.RESPIRATORY_SUPPORT, "2025-09-05", { drug: "oxígeno domiciliario" }),
-    ]);
-    const opportunities = computeReviewOpportunities(patient);
-    expect(opportunities).toHaveLength(1);
-    expect(opportunities[0].note).toBe(
-      "No se ha identificado en los datos disponibles una revisión posterior de estrategia preventiva.",
-    );
-    expect(opportunities[0].source.kind).toBe("legacy_heuristic");
-  });
-
-  it("no genera oportunidades si no hay turning points", () => {
-    expect(computeReviewOpportunities(basePatient("EPOC (GOLD III)"))).toEqual([]);
   });
 });

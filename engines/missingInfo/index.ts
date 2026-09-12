@@ -10,21 +10,19 @@
  * desapareciera de la base de conocimiento, el grupo se sigue mostrando
  * sin explicación en vez de fallar o inventar una cita.
  *
- * `computeReviewOpportunities` deriva 1:1 de TurningPointsEngine y aplica
- * una nota fija (LEGACY): no comprueba realmente si hubo una revisión
- * posterior documentada, solo lo asume. Ambas están marcadas para que
- * puedan sustituirse por contenido derivado de guías sin cambiar
- * `MissingInfoResult`/`ReviewOpportunity`, que ya consume AlertsTab.
+ * Ya no existe `computeReviewOpportunities`: derivaba 1:1 de
+ * TurningPointsEngine con un título y una nota fijos e idénticos para
+ * cualquier hallazgo, sin aportar nada que "Momentos clave" (AlertsTab)
+ * no mostrara ya — pura duplicación de presentación, eliminada junto con
+ * la sección "Oportunidades de revisión clínica" que la consumía.
  */
 import { activeProblemCategories, classifyDiagnosis } from "@/domain/diagnosis";
-import { computeTurningPoints } from "@/engines/turningPoints";
 import { findDefinitionById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { allEtiologicoParameterNames, BRONCHIECTASIS_ETIOLOGICAL_SCREENING, MISSING_INFO_LEGACY_RULES } from "./legacyRules";
-import { uid } from "@/utils/id";
 import type { DiagnosisCategory } from "@/domain/diagnosis";
 import type { Patient } from "@/types/patient";
 import type { ClinicalExplanation, ClinicalSource } from "@/types/evidence";
-import type { MissingInfoGroup, MissingInfoResult, ReviewOpportunity } from "@/types/missingInfo";
+import type { MissingInfoGroup, MissingInfoResult } from "@/types/missingInfo";
 
 export { MISSING_INFO_LEGACY_RULES };
 
@@ -109,16 +107,4 @@ export function computeMissingInfo(patient: Patient): MissingInfoResult {
     groups: group ? [group] : [],
     source,
   };
-}
-
-export function computeReviewOpportunities(patient: Patient): ReviewOpportunity[] {
-  return computeTurningPoints(patient).map((tp) => ({
-    id: uid("ro"),
-    title: "Posible punto para revisión",
-    detail: tp.interpretation,
-    evidence: tp.evidence,
-    note: "No se ha identificado en los datos disponibles una revisión posterior de estrategia preventiva.",
-    action: "Revisar recomendación de guía",
-    source: tp.source,
-  }));
 }
