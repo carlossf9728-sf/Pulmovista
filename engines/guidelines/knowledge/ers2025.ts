@@ -7,9 +7,9 @@
  * https://doi.org/10.1183/13993003.01126-2025 (34 páginas, PDF fuente
  * "Eur_Respir_J2025Chalmers25011262.pdf", leído completo página a página).
  *
- * NO conectado todavía a Sentinel, Turning Points, Missing Information,
- * Review Opportunities ni a ningún componente de UI. Solo base de
- * conocimiento estructurada y trazable, pendiente de revisión.
+ * Base de conocimiento estructurada y trazable, evaluada por
+ * engines/guidelines/match.ts (GuidelinesReviewTab, Argos, SummaryTab) y
+ * mostrada en la pantalla "Guías" (engines/guidelines/library.ts).
  *
  * Fidelidad: todo `sourceText` es una cita textual (o casi textual) del
  * PDF, en inglés (idioma original). Ningún `page`/`section`/`strength`/

@@ -6,9 +6,10 @@
  * GuidelineCriterion/GuidelineRecommendation. Ver ers2025.ts y
  * separ2018.ts para las notas de fidelidad de cada fuente.
  *
- * NO conectado todavía a Sentinel, Turning Points ni Review
- * Opportunities. Missing Information sí cita puntualmente
- * separar-def-tabla1-causas (ver engines/missingInfo/index.ts) para el
+ * Consumida por engines/guidelines/match.ts (evaluación real contra
+ * datos de paciente), engines/guidelines/library.ts (biblioteca real
+ * mostrada en la pantalla "Guías") y puntualmente por Missing Information
+ * (separar-def-tabla1-causas, ver engines/missingInfo/index.ts) para el
  * bloque "Estudio etiológico de bronquiectasias incompleto" — una
  * constatación, no una recomendación con criterios de coincidencia. Ver
  * tests/engines/guidelinesKnowledge.test.ts para las comprobaciones de

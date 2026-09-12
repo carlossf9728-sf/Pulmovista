@@ -544,6 +544,17 @@ export const SUPPORTED_DIAGNOSIS_CATEGORIES: DiagnosisCategory[] = ["Bronquiecta
 
 const SUPPORTED_RECOMMENDATION_ID_SET = new Set(Object.values(SUPPORTED_RECOMMENDATION_IDS).flat());
 
+/**
+ * ¿Este recommendationId está dentro del alcance que matchPatientToGuidelines
+ * evalúa hoy? Fuente de verdad única para "cuántas de las recomendaciones
+ * estructuradas de una guía alimentan realmente el motor" (ver
+ * engines/guidelines/library.ts, que la usa para la pantalla "Guías") —
+ * nunca un recuento aparte que pueda desincronizarse de este registro.
+ */
+export function isRecommendationEvaluated(recommendationId: string): boolean {
+  return SUPPORTED_RECOMMENDATION_ID_SET.has(recommendationId);
+}
+
 function evaluateCriterion(criterionId: string, patient: Patient, asOfDate: string): CriterionEvaluation {
   const evaluator = CRITERION_EVALUATORS[criterionId];
   if (!evaluator) {

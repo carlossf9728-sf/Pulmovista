@@ -1,5 +1,8 @@
 export type DiagnosisCategory = "Bronquiectasias" | "EPOC" | "Fibrosis pulmonar" | "General";
 
+/** Categorías de enfermedad reales que reconoce classifyDiagnosis — "General" excluida deliberadamente: no es una enfermedad, es "no reconocido". Fuente única para saber qué categorías existen en el dominio, p. ej. para calcular cuáles todavía no tienen guía cargada (ver engines/guidelines/library.ts). */
+export const ALL_DIAGNOSIS_CATEGORIES: readonly DiagnosisCategory[] = ["Bronquiectasias", "EPOC", "Fibrosis pulmonar"];
+
 /** Clasifica un diagnóstico libre en una categoría reconocida por los motores dependientes del diagnóstico. */
 export function classifyDiagnosis(dx = ""): DiagnosisCategory {
   const d = dx.toLowerCase();

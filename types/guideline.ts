@@ -3,8 +3,9 @@ import type { EvidenceItem } from "./evidence";
 /**
  * GuidelineEngine — tipos con trazabilidad exacta a la fuente.
  * ----------------------------------------------------------------------
- * Flujo previsto (todavía no implementado — ver matchGuidelines() en
- * engines/guidelines/index.ts):
+ * Flujo implementado (ver matchPatientToGuidelines() en
+ * engines/guidelines/match.ts, y engines/guidelines/library.ts para la
+ * capa de presentación que consume la pantalla "Guías"):
  *
  *   dato del paciente → GuidelineCriterion → GuidelineMatch
  *     → GuidelineRecommendation → cita exacta de la guía
@@ -178,19 +179,6 @@ export type GuidelineTopic =
   | "educación del paciente"
   | "atención domiciliaria";
 
-/**
- * Agregado usado por el stub simulado original (engines/guidelines/data.ts
- * + GuidelinesView) — se mantiene con el mismo nombre de campo
- * (`definition`) por compatibilidad, sin tocar la UI en esta fase. La
- * base de conocimiento real (engines/guidelines/knowledge/) exporta sus
- * GuidelineDefinition/GuidelineCriterion/GuidelineRecommendation como
- * colecciones planas indexadas por guidelineId, sin pasar por este tipo.
- */
-export interface Guideline {
-  definition: GuidelineDocument;
-  recommendations: GuidelineRecommendation[];
-}
-
 export type GuidelineMatchStatus =
   | "applies"
   | "possibly_applies"
@@ -203,8 +191,8 @@ export type GuidelineMatchStatus =
  * (evaluación real, alcance inicial: macrólidos, antibióticos inhalados,
  * erradicación de Pseudomonas, corticoides inhalados y fisioterapia/
  * aclaramiento de vía aérea — ver ese archivo para el registro de
- * criterios soportados). NO conectado todavía a Sentinel, Turning Points,
- * Missing Information, Review Opportunities ni a la UI.
+ * criterios soportados). Consumido por GuidelinesReviewTab, Argos
+ * (engines/sentinel/guidelineInterpretation.ts) y SummaryTab.
  */
 export interface GuidelineMatch {
   patientId: string;

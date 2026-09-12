@@ -7,8 +7,9 @@
  * Arch Bronconeumol. 2018;54(2):88–98. https://doi.org/10.1016/j.arbres.2017.07.016
  * (11 páginas, PDF fuente "BRONQUIECTASIAS.pdf", leído completo).
  *
- * NO conectado todavía a Sentinel, Turning Points, Missing Information,
- * Review Opportunities ni a ningún componente de UI.
+ * Evaluada por engines/guidelines/match.ts (GuidelinesReviewTab, Argos,
+ * SummaryTab) y mostrada en la pantalla "Guías"
+ * (engines/guidelines/library.ts).
  *
  * `page` cita el número de página IMPRESO del artículo (88–98, el que
  * aparece en la cabecera de cada página), no el índice del PDF. Cuando
