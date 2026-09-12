@@ -61,6 +61,19 @@ export const ANTIBIOTIC_MENTION_TRIGGER = /(antibi[oó]tico|ciprofloxacino|azitr
 export const HOSPITALIZATION_TRIGGER = /ingreso|hospitali/i;
 
 /**
+ * "2 exacerbaciones", "tres agudizaciones previas"... — un NÚMERO o
+ * cuantificador ≥2 delante de exacerbación(es)/agudización(es) en PLURAL
+ * es la señal de que la frase resume un histórico agregado de varios
+ * episodios pasados, no describe un episodio nuevo y concreto ocurriendo
+ * ahora (que se narraría como "una exacerbación"/"la exacerbación
+ * actual", nunca como un recuento). "una exacerbación" (singular) nunca
+ * coincide aquí a propósito: sigue pudiendo ser un episodio real. Ver
+ * engines/extraction/extractors/exacerbation.ts — nunca genera un
+ * ExacerbationEvent fechado a partir de una frase que coincide con esto.
+ */
+export const AGGREGATE_EXACERBATION_HISTORY_TRIGGER = /\b(\d+|dos|tres|cuatro|cinco|seis|siete|ocho|varias|m[uú]ltiples)\s+(exacerbaciones|agudizaciones)\b/i;
+
+/**
  * Indica que el texto contiene narrativa clínica de consulta/evolución
  * (motivo de la visita, relato de síntomas, curso clínico) — no basta con
  * que el texto mencione un dato objetivo (cultivo, TC, FEV1...) para que

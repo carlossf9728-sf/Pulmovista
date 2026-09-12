@@ -117,6 +117,19 @@ describe("selectores derivados", () => {
     expect(selectHospitalizationCount(patient.events, "2023-12-31")).toBe(1);
   });
 
+  it("selectHospitalizationCount deduplica por episodeId: un HospitalizationEvent que comparte episodio con la ExacerbationEvent.hospitalization=true no cuenta una segunda vez", () => {
+    const exac = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-03-01", { severity: "Grave", hospitalization: true });
+    const procedure = mkEvent("p1", CLINICAL_EVENT_TYPES.HOSPITALIZATION, "2024-03-02", { procedureLabel: "Broncoscopia" }, { episodeId: exac.id });
+    expect(selectHospitalizationCount([exac, procedure], null)).toBe(1);
+  });
+
+  it("selectHospitalizationCount SÍ cuenta dos episodios distintos, aunque ambos incluyan un HospitalizationEvent vinculado", () => {
+    const exac1 = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2023-03-01", { severity: "Grave", hospitalization: true });
+    const proc1 = mkEvent("p1", CLINICAL_EVENT_TYPES.HOSPITALIZATION, "2023-03-02", {}, { episodeId: exac1.id });
+    const exac2 = mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, "2024-03-01", { severity: "Grave", hospitalization: true });
+    expect(selectHospitalizationCount([exac1, proc1, exac2], null)).toBe(2);
+  });
+
   it("selectTreatments empareja inicio y fin por nombre de fármaco", () => {
     const treatments = selectTreatments(patient.events);
     expect(treatments).toHaveLength(1);

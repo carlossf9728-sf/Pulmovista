@@ -1,9 +1,11 @@
 /**
  * Episodio clínico de ingreso: una ExacerbationEvent con
  * `hospitalization=true` actúa como el episodio contenedor (nunca el
- * tipo `HospitalizationEvent` independiente — se deja fuera del rol de
- * contenedor mientras no exista una estrategia de reconciliación con el
- * conteo potencialmente duplicado ya documentado en domain/selectors.ts).
+ * tipo `HospitalizationEvent` independiente). Un HospitalizationEvent que
+ * comparte `episodeId` con este contenedor (p. ej. un procedimiento
+ * realizado durante el ingreso) es un dato MÁS del mismo episodio, no un
+ * segundo ingreso — selectHospitalizationCount (domain/selectors.ts)
+ * cuenta episodios distintos por `episodeId`, no eventos sueltos.
  *
  * Los subeventos del episodio (soporte respiratorio, pruebas,
  * tratamientos, diagnósticos) siguen siendo ClinicalEvent independientes

@@ -22,12 +22,9 @@
  *     relativas al INGRESO, no al segmento anterior.
  */
 import { addToDate } from "@/utils/date";
-import {
-  ANTIBIOTIC_MENTION_TRIGGER,
-  EXACERBATION_EXPLICIT_TRIGGER,
-  EXACERBATION_SOFT_SIGNS_TRIGGER,
-  HOSPITALIZATION_TRIGGER,
-} from "./keywords";
+import { ANTIBIOTIC_MENTION_TRIGGER, EXACERBATION_SOFT_SIGNS_TRIGGER } from "./keywords";
+import { mentionsHospitalization } from "./negation";
+import { hasGenuineExplicitExacerbation } from "./extractors/exacerbation";
 import type { TextSegment } from "./segmentPatterns";
 import type { DateOffset } from "@/utils/date";
 import type { DatePrecision, DateSource } from "@/types/clinicalEvent";
@@ -96,18 +93,21 @@ function parseDischargeDuration(segmentText: string): DateOffset | null {
 
 /**
  * ¿Este segmento abre un episodio de ingreso? Mismo criterio que ya usa
- * classify.ts para ampliar un encabezado "ingreso" con la categoría
- * "exacerbacion" (ver classifySegment) — reutilizado tal cual, no una
- * regla nueva: encabezado "Ingreso:" explícito, o (sin encabezado)
- * mención de hospitalización acompañada de una exacerbación explícita o
- * de signos + antibiótico.
+ * classify.ts para ampliar un encabezado "ingreso" o "consulta" con la
+ * categoría "exacerbacion" (ver classifySegment) — reutilizado tal cual,
+ * no una regla nueva: encabezado "Ingreso:" explícito; encabezado
+ * "Consulta:" o sin encabezado, con mención de hospitalización (negación
+ * consciente, ver negation.ts) acompañada de una exacerbación explícita
+ * y no agregada (ver hasGenuineExplicitExacerbation) o de signos +
+ * antibiótico. Un antecedente agregado ("2 exacerbaciones... en el
+ * último año, sin ingresos previos") nunca abre episodio.
  */
 function opensHospitalizationEpisode(segment: TextSegment): boolean {
   if (segment.headerCategory === "ingreso") return true;
-  if (segment.headerCategory != null) return false;
+  if (segment.headerCategory != null && segment.headerCategory !== "consulta") return false;
   const text = segment.text;
-  if (!HOSPITALIZATION_TRIGGER.test(text)) return false;
-  if (EXACERBATION_EXPLICIT_TRIGGER.test(text)) return true;
+  if (!mentionsHospitalization(text)) return false;
+  if (hasGenuineExplicitExacerbation(text)) return true;
   return EXACERBATION_SOFT_SIGNS_TRIGGER.test(text) && ANTIBIOTIC_MENTION_TRIGGER.test(text);
 }
 

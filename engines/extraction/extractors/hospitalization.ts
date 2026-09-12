@@ -1,5 +1,6 @@
 import { captureFragment } from "../fragment";
-import { HOSPITALIZATION_TRIGGER, PROCEDURE_TRIGGER } from "../keywords";
+import { captureHospitalizationFragment } from "../negation";
+import { PROCEDURE_TRIGGER } from "../keywords";
 
 export interface HospitalizationExtraction {
   procedureLabel: string | null;
@@ -15,12 +16,15 @@ export function extractProcedure(segmentText: string): HospitalizationExtraction
 
 /**
  * Ingreso sin procedimiento identificado — solo se llama cuando el
- * segmento NO produjo ya una ExacerbationEvent (ver pipeline.ts): un
- * ingreso mencionado junto a una exacerbación explícita se cuenta una
- * sola vez, como exacerbación grave con `hospitalization: true`.
+ * segmento NO produjo ya una ExacerbationEvent y no continúa un episodio
+ * de ingreso ya abierto (ver pipeline.ts): un ingreso mencionado junto a
+ * una exacerbación explícita, o repetido en una frase posterior del
+ * MISMO episodio ("al alta... tras N días de ingreso"), se cuenta una
+ * sola vez. Negación-consciente (ver negation.ts): "sin ingresos
+ * previos" nunca produce un HospitalizationEvent.
  */
 export function extractHospitalizationFallback(segmentText: string): HospitalizationExtraction | null {
-  const hosp = captureFragment(segmentText, HOSPITALIZATION_TRIGGER);
+  const hosp = captureHospitalizationFragment(segmentText);
   if (!hosp) return null;
   return { procedureLabel: null, fragment: hosp.fragment };
 }

@@ -1,11 +1,9 @@
 /**
  * Selectores derivados sobre ClinicalEvent[]. Réplica funcional exacta de
- * los selectores del prototipo original — incluida la forma en que
- * `selectHospitalizationCount` puede, en teoría, contar dos veces la misma
- * hospitalización si conviven un EXACERBATION.hospitalization=true y un
- * HOSPITALIZATION independiente para el mismo episodio (no se corrige
- * aquí: ver nota "LEGACY" — es una incoherencia de modelado del dominio
- * documentada para revisión en la siguiente fase, no un bug técnico).
+ * los selectores del prototipo original — con una excepción deliberada:
+ * `selectHospitalizationCount` cuenta EPISODIOS (por `episodeId`), no
+ * eventos sueltos — ver su propio comentario para la reconciliación
+ * documentada como pendiente en una versión anterior de este archivo.
  */
 import { sortByDate, yearOf } from "@/utils/date";
 import { cap } from "@/utils/text";
@@ -112,12 +110,23 @@ export function selectExacerbations(events: ClinicalEvent[]): ExacerbationEvent[
   return sortByDate(events.filter(isExacerbation));
 }
 
+/**
+ * Cuenta EPISODIOS de hospitalización distintos, no eventos sueltos: un
+ * HospitalizationEvent (p. ej. un procedimiento realizado durante el
+ * ingreso) que comparte `episodeId` con la ExacerbationEvent.hospitalization
+ * =true que abrió ese mismo episodio (ver domain/episode.ts y
+ * engines/extraction/pipeline.ts) es la MISMA hospitalización, nunca una
+ * segunda — se deduplica por `episodeId` cuando existe; un evento sin
+ * episodeId (dato suelto, sin vincular a ningún episodio) cuenta por su
+ * propio id.
+ */
 export function selectHospitalizationCount(events: ClinicalEvent[], upToDate: string | null): number {
   const d = upToDate ? new Date(upToDate) : null;
-  return events.filter((e) => {
+  const hospitalizationEvents = events.filter((e) => {
     if (d && new Date(e.date) > d) return false;
     return (e.type === CLINICAL_EVENT_TYPES.EXACERBATION && e.hospitalization) || e.type === CLINICAL_EVENT_TYPES.HOSPITALIZATION;
-  }).length;
+  });
+  return new Set(hospitalizationEvents.map((e) => e.episodeId ?? e.id)).size;
 }
 
 export function selectImaging(events: ClinicalEvent[]): ImagingEvent[] {

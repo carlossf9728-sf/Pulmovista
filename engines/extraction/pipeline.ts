@@ -17,6 +17,21 @@
  * (ver TEMPORAL_TRANSITIONS `resetsEpisode` en segmentPatterns.ts)
  * indica que el texto ha pasado a un encuentro distinto.
  *
+ * Un episodio clínico real = un único ExacerbationEvent principal:
+ * mientras `currentEpisodeId` siga abierto (`continuesOpenEpisode`, ver
+ * más abajo), ningún segmento posterior puede generar OTRO
+ * ExacerbationEvent ni un HospitalizationEvent de respaldo, por mucho
+ * que su texto vuelva a mencionar la agudización o el ingreso ("durante
+ * el ingreso...", "al alta... tras N días de ingreso") — solo un
+ * procedimiento explícito (broncoscopia, toracocentesis...) sigue
+ * generando su propio HospitalizationEvent dentro del episodio, porque
+ * es un dato distinto, no una repetición del ingreso en sí.
+ *
+ * Antecedentes agregados ("2 exacerbaciones... en el último año", "sin
+ * ingresos previos") nunca abren ni cierran episodio ni generan un
+ * ExacerbationEvent fechado — ver AGGREGATE_EXACERBATION_HISTORY_TRIGGER
+ * en keywords.ts y la negación en negation.ts.
+ *
  * Contenido sin clasificar: un segmento sin encabezado cuyo texto no
  * activa ningún disparador conocido (`classifySegment` devuelve [])
  * NUNCA se convierte en una Consulta de relleno — se conserva tal cual
@@ -99,6 +114,11 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
   segments.forEach((segment, segmentIndex) => {
     // Una transición temporal que cierra episodio siempre lo cierra, aunque este segmento en concreto no abra uno nuevo.
     if (segment.startsNewEpisode) currentEpisodeId = null;
+    // Ya hay un episodio de ingreso abierto (ver arriba) Y este segmento no lo cierra: cualquier
+    // frase posterior que vuelva a mencionar la agudización ("durante el ingreso...", una recaída
+    // repetida en la nota de alta) sigue perteneciendo al MISMO episodio — un episodio clínico
+    // real es un único ExacerbationEvent, nunca uno nuevo por cada frase que lo menciona de nuevo.
+    const continuesOpenEpisode = currentEpisodeId != null;
 
     const categories = classifySegment(segment);
     if (!categories.length) {
@@ -143,6 +163,7 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
         case "exacerbacion": {
           const r = extractExacerbation(segment.text);
           if (!r) break;
+          if (continuesOpenEpisode) break; // ver continuesOpenEpisode arriba: mismo episodio ya abierto, nunca un segundo ExacerbationEvent
           const specific = r.confidence === "posible" ? combineConfidence({ confidence: "posible", confidenceReason: r.confidenceReason }, dateConfidence) : fallbackConfidence;
           const exac: ExacerbationEvent = mkEvent<ExacerbationEvent>(
             null,
@@ -164,7 +185,10 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
           if (proc) {
             events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, segmentDate, { procedureLabel: proc.procedureLabel }, { ...common, rawText: proc.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
           }
-          if (!exacerbationHandledHospitalization) {
+          // continuesOpenEpisode: una mención de ingreso en una frase posterior del MISMO episodio
+          // ya abierto (p. ej. "al alta... tras 7 días de ingreso") no es un segundo ingreso — nunca
+          // genera un HospitalizationEvent duplicado del contenedor que ya existe.
+          if (!exacerbationHandledHospitalization && !continuesOpenEpisode) {
             const hosp = extractHospitalizationFallback(segment.text);
             if (hosp) {
               events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, segmentDate, {}, { ...common, rawText: hosp.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));

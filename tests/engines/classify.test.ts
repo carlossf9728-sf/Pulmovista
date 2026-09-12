@@ -63,6 +63,42 @@ describe("classifySegment", () => {
     expect(classifySegment(s)).toEqual(["alta"]);
   });
 
+  it("un encabezado 'alta' NUNCA añade 'exacerbacion', aunque su texto repita la palabra 'agudización' (el alta cierra el episodio, nunca abre uno nuevo)", () => {
+    const s = segment("Resuelta la agudización, paciente estable para el domicilio.", { headerCategory: "alta" });
+    expect(classifySegment(s)).toEqual(["alta"]);
+  });
+
+  it("un encabezado 'consulta' sin señal de exacerbación confía en su categoría sin más comprobación, igual que cualquier otro encabezado (nunca pierde una consulta de solo constantes vitales)", () => {
+    const s = segment("SatO2 92%, FR 20 rpm.", { headerCategory: "consulta" });
+    expect(classifySegment(s)).toEqual(["consulta"]);
+  });
+
+  it("un encabezado 'consulta' cuyo contenido narra una admisión real (sin encabezado 'Ingreso:' explícito) también detecta 'exacerbacion' — no se pierde el episodio", () => {
+    const s = segment("Ingresa por agudización de bronquiectasias con fiebre, se inicia antibiótico IV.", { headerCategory: "consulta" });
+    expect(classifySegment(s)).toContain("exacerbacion");
+  });
+
+  it("un encabezado 'consulta' cuya única 'narrativa' es la propia frase de la agudización NO añade 'consulta' además de 'exacerbacion' (evita una Consulta casi vacía duplicada)", () => {
+    const s = segment("Ingresa por agudización de bronquiectasias con fiebre, se inicia antibiótico IV.", { headerCategory: "consulta" });
+    const categories = classifySegment(s);
+    expect(categories).toContain("exacerbacion");
+    expect(categories).not.toContain("consulta");
+  });
+
+  it("un encabezado 'consulta' con exacerbación Y narrativa distinta añade ambas categorías", () => {
+    const s = segment("Nuevo episodio de aumento de disnea. Ingresa por agudización de bronquiectasias con fiebre, se inicia antibiótico IV.", { headerCategory: "consulta" });
+    const categories = classifySegment(s);
+    expect(categories).toContain("exacerbacion");
+    expect(categories).toContain("consulta");
+  });
+
+  it("un encabezado 'consulta' cuya única mención de exacerbación es un antecedente agregado ('2 exacerbaciones... en el último año') sigue clasificando 'exacerbacion' (la supresión del evento ocurre en el extractor, no aquí) y conserva 'consulta' por la narrativa 'Refiere'", () => {
+    const s = segment("Refiere 2 exacerbaciones tratadas con antibiótico en el último año, sin ingresos previos.", { headerCategory: "consulta" });
+    const categories = classifySegment(s);
+    expect(categories).toContain("exacerbacion");
+    expect(categories).toContain("consulta");
+  });
+
   it("integración con segmentClinicalText: un bloque con encabezados reales se clasifica segmento a segmento sin cruces", () => {
     const segments = segmentClinicalText("Microbiología:\nCultivo con Pseudomonas aeruginosa.\n\nTratamiento:\nSe inicia tobramicina inhalada.");
     expect(segments.map((s) => classifySegment(s))).toEqual([["microbiologia"], ["tratamiento"]]);

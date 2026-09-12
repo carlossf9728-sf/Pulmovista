@@ -16,12 +16,12 @@
  */
 import { parseLabBlock } from "./labParameters";
 import { hasConsultationNarrative } from "./consultationNarrative";
+import { mentionsHospitalization } from "./negation";
 import {
   EXACERBATION_EXPLICIT_TRIGGER,
   EXACERBATION_SOFT_SIGNS_TRIGGER,
   ANTIBIOTIC_MENTION_TRIGGER,
   EXERCISE_TEST_TRIGGER,
-  HOSPITALIZATION_TRIGGER,
   IMAGING_TRIGGER,
   LAB_TRIGGER,
   NON_PHARMACOLOGICAL_TREATMENTS,
@@ -67,7 +67,7 @@ function fallbackCategories(text: string): SegmentCategory[] {
   if (IMAGING_TRIGGER.test(text)) categories.push("radiologia");
   if (EXERCISE_TEST_TRIGGER.test(text)) categories.push("prueba_esfuerzo");
   if (PROCEDURE_TRIGGER.test(text)) categories.push("procedimiento");
-  if (HOSPITALIZATION_TRIGGER.test(text)) categories.push("ingreso");
+  if (mentionsHospitalization(text)) categories.push("ingreso");
   if (TREATMENT_KEYWORDS.some((t) => new RegExp(t, "i").test(text)) || NON_PHARMACOLOGICAL_TREATMENTS.some((t) => t.pattern.test(text))) {
     categories.push("tratamiento");
   }
@@ -80,27 +80,51 @@ function fallbackCategories(text: string): SegmentCategory[] {
 /**
  * Un segmento con encabezado confía en él como categoría principal —
  * nunca se re-escanea con TODOS los disparadores léxicos (eso volvería
- * a mezclar categorías, justo lo que la segmentación evita). Solo dos
+ * a mezclar categorías, justo lo que la segmentación evita). Tres
  * excepciones deliberadas y acotadas, porque el propio encargo las
  * describe como parte del mismo episodio de ingreso:
  *   - "Ingreso:" también puede traer la narrativa de la exacerbación que
  *     lo motiva (para poder abrir el episodio como ExacerbationEvent,
  *     el único contenedor que reconoce domain/episode.ts);
- *   - "Alta:" también suele traer la medicación domiciliaria pautada.
+ *   - "Consulta:" puede traer esa misma narrativa cuando el texto real no
+ *     usa un encabezado "Ingreso:" explícito (la segmentación fusiona la
+ *     admisión con la consulta que la precede) — sin este chequeo, el
+ *     episodio de ingreso real desaparece por completo dentro de una
+ *     Consulta, en vez de duplicarse (ver hasDistinctConsultationNarrative
+ *     para evitar el problema inverso: una Consulta casi vacía además de
+ *     la exacerbación, cuando la única narrativa era la propia agudización);
+ *   - "Alta:" también suele traer la medicación domiciliaria pautada —
+ *     deliberadamente NUNCA se comprueba exacerbación aquí: "al alta"
+ *     nunca abre un segundo episodio, solo cierra el que ya existe.
  * Ninguna otra combinación de encabezado + disparador se comprueba.
  */
 export function classifySegment(segment: TextSegment): SegmentCategory[] {
-  if (segment.headerCategory) {
-    const categories: SegmentCategory[] = [segment.headerCategory];
-    if (segment.headerCategory === "ingreso") {
-      const explicitExac = EXACERBATION_EXPLICIT_TRIGGER.test(segment.text);
-      const softExac = EXACERBATION_SOFT_SIGNS_TRIGGER.test(segment.text) && ANTIBIOTIC_MENTION_TRIGGER.test(segment.text);
-      if (explicitExac || softExac) categories.push("exacerbacion");
-    }
-    if (segment.headerCategory === "alta" && TREATMENT_KEYWORDS.some((t) => new RegExp(t, "i").test(segment.text))) {
-      categories.push("tratamiento");
-    }
+  if (segment.headerCategory === "ingreso") {
+    const categories: SegmentCategory[] = ["ingreso"];
+    const explicitExac = EXACERBATION_EXPLICIT_TRIGGER.test(segment.text);
+    const softExac = EXACERBATION_SOFT_SIGNS_TRIGGER.test(segment.text) && ANTIBIOTIC_MENTION_TRIGGER.test(segment.text);
+    if (explicitExac || softExac) categories.push("exacerbacion");
     return categories;
   }
+  if (segment.headerCategory === "consulta") {
+    const explicitExac = EXACERBATION_EXPLICIT_TRIGGER.test(segment.text);
+    const softExac = EXACERBATION_SOFT_SIGNS_TRIGGER.test(segment.text) && ANTIBIOTIC_MENTION_TRIGGER.test(segment.text);
+    const exacerbationDetected = explicitExac || softExac;
+    const categories: SegmentCategory[] = [];
+    // Sin señal de exacerbación, un encabezado "Consulta:" confía en su propia categoría sin más
+    // comprobación, igual que cualquier otro encabezado (nunca pierde, p. ej., una consulta de
+    // solo constantes vitales sin verbo narrativo propio). Solo cuando SÍ hay señal de
+    // exacerbación se aplica el mismo criterio de "narrativa distinta" que ya usa
+    // fallbackCategories, para no generar una Consulta casi vacía además de la exacerbación.
+    if (!exacerbationDetected || hasDistinctConsultationNarrative(segment.text, true)) categories.push("consulta");
+    if (exacerbationDetected) categories.push("exacerbacion");
+    return categories;
+  }
+  if (segment.headerCategory === "alta") {
+    const categories: SegmentCategory[] = ["alta"];
+    if (TREATMENT_KEYWORDS.some((t) => new RegExp(t, "i").test(segment.text))) categories.push("tratamiento");
+    return categories;
+  }
+  if (segment.headerCategory) return [segment.headerCategory];
   return fallbackCategories(segment.text);
 }
