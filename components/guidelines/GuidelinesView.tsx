@@ -3,14 +3,16 @@
 import { CircleAlert } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { usePatients } from "@/app/providers";
-import { classifyDiagnosis } from "@/domain/diagnosis";
+import { activeProblemCategories } from "@/domain/diagnosis";
 import { GUIDELINES } from "@/engines/guidelines";
 import { Card, Eyebrow } from "@/components/ui";
 
 export function GuidelinesView() {
   const { patients } = usePatients();
   const covered = new Set(GUIDELINES.map((g) => g.definition.disease));
-  const uncovered = [...new Set(patients.map((p) => classifyDiagnosis(p.primaryDiagnosis)))].filter((d) => !covered.has(d));
+  // activeProblemCategories (no solo primaryDiagnosis): un paciente con bronquiectasias solo como
+  // diagnóstico secundario no debe aparecer aquí como "sin recomendación cargada".
+  const uncovered = [...new Set(patients.flatMap((p) => activeProblemCategories(p)))].filter((d) => !covered.has(d));
 
   return (
     <div className="pv-fade-in">

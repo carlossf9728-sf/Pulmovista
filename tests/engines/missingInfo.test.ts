@@ -59,6 +59,38 @@ describe("computeMissingInfo (LEGACY)", () => {
   });
 
   /**
+   * Normalización diagnóstica centralizada (ver domain/diagnosis.ts#activeProblemCategories):
+   * computeMissingInfo ya no clasifica solo por primaryDiagnosis — un problema activo (aquí,
+   * Bronquiectasias) que solo conste como diagnóstico SECUNDARIO debe seguir activando tanto el
+   * checklist como el módulo de cribado etiológico, nunca caer en "General" teniendo un problema
+   * reconocido.
+   */
+  it("usa las reglas de Bronquiectasias (no 'General') cuando el diagnóstico principal no clasifica pero el secundario sí es bronquiectasias", () => {
+    const patient: Patient = { ...basePatient("Otra enfermedad respiratoria no clasificada"), secondaryDiagnoses: "Bronquiectasias por tracción" };
+    const result = computeMissingInfo(patient);
+    expect(result.category).toBe("Bronquiectasias");
+    expect(result.items).toContain("No consta microbiología reciente.");
+  });
+
+  it("un diagnóstico principal reconocido (EPOC) con bronquiectasias como SECUNDARIO conserva el checklist de EPOC, pero activa igualmente el módulo de cribado etiológico de bronquiectasias", () => {
+    const patient: Patient = { ...basePatient("EPOC (GOLD III)"), secondaryDiagnoses: "Bronquiectasias por tracción" };
+    const result = computeMissingInfo(patient);
+    // El checklist principal no cambia: EPOC como principal decide "category" igual que antes.
+    expect(result.category).toBe("EPOC");
+    expect(result.items).toContain("No consta espirometría reciente.");
+    // Pero el módulo de bronquiectasias (cribado etiológico) sigue activo — es un problema real del paciente.
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].title).toBe("Estudio etiológico de bronquiectasias incompleto");
+  });
+
+  it("sin bronquiectasias en ningún diagnóstico (ni principal ni secundario), nunca aparece el módulo de cribado etiológico", () => {
+    const patient: Patient = { ...basePatient("EPOC (GOLD III)"), secondaryDiagnoses: "Fibrosis pulmonar idiopática" };
+    const result = computeMissingInfo(patient);
+    expect(result.category).toBe("EPOC");
+    expect(result.groups).toEqual([]);
+  });
+
+  /**
    * Las 3 componentes de cribado etiológico están respaldadas por SEPAR
    * 2018, Tabla 1 (separ-def-tabla1-causas): "Déficit de producción de
    * anticuerpos — Inmunoglobulinas", "ABPA" y "Déficit de AAT" — las

@@ -10,7 +10,8 @@ import { computeSentinelFindings } from "@/engines/sentinel";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { computeMissingInfo, computeReviewOpportunities } from "@/engines/missingInfo";
 import { detectContradictions } from "@/engines/longitudinal";
-import { findGuidelinesForDiagnosis } from "@/engines/guidelines";
+import { GUIDELINES } from "@/engines/guidelines";
+import { activeProblemCategories } from "@/domain/diagnosis";
 import { ArgosMark, Card, Eyebrow, GuidelineRecommendationText, KindTag, Modal, Val, WhyButton } from "@/components/ui";
 import type { ArgosSupportLevel } from "@/utils/argosSupport";
 import type { Patient } from "@/types/patient";
@@ -205,7 +206,11 @@ export function AlertsTab({ patient, onWhy }: { patient: Patient; onWhy: (explan
   const missing = computeMissingInfo(patient);
   const opportunities = computeReviewOpportunities(patient);
   const contradictions = detectContradictions(patient);
-  const relatedGuidelines = findGuidelinesForDiagnosis(patient.primaryDiagnosis);
+  // Igual que el resto de motores (ver domain/diagnosis.ts#activeProblemCategories): un problema
+  // clínico puede constar como diagnóstico secundario, no solo como principal — nunca se lee
+  // patient.primaryDiagnosis a pelo para decidir qué categoría diagnóstica aplica.
+  const activeCategories: string[] = activeProblemCategories(patient);
+  const relatedGuidelines = GUIDELINES.filter((g) => activeCategories.includes(g.definition.disease));
   const [recommendationsFor, setRecommendationsFor] = useState<SentinelFinding | null>(null);
 
   return (

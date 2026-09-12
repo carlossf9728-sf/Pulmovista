@@ -5,6 +5,13 @@ describe("classifyDiagnosis", () => {
   it("clasifica bronquiectasias", () => {
     expect(classifyDiagnosis("Bronquiectasias no fibrosis quística")).toBe("Bronquiectasias");
   });
+
+  it("clasifica como Bronquiectasias todas las variantes razonables de nombre, sin distinguir mayúsculas/minúsculas ni singular/plural", () => {
+    const variants = ["Bronquiectasias", "bronquiectasias", "BRONQUIECTASIAS", "Bronquiectasias no fibrosis quística", "Bronquiectasis", "bronquiectasis por tracción", "Bronquiectásicas cilíndricas"];
+    for (const variant of variants) {
+      expect(classifyDiagnosis(variant)).toBe("Bronquiectasias");
+    }
+  });
   it("clasifica EPOC", () => {
     expect(classifyDiagnosis("EPOC (GOLD III)")).toBe("EPOC");
   });
@@ -39,5 +46,11 @@ describe("activeProblemCategories", () => {
   it("devuelve ['General'] cuando ningún diagnóstico clasifica en una categoría reconocida", () => {
     const patient = { primaryDiagnosis: "Asma bronquial", secondaryDiagnoses: "" };
     expect(activeProblemCategories(patient)).toEqual(["General"]);
+  });
+
+  it("un paciente sin bronquiectasias (ni principal ni secundaria) nunca incluye 'Bronquiectasias'", () => {
+    const patient = { primaryDiagnosis: "EPOC (GOLD III)", secondaryDiagnoses: "Fibrosis pulmonar idiopática" };
+    expect(activeProblemCategories(patient)).not.toContain("Bronquiectasias");
+    expect(activeProblemCategories(patient).sort()).toEqual(["EPOC", "Fibrosis pulmonar"].sort());
   });
 });

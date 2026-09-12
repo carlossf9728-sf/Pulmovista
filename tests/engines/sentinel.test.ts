@@ -137,6 +137,27 @@ describe("buildGuidelineInterpretations — vínculo señal objetiva -> Guidelin
     expect(interpretations.some((gi) => gi.recommendationId === "ers-rec-pico3-without-pa" && gi.statusLabel === "Cumple")).toBe(true);
   });
 
+  it("exacerbation-rate-increase: sigue respaldado por guía aunque bronquiectasias conste solo como diagnóstico SECUNDARIO", () => {
+    const signal: ObjectiveSentinelSignal = {
+      signalId: "exacerbation-rate-increase",
+      label: "Aumento de la tasa de exacerbaciones",
+      datum: "Exacerbaciones: 1 → 2.",
+      evidence: [],
+    };
+    const patient = basePatient(
+      [
+        mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, daysAgo(30), { severity: "Leve", hospitalization: false }),
+        mkEvent<ExacerbationEvent>("p1", CLINICAL_EVENT_TYPES.EXACERBATION, daysAgo(200), { severity: "Leve", hospitalization: false }),
+      ],
+      { primaryDiagnosis: "EPOC (GOLD III)", secondaryDiagnoses: "Bronquiectasias por tracción" },
+    );
+    const interpretations = buildGuidelineInterpretations(patient, signal);
+    expect(interpretations.length).toBeGreaterThan(0);
+    for (const gi of interpretations) {
+      expect(["ers-bronchiectasis-2025", "separ-bronchiectasis-2018"]).toContain(gi.guidelineId);
+    }
+  });
+
   it("persistent-organism: Pseudomonas aeruginosa tiene soporte de guía; otro organismo no", () => {
     const paSignal: ObjectiveSentinelSignal = {
       signalId: "persistent-organism",

@@ -16,7 +16,7 @@
  * puedan sustituirse por contenido derivado de guías sin cambiar
  * `MissingInfoResult`/`ReviewOpportunity`, que ya consume AlertsTab.
  */
-import { classifyDiagnosis } from "@/domain/diagnosis";
+import { activeProblemCategories, classifyDiagnosis } from "@/domain/diagnosis";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { findDefinitionById, KNOWLEDGE_BASE_DOCUMENTS } from "@/engines/guidelines/knowledge";
 import { allEtiologicoParameterNames, BRONCHIECTASIS_ETIOLOGICAL_SCREENING, MISSING_INFO_LEGACY_RULES } from "./legacyRules";
@@ -65,9 +65,13 @@ function buildEtiologicalScreeningExplanation(): ClinicalExplanation | null {
   };
 }
 
-/** null si la categoría no es Bronquiectasias, o si ya constan los 3 componentes — el bloque solo existe cuando hay algo real que constatar. */
-function computeEtiologicalScreeningGroup(patient: Patient, category: DiagnosisCategory): MissingInfoGroup | null {
-  if (category !== "Bronquiectasias") return null;
+/**
+ * null si Bronquiectasias no está entre los problemas clínicos ACTIVOS del paciente (ver
+ * activeProblemCategories — primario o secundario, nunca solo primaryDiagnosis), o si ya constan
+ * los 3 componentes — el bloque solo existe cuando hay algo real que constatar.
+ */
+function computeEtiologicalScreeningGroup(patient: Patient, activeCategories: DiagnosisCategory[]): MissingInfoGroup | null {
+  if (!activeCategories.includes("Bronquiectasias")) return null;
   const registeredNames = allEtiologicoParameterNames(patient);
   const missingComponents = BRONCHIECTASIS_ETIOLOGICAL_SCREENING.filter((c) => !c.matcher.test(registeredNames)).map((c) => c.label);
   if (!missingComponents.length) return null;
@@ -79,14 +83,26 @@ function computeEtiologicalScreeningGroup(patient: Patient, category: DiagnosisC
 }
 
 export function computeMissingInfo(patient: Patient): MissingInfoResult {
-  const category = classifyDiagnosis(patient.primaryDiagnosis);
+  const activeCategories = activeProblemCategories(patient);
+  // El diagnóstico PRINCIPAL sigue decidiendo el checklist mostrado cuando por sí solo ya es una
+  // categoría reconocida — comportamiento sin cambios. Solo cuando el principal no clasifica en
+  // ninguna categoría (classifyDiagnosis devuelve "General") se consulta el conjunto completo de
+  // problemas activos (activeProblemCategories, que sí incluye los diagnósticos secundarios) para no
+  // caer en "General" cuando el paciente sí tiene un problema reconocido — con preferencia por
+  // Bronquiectasias, la única categoría con cribado etiológico propio en esta fase.
+  const primaryCategory = classifyDiagnosis(patient.primaryDiagnosis);
+  const category: DiagnosisCategory =
+    primaryCategory !== "General" ? primaryCategory : activeCategories.includes("Bronquiectasias") ? "Bronquiectasias" : activeCategories[0];
   const rules = MISSING_INFO_LEGACY_RULES[category] || MISSING_INFO_LEGACY_RULES.General;
   const source: ClinicalSource = {
     kind: "legacy_heuristic",
     ruleId: `missing-info:${category}`,
     label: `Lista de comprobación de datos mínimos — ${category}`,
   };
-  const group = computeEtiologicalScreeningGroup(patient, category);
+  // El bloque de cribado etiológico se activa por PROBLEMA ACTIVO, no por la categoría elegida arriba:
+  // un paciente con otro diagnóstico principal (p. ej. EPOC) y bronquiectasias como secundario debe
+  // seguir viendo este módulo, aunque su checklist principal siga siendo el de EPOC.
+  const group = computeEtiologicalScreeningGroup(patient, activeCategories);
   return {
     category,
     items: rules.filter((r) => r.check(patient)).map((r) => r.text),

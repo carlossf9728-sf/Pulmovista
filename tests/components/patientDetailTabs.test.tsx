@@ -98,6 +98,14 @@ describe("SummaryTab", () => {
     expect(screen.getByText("Reflujo gastroesofágico")).toBeInTheDocument();
   });
 
+  it("muestra correctamente bronquiectasias como problema activo, con el texto diagnóstico original (no una categoría interna) y con cobertura de guía", () => {
+    render(<SummaryTab patient={p1} onWhy={() => {}} />);
+    // p1: primaryDiagnosis "Bronquiectasias no fibrosis quística" — se muestra el texto tal cual, nunca la categoría interna "Bronquiectasias" a secas.
+    expect(screen.getByText("Bronquiectasias no fibrosis quística")).toBeInTheDocument();
+    // Con cobertura de guía real, "Qué revisar hoy" nunca cae en el mensaje de "sin guía cargada".
+    expect(screen.queryByText(/todavía no tiene una guía clínica cargada/)).not.toBeInTheDocument();
+  });
+
   it("'Qué ha cambiado' muestra el cambio numérico directo (sin badges genéricos de dirección) y ninguna etiqueta clínica sin un Turning Point real (FVC de p2, que no tiene restrictive-decline)", () => {
     render(<SummaryTab patient={p2} onWhy={() => {}} />);
     const changesCard = screen.getByText("Qué ha cambiado desde la última consulta").parentElement!;
@@ -698,6 +706,15 @@ describe("AlertsTab", () => {
     render(<AlertsTab patient={p1} onWhy={vi.fn()} />);
     expect(screen.getAllByText("No se ha identificado en los datos disponibles una revisión posterior de estrategia preventiva.").length).toBeGreaterThan(0);
     expect(screen.queryByText(/No consta posteriormente/)).not.toBeInTheDocument();
+  });
+
+  it("Oportunidades de revisión clínica sigue citando la guía de bronquiectasias aunque conste solo como diagnóstico SECUNDARIO (no solo primaryDiagnosis)", () => {
+    // p2 (EPOC como principal) tiene sus propios momentos clave/oportunidades de revisión ya
+    // presentes en los datos demo — aquí solo se añade bronquiectasias como secundario para
+    // comprobar que la cita de guía relacionada deja de depender únicamente del diagnóstico principal.
+    const patientWithSecondaryBx: Patient = { ...p2, secondaryDiagnoses: "Bronquiectasias por tracción" };
+    render(<AlertsTab patient={patientWithSecondaryBx} onWhy={vi.fn()} />);
+    expect(screen.getAllByText(/ERS Bronchiectasis Guidelines/).length).toBeGreaterThan(0);
   });
 });
 

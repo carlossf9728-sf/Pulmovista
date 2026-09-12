@@ -293,6 +293,17 @@ describe("Integración: matchPatientToGuidelines", () => {
     expect(matchPatientToGuidelines(patient, AS_OF)).toHaveLength(11);
   });
 
+  it("carga ERS 2025 y SEPAR 2018 (las 11 recomendaciones soportadas) para cualquier variante razonable del nombre del diagnóstico", () => {
+    const variants = ["Bronquiectasias", "bronquiectasias", "Bronquiectasias no fibrosis quística", "Bronquiectasis"];
+    for (const primaryDiagnosis of variants) {
+      const patient = makePatient(`variant-${primaryDiagnosis}`, [], { primaryDiagnosis });
+      const matches = matchPatientToGuidelines(patient, AS_OF);
+      expect(matches).toHaveLength(11);
+      expect(matches.some((m) => m.guidelineCitation.guidelineId === "ers-bronchiectasis-2025")).toBe(true);
+      expect(matches.some((m) => m.guidelineCitation.guidelineId === "separ-bronchiectasis-2018")).toBe(true);
+    }
+  });
+
   it("ERS y SEPAR se evalúan por separado: cada GuidelineMatch cita una única guía, nunca fusionada", () => {
     const patient = makePatient("separation", [
       exac("separation", "2025-08-01"),
