@@ -74,6 +74,23 @@ export const HOSPITALIZATION_TRIGGER = /ingreso|hospitali/i;
 export const AGGREGATE_EXACERBATION_HISTORY_TRIGGER = /\b(\d+|dos|tres|cuatro|cinco|seis|siete|ocho|varias|m[uú]ltiples)\s+(exacerbaciones|agudizaciones)\b/i;
 
 /**
+ * Cantidades en palabra (uno → ocho) — vocabulario ÚNICO compartido por
+ * los módulos que necesitan reconocer un número escrito en letra, para
+ * no mantener listas parciales y desincronizadas: antes, segmentPatterns.ts
+ * solo reconocía "un/dos/tres meses después" como transición temporal
+ * (una nota real con "seis meses después" ni siquiera se segmentaba como
+ * un encuentro nuevo, fusionando en silencio dos episodios reales
+ * distintos en un mismo segmento), mientras que extractAggregateExacerbationHistory
+ * ya reconocía hasta "ocho" para el recuento agregado. Fuente única de
+ * verdad para segmentPatterns.ts#TEMPORAL_TRANSITIONS, resolveDates.ts y
+ * extractors/exacerbation.ts.
+ */
+export const SPANISH_NUMBER_WORDS: Record<string, number> = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+
+/** Alternancia regex de las claves de SPANISH_NUMBER_WORDS, lista para insertar en un patrón mayor (ver TEMPORAL_TRANSITIONS/resolveDates.ts) — nunca se construye por separado en cada módulo. */
+export const SPANISH_NUMBER_WORD_PATTERN = Object.keys(SPANISH_NUMBER_WORDS).join("|");
+
+/**
  * Indica que el texto contiene narrativa clínica de consulta/evolución
  * (motivo de la visita, relato de síntomas, curso clínico) — no basta con
  * que el texto mencione un dato objetivo (cultivo, TC, FEV1...) para que

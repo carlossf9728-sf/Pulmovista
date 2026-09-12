@@ -216,6 +216,109 @@ Ingreso hospitalario por agudización grave de bronquiectasias, se inicia antibi
   });
 });
 
+describe("Regresión: encabezado 'Ingreso:' en la misma línea que la narrativa", () => {
+  it("'Ingreso: agudización grave...' (encabezado y texto en una sola línea) sigue marcando hospitalization=true, aunque el cuerpo del segmento ya no contenga la palabra 'ingreso'", () => {
+    // segment.ts separa la palabra del encabezado del resto de la línea — el cuerpo que llega a
+    // extractExacerbation es solo "agudización grave de bronquiectasias con fiebre, se inicia
+    // antibiótico IV.", sin "ingres"/"hospitali". Sin la señal del propio encabezado (ver
+    // extractExacerbation#headerDeclaresHospitalization), esta hospitalización se perdía en silencio.
+    const text = "Ingreso: agudización grave de bronquiectasias con fiebre, se inicia antibiótico IV.";
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const exacs = byType(events, "exacerbation");
+    expect(exacs).toHaveLength(1);
+    expect(exacs[0].hospitalization).toBe(true);
+    expect(exacs[0].severity).toBe("Grave");
+    expect(exacs[0].episodeId).toBe(exacs[0].id);
+    expect(selectHospitalizationCount(events, null)).toBe(1);
+  });
+
+  it("dos ingresos reales, cada uno con su propio encabezado 'Ingreso:', sin una transición temporal explícita entre medias — 2 episodios distintos, nunca fusionados en uno", () => {
+    // Sin cierre de episodio al ver un nuevo encabezado "Ingreso:", el segundo ingreso real se
+    // fusionaría silenciosamente con el primero (continuesOpenEpisode nunca se desactivaría, al no
+    // haber ninguna transición temporal tipo "meses después" entre los dos bloques).
+    const text = `Ingreso: agudización grave de bronquiectasias con fiebre, se inicia antibiótico IV.
+
+Alta: paciente estable, se retira oxígeno suplementario.
+
+Ingreso: nueva agudización grave de bronquiectasias con fiebre, se inicia antibiótico IV.
+
+Alta: paciente estable.`;
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const exacs = byType(events, "exacerbation");
+    expect(exacs).toHaveLength(2);
+    expect(exacs.every((e) => e.hospitalization)).toBe(true);
+    // Cada uno es su propio contenedor de episodio, nunca comparten episodeId.
+    expect(exacs[0].episodeId).toBe(exacs[0].id);
+    expect(exacs[1].episodeId).toBe(exacs[1].id);
+    expect(exacs[0].episodeId).not.toBe(exacs[1].episodeId);
+    expect(selectHospitalizationCount(events, null)).toBe(2);
+  });
+});
+
+describe("Regresión: transición temporal con cantidad en palabra más allá de 'tres'", () => {
+  it("'Seis meses después' (palabra, no dígito) separa el segmento y cierra el episodio anterior — antes se fusionaba con el segmento previo, contaminando su detección de hospitalización", () => {
+    // TEMPORAL_TRANSITIONS solo reconocía "un/dos/tres meses después" en palabra; "seis meses
+    // después" no coincidía con ningún patrón, así que segmentClinicalText no cortaba ahí: el
+    // texto de la exacerbación ambulatoria y el del segundo ingreso real quedaban en el MISMO
+    // segmento, y mentionsHospitalization (que mira todo el segmento) encontraba el "Ingreso"
+    // real del segundo bloque y lo atribuía también a la exacerbación ambulatoria anterior.
+    const text = `Ingreso hospitalario por agudización grave de bronquiectasias con fiebre, se inicia antibiótico IV.
+
+Tres meses después: presenta agudización leve tratada de forma ambulatoria con ciprofloxacino oral, manejo ambulatorio, no precisó ingreso.
+
+Seis meses después: Ingreso hospitalario por nueva agudización grave de bronquiectasias con fiebre, se inicia antibiótico IV meropenem.`;
+    const { events } = buildClinicalCandidates(text, "2026-09-11");
+    const exacs = byType(events, "exacerbation");
+    expect(exacs).toHaveLength(3);
+
+    const ambulatory = exacs[1];
+    expect(ambulatory.hospitalization).toBe(false);
+    expect(ambulatory.episodeId).toBeNull();
+
+    const [firstAdmission, , secondAdmission] = exacs;
+    expect(firstAdmission.hospitalization).toBe(true);
+    expect(secondAdmission.hospitalization).toBe(true);
+    expect(firstAdmission.episodeId).not.toBe(secondAdmission.episodeId);
+    expect(selectHospitalizationCount(events, null)).toBe(2);
+  });
+
+  it("caso largo combinado (antecedente agregado + ingreso real + exacerbación ambulatoria + segundo ingreso real introducido por encabezado 'Ingreso:') — recuento final correcto de principio a fin", () => {
+    const text = `Antecedentes: Refiere 2 exacerbaciones tratadas con antibiótico en el último año, sin ingresos previos.
+
+Consulta de seguimiento: nuevo episodio de aumento de disnea y expectoración purulenta.
+
+Ingresa por agudización de bronquiectasias con fiebre y aumento de expectoración purulenta, se inicia antibiótico IV ceftazidima.
+
+Durante el ingreso: se realiza TC tórax, sin hallazgos nuevos relevantes.
+
+Al alta: paciente estable, se retira oxígeno suplementario, tras 7 días de ingreso.
+
+Tres meses después: presenta agudización leve tratada de forma ambulatoria con ciprofloxacino oral, manejo ambulatorio, no precisó ingreso.
+
+Seis meses después: Ingreso: nueva agudización grave de bronquiectasias con fiebre, se inicia antibiótico IV meropenem.
+
+Alta: paciente estable.`;
+    const { events, unclassifiedSegments } = buildClinicalCandidates(text, "2026-09-11");
+    expect(unclassifiedSegments).toEqual([]);
+
+    // 1 Consulta con el antecedente agregado, nunca convertido en un ExacerbationEvent propio.
+    const consultWithHistory = byType(events, "consultation").find((c) => c.priorExacerbationCount != null);
+    expect(consultWithHistory?.priorExacerbationCount).toBe(2);
+    expect(consultWithHistory?.priorHospitalizationCount).toBe(0);
+
+    // Exactamente 3 ExacerbationEvent: el ingreso inicial, la agudización ambulatoria intermedia (sin
+    // ingreso) y el segundo ingreso real — nunca fusionados, nunca duplicados por las frases repetidas
+    // ("durante el ingreso", "al alta") de cada episodio.
+    const exacs = byType(events, "exacerbation");
+    expect(exacs).toHaveLength(3);
+    expect(exacs.map((e) => e.hospitalization)).toEqual([true, false, true]);
+    expect(byType(events, "hospitalization")).toHaveLength(0);
+
+    // 2 hospitalizaciones reales — el antecedente agregado ("sin ingresos previos") nunca las aumenta.
+    expect(selectHospitalizationCount(events, null)).toBe(2);
+  });
+});
+
 describe("10) Resumen, Cronología y Argos usan el mismo recuento", () => {
   it("selectExacerbations (Cronología), exacerbationsByYear (Argos/Sentinel) y selectHospitalizationCount (Resumen) coinciden para el mismo paciente", () => {
     const text = `Antecedentes: Refiere 2 exacerbaciones tratadas con antibiótico en el último año, sin ingresos previos.

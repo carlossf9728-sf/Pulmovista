@@ -13,9 +13,15 @@
  * `episodeId` compartido. Todo evento de los segmentos siguientes
  * (microbiología, analítica, radiología, tratamientos, soporte
  * respiratorio...) se enlaza a ese mismo `episodeId` SIN copiar
- * contenido — hasta que una transición temporal que cierra episodio
- * (ver TEMPORAL_TRANSITIONS `resetsEpisode` en segmentPatterns.ts)
- * indica que el texto ha pasado a un encuentro distinto.
+ * contenido — hasta que el episodio se cierra, lo que ocurre de dos
+ * formas: una transición temporal que cierra episodio (ver
+ * TEMPORAL_TRANSITIONS `resetsEpisode` en segmentPatterns.ts) indica que
+ * el texto ha pasado a un encuentro distinto, o un nuevo encabezado
+ * "Ingreso:"/"Hospitalización:" declara una admisión nueva — ese
+ * encabezado nunca es una continuación del episodio ya abierto (las
+ * continuaciones van sin encabezado propio, o bajo "Alta:" — "durante el
+ * ingreso", "al alta"), así que cierra cualquier episodio que hubiera
+ * quedado abierto sin una transición temporal explícita de por medio.
  *
  * Un episodio clínico real = un único ExacerbationEvent principal:
  * mientras `currentEpisodeId` siga abierto (`continuesOpenEpisode`, ver
@@ -112,8 +118,14 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
   let currentEpisodeId: string | null = null;
 
   segments.forEach((segment, segmentIndex) => {
-    // Una transición temporal que cierra episodio siempre lo cierra, aunque este segmento en concreto no abra uno nuevo.
-    if (segment.startsNewEpisode) currentEpisodeId = null;
+    // Una transición temporal que cierra episodio siempre lo cierra, aunque este segmento en concreto
+    // no abra uno nuevo. Un nuevo encabezado "Ingreso:"/"Hospitalización:" también lo cierra siempre:
+    // ese encabezado declara una admisión — nunca una continuación de la ya abierta (las continuaciones
+    // del mismo ingreso van sin encabezado propio o bajo "Alta:" — "durante el ingreso", "al alta" — ver
+    // classify.ts). Sin este cierre, dos ingresos reales estructurados solo con encabezados repetidos
+    // ("Ingreso: ... Alta: ... Ingreso: ...", sin una transición temporal tipo "meses después" entre
+    // medias) se fusionarían en un único episodio, perdiendo el segundo en silencio.
+    if (segment.startsNewEpisode || segment.headerCategory === "ingreso") currentEpisodeId = null;
     // Ya hay un episodio de ingreso abierto (ver arriba) Y este segmento no lo cierra: cualquier
     // frase posterior que vuelva a mencionar la agudización ("durante el ingreso...", una recaída
     // repetida en la nota de alta) sigue perteneciendo al MISMO episodio — un episodio clínico
@@ -168,7 +180,12 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
     for (const category of sortByPriority(categories)) {
       switch (category) {
         case "exacerbacion": {
-          const r = extractExacerbation(segment.text);
+          // headerCategory "ingreso" es la señal más fuerte posible (ver classify.ts) — se pasa aquí
+          // porque segment.ts ya ha separado la propia palabra "Ingreso"/"Hospitalización" del resto
+          // del texto cuando el encabezado viene en la misma línea ("Ingreso: agudización grave...");
+          // sin esto, extractExacerbation no encontraría "ingres"/"hospitali" en el cuerpo y una
+          // hospitalización real, declarada por el propio encabezado, se perdería en silencio.
+          const r = extractExacerbation(segment.text, segment.headerCategory === "ingreso");
           if (!r) {
             // El único motivo por el que "exacerbacion" no produce un evento es un antecedente
             // agregado (ver hasGenuineExplicitExacerbation) — se conserva aquí SOLO si este segmento
@@ -213,7 +230,7 @@ export function runExtractionPipeline(text: string, date: string): ExtractionPip
           // ya abierto (p. ej. "al alta... tras 7 días de ingreso") no es un segundo ingreso — nunca
           // genera un HospitalizationEvent duplicado del contenedor que ya existe.
           if (!exacerbationHandledHospitalization && !continuesOpenEpisode) {
-            const hosp = extractHospitalizationFallback(segment.text);
+            const hosp = extractHospitalizationFallback(segment.text, segment.headerCategory === "ingreso");
             if (hosp) {
               events.push(mkEvent<HospitalizationEvent>(null, CLINICAL_EVENT_TYPES.HOSPITALIZATION, segmentDate, {}, { ...common, rawText: hosp.fragment, episodeId: currentEpisodeId, ...fallbackConfidence }));
             }

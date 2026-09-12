@@ -5,6 +5,7 @@
  * encabezados explícitos ("Analítica:") y transiciones temporales
  * ("Tres meses después:"). Ver engines/extraction/segment.ts.
  */
+import { SPANISH_NUMBER_WORD_PATTERN } from "./keywords";
 
 export type SegmentCategory =
   | "consulta"
@@ -57,13 +58,19 @@ export const SEGMENT_HEADER_WORDS: { category: SegmentCategory; words: string }[
  * marcadores DENTRO del mismo episodio de hospitalización, no abren uno
  * nuevo. Es una decisión de SEGMENTACIÓN (dónde cortar el texto y cómo
  * enlazar `episodeId`), no un criterio clínico.
+ *
+ * Cantidad + unidad + "después" — dígitos ("3 meses después") o palabra
+ * ("tres meses después"), la MISMA alternancia de palabras (uno → ocho,
+ * ver keywords.ts#SPANISH_NUMBER_WORDS) que ya usa el recuento agregado
+ * de exacerbaciones, para no dejar huecos como "seis meses después" sin
+ * reconocer: un hueco así no separaba el segmento en dos, fusionando en
+ * silencio dos episodios reales distintos en uno solo.
  */
+const QUANTIFIED_AFTER = new RegExp(`(?:\\d+|${SPANISH_NUMBER_WORD_PATTERN})\\s*(?:mes(?:es)?|semanas?|d[ií]as?|a[ñn]os?)\\s*despu[eé]s`, "i");
+
 export const TEMPORAL_TRANSITIONS: { pattern: RegExp; resetsEpisode: boolean }[] = [
-  { pattern: /tres meses despu[eé]s/i, resetsEpisode: true },
-  { pattern: /dos meses despu[eé]s/i, resetsEpisode: true },
-  { pattern: /un mes despu[eé]s/i, resetsEpisode: true },
-  { pattern: /\d+\s*(meses|semanas|d[ií]as|a[ñn]os)\s*despu[eé]s/i, resetsEpisode: true },
-  { pattern: /(?:control|revisi[oó]n)\s+a\s+las?\s+\d+\s*(?:semanas|meses|d[ií]as|a[ñn]os)/i, resetsEpisode: true },
+  { pattern: QUANTIFIED_AFTER, resetsEpisode: true },
+  { pattern: new RegExp(`(?:control|revisi[oó]n)\\s+a\\s+las?\\s+(?:\\d+|${SPANISH_NUMBER_WORD_PATTERN})\\s*(?:semanas?|mes(?:es)?|d[ií]as?|a[ñn]os?)`, "i"), resetsEpisode: true },
   { pattern: /posteriormente/i, resetsEpisode: true },
   { pattern: /en la siguiente revisi[oó]n/i, resetsEpisode: true },
   {

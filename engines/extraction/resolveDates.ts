@@ -22,7 +22,7 @@
  *     relativas al INGRESO, no al segmento anterior.
  */
 import { addToDate } from "@/utils/date";
-import { ANTIBIOTIC_MENTION_TRIGGER, EXACERBATION_SOFT_SIGNS_TRIGGER } from "./keywords";
+import { ANTIBIOTIC_MENTION_TRIGGER, EXACERBATION_SOFT_SIGNS_TRIGGER, SPANISH_NUMBER_WORD_PATTERN, SPANISH_NUMBER_WORDS } from "./keywords";
 import { mentionsHospitalization } from "./negation";
 import { hasGenuineExplicitExacerbation } from "./extractors/exacerbation";
 import type { TextSegment } from "./segmentPatterns";
@@ -36,8 +36,6 @@ export interface ResolvedSegmentDate {
   /** La expresión temporal original ("tres meses después"...) — null si el segmento no venía de una transición temporal. */
   temporalExpression: string | null;
 }
-
-const SPANISH_NUMBER_WORDS: Record<string, number> = { un: 1, una: 1, uno: 1, dos: 2, tres: 3 };
 
 const MONTH_INDEX: Record<string, number> = {
   enero: 0,
@@ -63,9 +61,9 @@ function unitToOffsetKey(unit: string): keyof DateOffset {
   return "years";
 }
 
-/** "tres meses después", "3 semanas después", "Control a las 3 semanas"... — cantidad en palabras (un/dos/tres) o en dígitos, la primera que aparezca en la expresión. null si no hay ninguna cantidad reconocible (p. ej. "posteriormente"). */
+/** "tres meses después", "3 semanas después", "Control a las 3 semanas"... — cantidad en palabras (un → ocho, ver keywords.ts#SPANISH_NUMBER_WORDS — la misma lista que ya reconoce TEMPORAL_TRANSITIONS al segmentar, nunca una lista más corta aquí) o en dígitos, la primera que aparezca en la expresión. null si no hay ninguna cantidad reconocible (p. ej. "posteriormente"). */
 function parseQuantifiedOffset(label: string): DateOffset | null {
-  const wordMatch = label.match(/\b(un|una|dos|tres)\s+(d[ií]as?|semanas?|mes(?:es)?|a[ñn]os?)/i);
+  const wordMatch = label.match(new RegExp(`\\b(${SPANISH_NUMBER_WORD_PATTERN})\\s+(d[ií]as?|semanas?|mes(?:es)?|a[ñn]os?)`, "i"));
   if (wordMatch) {
     return { [unitToOffsetKey(wordMatch[2])]: SPANISH_NUMBER_WORDS[wordMatch[1].toLowerCase()] };
   }

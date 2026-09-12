@@ -1,6 +1,12 @@
 import { captureFragment, indexOfSentenceEnd } from "../fragment";
 import { containsHospitalizationWord, mentionsHospitalization, sentenceContaining } from "../negation";
-import { AGGREGATE_EXACERBATION_HISTORY_TRIGGER, ANTIBIOTIC_MENTION_TRIGGER, EXACERBATION_EXPLICIT_TRIGGER, EXACERBATION_SOFT_SIGNS_TRIGGER } from "../keywords";
+import {
+  AGGREGATE_EXACERBATION_HISTORY_TRIGGER,
+  ANTIBIOTIC_MENTION_TRIGGER,
+  EXACERBATION_EXPLICIT_TRIGGER,
+  EXACERBATION_SOFT_SIGNS_TRIGGER,
+  SPANISH_NUMBER_WORDS,
+} from "../keywords";
 
 export interface ExacerbationExtraction {
   severity: string;
@@ -52,9 +58,22 @@ export function hasGenuineExplicitExacerbation(text: string): boolean {
  * convierte en un ExacerbationEvent — el texto se conserva igualmente en
  * el fragmento de la Consulta si el segmento también trae narrativa (ver
  * classify.ts).
+ *
+ * `headerDeclaresHospitalization` — true cuando el propio segmento vino
+ * de un encabezado "Ingreso:"/"Hospitalización:" (ver
+ * segmentPatterns.ts#SEGMENT_HEADER_WORDS). Necesario porque la
+ * segmentación (segment.ts) separa la palabra del encabezado del resto
+ * del texto en la misma línea ("Ingreso: agudización grave..." deja el
+ * segmento como solo "agudización grave...", sin "ingres" ni
+ * "hospitali"): sin esta señal, `mentionsHospitalization` no encontraría
+ * nada que buscar y una hospitalización real, declarada por el propio
+ * encabezado, se perdería en silencio. El encabezado es la señal más
+ * fuerte posible (mismo criterio que ya aplica classify.ts), así que
+ * basta con que esté presente para que cuente como hospitalización, sin
+ * necesitar además la palabra suelta en el cuerpo del segmento.
  */
-export function extractExacerbation(segmentText: string): ExacerbationExtraction | null {
-  const hosp = mentionsHospitalization(segmentText);
+export function extractExacerbation(segmentText: string, headerDeclaresHospitalization = false): ExacerbationExtraction | null {
+  const hosp = headerDeclaresHospitalization || mentionsHospitalization(segmentText);
   const genuineIndex = firstGenuineExplicitMatchIndex(segmentText);
 
   if (genuineIndex !== -1) {
@@ -86,15 +105,13 @@ export interface AggregateExacerbationHistory {
   fragment: string;
 }
 
-const SPANISH_COUNT_WORDS: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
-
-/** "2 exacerbaciones", "tres agudizaciones"... — la cifra que acompaña al recuento agregado (ver AGGREGATE_EXACERBATION_HISTORY_TRIGGER). null para "varias"/"múltiples" (no dan cifra) o si el patrón no aparece. */
+/** "2 exacerbaciones", "tres agudizaciones"... — la cifra que acompaña al recuento agregado (ver AGGREGATE_EXACERBATION_HISTORY_TRIGGER). null para "varias"/"múltiples" (no dan cifra) o si el patrón no aparece. Usa el mismo vocabulario de cantidades en palabra que TEMPORAL_TRANSITIONS/resolveDates.ts (ver keywords.ts#SPANISH_NUMBER_WORDS) — "un/una/uno" nunca aparece aquí en la práctica porque el propio patrón exige el sustantivo en plural ("exacerbaciones"/"agudizaciones"). */
 function parseAggregateCount(sentence: string): number | null {
   const m = sentence.match(/\b(\d+|dos|tres|cuatro|cinco|seis|siete|ocho|varias|m[uú]ltiples)\s+(exacerbaciones|agudizaciones)\b/i);
   if (!m) return null;
   const raw = m[1].toLowerCase();
   if (/^\d+$/.test(raw)) return parseInt(raw, 10);
-  return SPANISH_COUNT_WORDS[raw] ?? null;
+  return SPANISH_NUMBER_WORDS[raw] ?? null;
 }
 
 /**
