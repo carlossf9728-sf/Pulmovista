@@ -3,10 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Copy, Plus } from "lucide-react";
 import { COLORS } from "@/utils/theme";
 import { formatDate } from "@/utils/date";
+import { formatAge } from "@/utils/text";
 import { selectConsultations } from "@/domain/selectors";
+import { buildPatientSummaryText } from "@/domain/patientSummary";
 import { computeSentinelFindings, patientStatus } from "@/engines/sentinel";
 import { computeTurningPoints } from "@/engines/turningPoints";
 import { detectContradictions } from "@/engines/longitudinal";
@@ -52,6 +54,18 @@ export function PatientDetailView({ patient }: { patient: Patient }) {
   const [tab, setTab] = useState<TabKey>(isTabKey(initialTab) ? initialTab : "resumen");
   const [why, setWhy] = useState<ClinicalExplanation | ClinicalExplanation[] | null>(null);
   const [showAddClinicalInfo, setShowAddClinicalInfo] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+
+  async function copySummary() {
+    try {
+      await navigator.clipboard.writeText(buildPatientSummaryText(patient));
+      setCopyState("copied");
+    } catch {
+      // Sin permiso de portapapeles (o contexto no seguro): se avisa en vez de fallar en silencio.
+      setCopyState("error");
+    }
+    window.setTimeout(() => setCopyState("idle"), 2500);
+  }
 
   const status = patientStatus(patient);
   const alertCount = computeSentinelFindings(patient).length + computeTurningPoints(patient).length + detectContradictions(patient).length;
@@ -71,13 +85,31 @@ export function PatientDetailView({ patient }: { patient: Patient }) {
             <span>
               <strong style={{ color: COLORS.ink }}>{patient.primaryDiagnosis}</strong>
             </span>
-            <span>{patient.age ?? "Edad no disponible"} años</span>
+            <span>{formatAge(patient.age)}</span>
             <span>{patient.sex}</span>
             <span>Primera valoración: {formatDate(patient.createdAt)}</span>
             <span>Última actualización: {formatDate(lastConsult?.date)}</span>
           </div>
         </div>
-        <StatusPill status={status} />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
+          <StatusPill status={status} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button
+              onClick={copySummary}
+              aria-live="polite"
+              style={{ display: "flex", alignItems: "center", gap: 6, background: "white", color: copyState === "error" ? COLORS.red : COLORS.navy, border: `1px solid ${COLORS.line}`, borderRadius: 9, padding: "8px 14px", fontWeight: 600, fontSize: 12.5 }}
+            >
+              {copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
+              {copyState === "copied" ? "Resumen copiado" : copyState === "error" ? "No se pudo copiar" : "Copiar resumen"}
+            </button>
+            <button
+              onClick={() => setShowAddClinicalInfo(true)}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.teal, color: "white", border: "none", borderRadius: 9, padding: "8px 14px", fontWeight: 700, fontSize: 12.5 }}
+            >
+              <Plus size={14} /> Añadir información clínica
+            </button>
+          </div>
+        </div>
       </div>
       <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${COLORS.line}`, marginBottom: 20, overflowX: "auto" }}>
         {TABS.map((t) => (

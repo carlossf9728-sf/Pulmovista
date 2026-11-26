@@ -149,12 +149,12 @@ describe("SummaryTab", () => {
     expect(within(changesCard).getByText("Empeoramiento")).toBeInTheDocument();
   });
 
-  it("'Qué información falta' muestra como mucho 3 ítems y remite a Alertas para el resto", () => {
+  it("'Qué información falta' muestra como mucho 3 ítems y remite a Argos para el resto", () => {
     // Paciente Bronquiectasias sin eventos: las 5 reglas legacy fallan todas,
     // más el bloque agrupado de cribado etiológico (por separado, no cuenta en "items").
     render(<SummaryTab patient={basePatient()} onWhy={() => {}} />);
     expect(screen.getAllByText(/No consta/).length).toBe(3);
-    expect(screen.getByText(/\+2 más en/)).toBeInTheDocument();
+    expect(screen.getByText("+2 más en “Argos”.")).toBeInTheDocument();
     expect(screen.getByText("Estudio etiológico de bronquiectasias incompleto")).toBeInTheDocument();
   });
 

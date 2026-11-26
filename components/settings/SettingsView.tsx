@@ -1,11 +1,87 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { BookOpen, CircleAlert, ChevronRight } from "lucide-react";
+import { BookOpen, CircleAlert, ChevronRight, RotateCcw, Trash2 } from "lucide-react";
+import { usePatients } from "@/app/providers";
 import { COLORS } from "@/utils/theme";
 import { Card, Eyebrow } from "@/components/ui";
 
 const FUTURE_INTEGRATIONS = ["Motor de extracción (LLM/NLP)", "Base de datos (PostgreSQL / Supabase)", "Autenticación", "RAG sobre guías clínicas"];
+
+type PendingAction = "restore" | "clear" | null;
+
+const ACTION_COPY: Record<Exclude<PendingAction, null>, { confirm: string; done: string }> = {
+  restore: {
+    confirm: "Se descartarán los pacientes y la información añadidos en esta sesión y se volverán a cargar los 3 pacientes de demostración.",
+    done: "Pacientes de demostración restaurados.",
+  },
+  clear: {
+    confirm: "Se eliminarán todos los pacientes de esta sesión, incluidos los de demostración. Podrá restaurarlos después.",
+    done: "Lista de pacientes vaciada.",
+  },
+};
+
+/**
+ * Datos de la sesión — restaurar los pacientes demo o vaciar la lista,
+ * con confirmación en línea (sin diálogos del navegador). Todo vive en
+ * memoria: nada de esto toca ningún almacenamiento persistente.
+ */
+function SessionDataCard() {
+  const { patients, restoreDemoPatients, clearPatients } = usePatients();
+  const [pending, setPending] = useState<PendingAction>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  function confirm() {
+    if (pending === "restore") restoreDemoPatients();
+    if (pending === "clear") clearPatients();
+    if (pending) setDone(ACTION_COPY[pending].done);
+    setPending(null);
+  }
+
+  const btn = { display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9, fontWeight: 600, fontSize: 12.5 } as const;
+
+  return (
+    <Card style={{ maxWidth: 620, marginTop: 14 }}>
+      <div style={{ fontWeight: 700, fontSize: 14 }}>Datos de la sesión</div>
+      <div style={{ fontSize: 13, color: COLORS.slate, marginTop: 4, lineHeight: 1.5 }}>
+        {patients.length === 1 ? "1 paciente" : `${patients.length} pacientes`} en memoria. Los datos se pierden al recargar la página.
+      </div>
+      {!pending && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          <button onClick={() => { setPending("restore"); setDone(null); }} style={{ ...btn, background: "white", color: COLORS.navy, border: `1px solid ${COLORS.line}` }}>
+            <RotateCcw size={14} /> Restaurar pacientes de demostración
+          </button>
+          <button
+            onClick={() => { setPending("clear"); setDone(null); }}
+            disabled={!patients.length}
+            style={{ ...btn, background: "white", color: patients.length ? COLORS.red : COLORS.slateLight, border: `1px solid ${COLORS.line}` }}
+          >
+            <Trash2 size={14} /> Vaciar lista de pacientes
+          </button>
+        </div>
+      )}
+      {pending && (
+        <div role="alert" style={{ marginTop: 12, padding: 12, borderRadius: 9, background: COLORS.paper, border: `1px solid ${COLORS.line}` }}>
+          <div style={{ fontSize: 13, lineHeight: 1.5 }}>{ACTION_COPY[pending].confirm}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
+            <button onClick={() => setPending(null)} style={{ ...btn, background: "white", border: `1px solid ${COLORS.line}` }}>
+              Cancelar
+            </button>
+            <button onClick={confirm} style={{ ...btn, background: pending === "clear" ? COLORS.red : COLORS.teal, color: "white", border: "none", fontWeight: 700 }}>
+              {pending === "clear" ? "Sí, vaciar" : "Sí, restaurar"}
+            </button>
+          </div>
+        </div>
+      )}
+      {done && (
+        <div role="status" style={{ fontSize: 12.5, color: COLORS.tealDeep, marginTop: 10, fontWeight: 600 }}>
+          {done}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export function SettingsView() {
   return (
@@ -24,6 +100,7 @@ export function SettingsView() {
           </div>
         </div>
       </Card>
+      <SessionDataCard />
       <Link href="/guias" style={{ display: "block", maxWidth: 620, marginTop: 14, textDecoration: "none", color: "inherit" }}>
         <Card style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

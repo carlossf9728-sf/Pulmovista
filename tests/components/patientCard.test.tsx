@@ -19,4 +19,9 @@ describe("PatientCard", () => {
     // p1 tiene un hallazgo de confianza Alta (persistent-organism) => deterioro.
     expect(screen.getByText("Deterioro reciente")).toBeInTheDocument();
   });
+
+  it("sin edad registrada muestra 'Edad no disponible' en lugar de ' años' suelto", () => {
+    render(<PatientCard patient={{ ...p1, age: null }} />);
+    expect(screen.getByText(`${p1.sex} · Edad no disponible`)).toBeInTheDocument();
+  });
 });

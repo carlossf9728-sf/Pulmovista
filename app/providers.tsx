@@ -32,6 +32,10 @@ interface PatientsContextValue {
    * se revisó) antes de llegar a esta función.
    */
   addClinicalEvents(patientId: string, events: ClinicalEvent[]): void;
+  /** Vuelve a cargar los pacientes de demostración, descartando todo lo añadido en esta sesión. */
+  restoreDemoPatients(): void;
+  /** Vacía la lista de pacientes (p. ej. para empezar una demo desde cero con "Nuevo paciente"). */
+  clearPatients(): void;
 }
 
 const PatientsContext = createContext<PatientsContextValue | null>(null);
@@ -64,8 +68,16 @@ export function PatientsProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  function restoreDemoPatients() {
+    setPatients(buildDemoPatients());
+  }
+
+  function clearPatients() {
+    setPatients([]);
+  }
+
   const value = useMemo<PatientsContextValue>(
-    () => ({ patients, createPatient, addClinicalEvents }),
+    () => ({ patients, createPatient, addClinicalEvents, restoreDemoPatients, clearPatients }),
     [patients],
   );
 
