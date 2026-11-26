@@ -25,6 +25,13 @@ describe("displayForEvent", () => {
     expect(display.detail).toBe("DLCO 70%");
   });
 
+  it("sin DLCO ni FEV1 no muestra un '%' colgando del texto de 'No disponible'", () => {
+    const ev = mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-01-01", { FVCPercent: 85 });
+    const display = displayForEvent(ev);
+    expect(display.title).toBe("FEV1 — · FVC 85%");
+    expect(display.detail).toBe("DLCO no disponible");
+  });
+
   it("añade el z-score junto al % del predicho cuando la prueba lo trae, sin sustituirlo", () => {
     const ev = mkEvent<PulmonaryFunctionEvent>("p1", CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION, "2024-01-01", {
       FEV1Percent: 68,

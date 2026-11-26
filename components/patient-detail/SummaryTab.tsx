@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import { COLORS } from "@/utils/theme";
 import { cap } from "@/utils/text";
 import { formatDate, todayISO } from "@/utils/date";
-import { selectHospitalizationCount, selectMicrobiology, selectPFT, selectTreatments, exacerbationsByYear } from "@/domain/selectors";
 import { changeTrend } from "@/domain/changeTrend";
+import { activeProblems, currentStatusFields } from "@/domain/patientSummary";
 import { activeProblemCategories } from "@/domain/diagnosis";
 import { computeChangesSinceLastVisit } from "@/engines/longitudinal";
 import { computeTurningPoints, shortTurningPointLabel } from "@/engines/turningPoints";
@@ -197,13 +197,7 @@ function EmptyNote({ text }: { text: string }) {
 }
 
 export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (explanation: ClinicalExplanation | ClinicalExplanation[]) => void }) {
-  const pft = selectPFT(patient.events).slice(-1)[0];
-  const years = exacerbationsByYear(patient);
-  const lastYear = years.length ? years[years.length - 1] : null;
-  const hospTotal = selectHospitalizationCount(patient.events, null) || selectHospitalizationCount(patient.events, todayISO());
-  const lastMicro = selectMicrobiology(patient.events).slice(-1)[0];
-  const activeTreatments = selectTreatments(patient.events).filter((t) => t.status === "Activo");
-  const activeProblems = [patient.primaryDiagnosis, ...patient.secondaryDiagnoses.split(/[,;]/).map((s) => s.trim())].filter(Boolean);
+  const activeProblemList = activeProblems(patient);
 
   const changes = computeChangesSinceLastVisit(patient);
   const turningPoints = computeTurningPoints(patient);
@@ -215,22 +209,15 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
 
   const topChanges = changes ? rankedChanges(changes.changes, { fromDate: changes.fromDate, toDate: changes.toDate, turningPoints }).slice(0, MAX_VISIBLE_CHANGES) : [];
 
-  const fields: [string, string | null][] = [
-    ["FEV1 más reciente", pft ? `${pft.FEV1Percent ?? "—"}%${pft.FEV1Liters ? ` (${pft.FEV1Liters} L)` : ""}` : null],
-    ["FVC", pft && pft.FVCPercent != null ? `${pft.FVCPercent}%${pft.FVCLiters ? ` (${pft.FVCLiters} L)` : ""}` : null],
-    ["DLCO", pft && pft.DLCOPercent != null ? `${pft.DLCOPercent}%` : null],
-    [lastYear ? `Exacerbaciones en ${lastYear.year}` : "Exacerbaciones (año en curso)", lastYear ? `${lastYear.count}` : null],
-    ["Hospitalizaciones (acumuladas)", hospTotal != null ? `${hospTotal}` : null],
-    ["Microbiología relevante", lastMicro ? `${lastMicro.organism} (${formatDate(lastMicro.date)})` : null],
-    ["Tratamiento y soporte actual", activeTreatments.length ? activeTreatments.map((t) => t.name).join(", ") : null],
-  ];
+  const fields = currentStatusFields(patient);
+
 
   return (
     <div className="pv-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SectionCard title="Estado actual">
-        {!!activeProblems.length && (
+        {!!activeProblemList.length && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {activeProblems.map((p, i) => (
+            {activeProblemList.map((p, i) => (
               <span
                 key={i}
                 style={{ fontSize: 12, fontWeight: 700, color: COLORS.navy, background: COLORS.paper, border: `1px solid ${COLORS.line}`, borderRadius: 20, padding: "3px 10px" }}
@@ -331,7 +318,7 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
         )}
         {missing.items.length > topMissing.length && (
           <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 10 }}>
-            +{missing.items.length - topMissing.length} más en “Alertas”.
+            +{missing.items.length - topMissing.length} más en “Argos”.
           </div>
         )}
         {missing.groups.map((g) => (
@@ -361,7 +348,7 @@ export function SummaryTab({ patient, onWhy }: { patient: Patient; onWhy: (expla
           </div>
         )}
         {turningPoints.length > recentTurningPoints.length && (
-          <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 10 }}>Ver la evolución completa en “Alertas”.</div>
+          <div style={{ fontSize: 11.5, color: COLORS.slateLight, marginTop: 10 }}>Ver la evolución completa en “Argos”.</div>
         )}
       </SectionCard>
     </div>

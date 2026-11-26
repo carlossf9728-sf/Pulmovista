@@ -43,7 +43,13 @@ export function PatientsView() {
         {filtered.map((p) => (
           <PatientCard key={p.id} patient={p} />
         ))}
-        {!filtered.length && <div style={{ color: COLORS.slateLight, fontSize: 13.5 }}>Ningún paciente coincide con la búsqueda.</div>}
+        {!filtered.length && (
+          <div style={{ color: COLORS.slateLight, fontSize: 13.5 }}>
+            {patients.length
+              ? "Ningún paciente coincide con la búsqueda."
+              : "Todavía no hay pacientes. Cree uno con “Nuevo paciente” o restaure los de demostración en Configuración."}
+          </div>
+        )}
       </div>
 
       {showNewPatient && (

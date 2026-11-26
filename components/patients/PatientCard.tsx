@@ -6,6 +6,7 @@ import { COLORS, STATUS } from "@/utils/theme";
 import { selectConsultations } from "@/domain/selectors";
 import { patientStatus } from "@/engines/sentinel";
 import { formatDate } from "@/utils/date";
+import { formatAge } from "@/utils/text";
 import { StatusPill } from "@/components/ui";
 import type { Patient } from "@/types/patient";
 
@@ -35,7 +36,7 @@ export function PatientCard({ patient }: { patient: Patient }) {
       </div>
       <div style={{ fontSize: 14, fontWeight: 600, margin: "6px 0 2px" }}>{patient.primaryDiagnosis}</div>
       <div style={{ fontSize: 12, color: COLORS.slate, marginBottom: 12 }}>
-        {patient.sex} · {patient.age} años
+        {patient.sex} · {formatAge(patient.age)}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: 11.5, color: COLORS.slateLight }}>

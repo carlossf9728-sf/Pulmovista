@@ -50,12 +50,12 @@ export function displayForEvent(e: ClinicalEvent): TimelineEntry {
       return { group: "Consulta", title: "Consulta / evolución", detail: e.rawText || "" };
     case CLINICAL_EVENT_TYPES.PULMONARY_FUNCTION: {
       // El z-score (cuando la prueba lo trae) se añade junto al % del predicho, nunca en su lugar — ver domain/pft.ts.
-      const fev1 = `FEV1 ${e.FEV1Percent ?? "—"}%${e.FEV1zScore != null ? ` (z ${formatZScore(e.FEV1zScore)})` : ""}`;
+      const fev1 = `FEV1 ${e.FEV1Percent != null ? `${e.FEV1Percent}%` : "—"}${e.FEV1zScore != null ? ` (z ${formatZScore(e.FEV1zScore)})` : ""}`;
       const fvc = e.FVCPercent != null ? ` · FVC ${e.FVCPercent}%${e.FVCzScore != null ? ` (z ${formatZScore(e.FVCzScore)})` : ""}` : "";
       return {
         group: "Función pulmonar",
         title: `${fev1}${fvc}`,
-        detail: `DLCO ${e.DLCOPercent ?? "No disponible"}%`,
+        detail: e.DLCOPercent != null ? `DLCO ${e.DLCOPercent}%` : "DLCO no disponible",
       };
     }
     case CLINICAL_EVENT_TYPES.MICROBIOLOGY:

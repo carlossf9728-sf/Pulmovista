@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cap } from "@/utils/text";
+import { cap, formatAge } from "@/utils/text";
 
 describe("cap", () => {
   it("capitaliza la primera letra", () => {
@@ -10,5 +10,12 @@ describe("cap", () => {
     expect(cap("")).toBe("");
     expect(cap(null)).toBeNull();
     expect(cap(undefined)).toBeUndefined();
+  });
+});
+
+describe("formatAge", () => {
+  it("muestra la edad con 'años' o 'Edad no disponible' si no consta (nunca 'null años')", () => {
+    expect(formatAge(58)).toBe("58 años");
+    expect(formatAge(null)).toBe("Edad no disponible");
   });
 });
